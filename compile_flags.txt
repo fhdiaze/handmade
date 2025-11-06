@@ -3,6 +3,7 @@
 -Werror
 -Wextra
 -Wsign-compare
+-Wconversion
 -fuse-ld=lld
 -pedantic
 -I./include
