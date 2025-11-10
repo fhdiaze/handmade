@@ -1,4 +1,3 @@
-#include <stdlib.h>
 #include <windows.h>
 
 int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hInstance,
@@ -6,5 +5,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hInstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine,
                      [[__maybe_unused__]] int nCmdShow)
 {
-        return EXIT_SUCCESS;
+	MessageBox(nullptr, "This is handmade hero.", "Handmade hero",
+	           MB_OK | MB_ICONINFORMATION);
+	return EXIT_SUCCESS;
 }

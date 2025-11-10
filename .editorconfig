@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: GPL-2.0-only
+
+root = true
+
+[*.{c,h}]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+indent_style = tab
+indent_size = 8

@@ -8,3 +8,5 @@
 -pedantic
 -I./include
 -D_CRT_SECURE_NO_WARNINGS
+-luser32
+-Wl,/subsystem:windows

@@ -1,7 +1,7 @@
----
-# We'll use defaults from the LLVM style, but with 4 columns indentation.
 BasedOnStyle: LLVM
 IndentWidth: 8
+TabWidth: 8
+UseTab: AlignWithSpaces
 ColumnLimit: 80
 InsertNewlineAtEOF: true
 PointerAlignment: Right
@@ -13,3 +13,4 @@ BinPackArguments: true
 BinPackParameters: true
 AlignAfterOpenBracket: Align
 AllowShortIfStatementsOnASingleLine: AllIfsAndElse
+Cpp11BracedListStyle: false
