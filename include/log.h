@@ -34,7 +34,7 @@
 		timespec_get(&_pr_ts, TIME_UTC);                             \
 		gmtime_s(&_pr_tm, &_pr_ts.tv_sec);                           \
 		strftime(_pr_tstamp_str, LOG_TSTAMP_BUF_SIZE, "%FT%T",       \
-		         &_pr_tm);                                           \
+			 &_pr_tm);                                           \
 		printf("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level,       \
 		       _pr_tstamp_str, _pr_ts.tv_nsec, file_name, func_name, \
 		       STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);       \
