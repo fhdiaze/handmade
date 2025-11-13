@@ -10,14 +10,14 @@ LRESULT CALLBACK main_window_callback([[__maybe_unused__]] HWND hwnd,
 
 	switch (msg) {
 	case WM_SIZE: {
-		OutputDebugString("WM_SIZE\n");
+		OutputDebugStringA("WM_SIZE\n");
 	} break;
 	case WM_DESTROY: {
-		OutputDebugString("WM_DESTROY\n");
+		OutputDebugStringA("WM_DESTROY\n");
 		PostQuitMessage(0);
 	} break;
 	case WM_ACTIVATEAPP: {
-		OutputDebugString("WM_ACTIVATEAPP\n");
+		OutputDebugStringA("WM_ACTIVATEAPP\n");
 	} break;
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
@@ -36,7 +36,7 @@ LRESULT CALLBACK main_window_callback([[__maybe_unused__]] HWND hwnd,
 		EndPaint(hwnd, &paint);
 	} break;
 	default: {
-		OutputDebugString("default\n");
+		OutputDebugStringA("default\n");
 		result = DefWindowProc(hwnd, msg, wparam, lparam);
 	} break;
 	}
