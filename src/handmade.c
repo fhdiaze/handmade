@@ -55,17 +55,17 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hInstance,
 		.hInstance = hInstance,
 		.lpszClassName = "HandmadeHeroWindowClass",
 	};
-	MessageBox(nullptr, "This is handmade hero.", "Handmade hero",
-	           MB_OK | MB_ICONINFORMATION);
+	MessageBoxA(nullptr, "This is handmade hero.", "Handmade hero",
+	            MB_OK | MB_ICONINFORMATION);
 
-	ATOM main_window_atom = RegisterClass(&window_class);
+	ATOM main_window_atom = RegisterClassA(&window_class);
 	if (!main_window_atom) {
 		// TODO(fredy): Logging
 		logi("error");
 		return EXIT_FAILURE;
 	}
 
-	HWND winhandle = CreateWindowEx(
+	HWND winhandle = CreateWindowExA(
 		0, MAKEINTATOM(main_window_atom), "Handmade Hero",
 		WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT, CW_USEDEFAULT,
 		CW_USEDEFAULT, CW_USEDEFAULT, 0, 0, hInstance, 0);
@@ -77,13 +77,13 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hInstance,
 
 	MSG msg;
 	while (true) {
-		BOOL msgres = GetMessage(&msg, nullptr, 0, 0);
+		BOOL msgres = GetMessageA(&msg, nullptr, 0, 0);
 		if (msgres <= 0) {
 			break;
 		}
 
 		TranslateMessage(&msg);
-		DispatchMessage(&msg);
+		DispatchMessageA(&msg);
 	}
 
 	return EXIT_SUCCESS;
