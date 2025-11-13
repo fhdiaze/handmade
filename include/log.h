@@ -5,6 +5,7 @@
 
 #include <stdint.h>
 #include <time.h>
+#include <stdio.h> // IWYU pragma: keep
 
 // Constants
 #define LOG_TSTAMP_BUF_SIZE 32
