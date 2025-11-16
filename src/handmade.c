@@ -1,11 +1,33 @@
 #include "log.h"
+#include <limits.h>
 #include <stdint.h>
 #include <windows.h>
+#include <winuser.h>
 
+static boolean running = false;
 static BITMAPINFO bitmap_info;
 static void *bitmap_memory;
 static long bitmap_width;
 static long bitmap_height;
+static long bytes_per_pixel = 4;
+
+static void render_weird_gradient(long x_offset, long y_offset)
+{
+	uint8_t *row = (uint8_t *)bitmap_memory;
+	long pitch = bitmap_width * bytes_per_pixel;
+	for (long y = 0; y < bitmap_height; ++y) {
+		uint32_t *pixel = (uint32_t *)row;
+		for (long x = 0; x < bitmap_width; ++x) {
+			// Little endian in memory  B G R X -> because of the endianess
+			// little endian on a register: 0xXXRRGGBB
+			uint8_t blue = (uint8_t) (x + x_offset);
+			uint8_t green = (uint8_t) (y + y_offset);
+			*pixel = (uint32_t) (green << CHAR_BIT) | blue;
+			++pixel;
+		}
+		row += pitch;
+	}
+}
 
 /*
  * dib: device independent bitmap
@@ -26,46 +48,23 @@ static void resize_dib_section(long width, long height)
 	bitmap_info.bmiHeader.biBitCount = 32;
 	bitmap_info.bmiHeader.biCompression = BI_RGB;
 
-	long bytes_per_pixel = 4;
 	long bitmap_memory_size =
 		bitmap_width * bitmap_height * bytes_per_pixel;
 
 	bitmap_memory = VirtualAlloc(nullptr, (size_t)bitmap_memory_size,
 	                             MEM_COMMIT, PAGE_READWRITE);
-
-	uint8_t *row = (uint8_t *)bitmap_memory;
-	long pitch = bitmap_width * bytes_per_pixel;
-	for (long y = 0; y < bitmap_height; ++y) {
-		uint8_t *pixel = row;
-		for (long x = 0; x < bitmap_width; ++x) {
-			// B G R -> because of the endianess
-			// little endian: 0xXXRRGGBB
-			*pixel = (uint8_t)x; // Blue
-			++pixel;
-
-			*pixel = (uint8_t)y; // Green
-			++pixel;
-
-			*pixel = 0; // Red
-			++pixel;
-
-			*pixel = 0; // XX
-			++pixel;
-		}
-		row += pitch;
-	}
 }
 
-static void update_window(HDC device_context, RECT *win_rect)
+static void update_window(HDC device_context, RECT *client_rect)
 {
-	long win_width = win_rect->right - win_rect->left;
-	long win_height = win_rect->bottom - win_rect->top;
+	long win_width = client_rect->right - client_rect->left;
+	long win_height = client_rect->bottom - client_rect->top;
 	StretchDIBits(device_context, 0, 0, win_width, win_height, 0, 0,
 	              bitmap_width, bitmap_height, bitmap_memory, &bitmap_info,
 	              DIB_RGB_COLORS, SRCCOPY);
 }
 
-LRESULT CALLBACK main_window_callback([[__maybe_unused__]] HWND window,
+LRESULT CALLBACK main_window_callback([[__maybe_unused__]] HWND winhandle,
                                       [[__maybe_unused__]] UINT msg,
                                       [[__maybe_unused__]] WPARAM wparam,
                                       [[__maybe_unused__]] LPARAM lparam)
@@ -75,7 +74,7 @@ LRESULT CALLBACK main_window_callback([[__maybe_unused__]] HWND window,
 	switch (msg) {
 	case WM_SIZE: {
 		RECT client_rec;
-		GetClientRect(window, &client_rec);
+		GetClientRect(winhandle, &client_rec);
 		long width = client_rec.right - client_rec.left;
 		long height = client_rec.bottom - client_rec.top;
 		resize_dib_section(width, height);
@@ -83,41 +82,41 @@ LRESULT CALLBACK main_window_callback([[__maybe_unused__]] HWND window,
 	} break;
 	case WM_CLOSE: {
 		OutputDebugStringA("WM_CLOSE\n");
-		PostQuitMessage(0);
+		running = false;
 	} break;
 	case WM_DESTROY: {
 		OutputDebugStringA("WM_DESTROY\n");
-		PostQuitMessage(0);
+		running = false;
 	} break;
 	case WM_ACTIVATEAPP: {
 		OutputDebugStringA("WM_ACTIVATEAPP\n");
 	} break;
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
-		HDC device_context = BeginPaint(window, &paint);
+		HDC device_context = BeginPaint(winhandle, &paint);
 		RECT client_rec;
-		GetClientRect(window, &client_rec);
+		GetClientRect(winhandle, &client_rec);
 		update_window(device_context, &client_rec);
-		EndPaint(window, &paint);
+		EndPaint(winhandle, &paint);
 	} break;
 	default: {
 		OutputDebugStringA("default\n");
-		result = DefWindowProc(window, msg, wparam, lparam);
+		result = DefWindowProc(winhandle, msg, wparam, lparam);
 	} break;
 	}
 
 	return result;
 }
 
-int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hInstance,
-                     [[__maybe_unused__]] HINSTANCE hPrevInstance,
+int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
+                     [[__maybe_unused__]] HINSTANCE hprevinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine,
                      [[__maybe_unused__]] int nCmdShow)
 {
 	WNDCLASS window_class = {
 		.style = CS_OWNDC | CS_HREDRAW | CS_VREDRAW,
 		.lpfnWndProc = main_window_callback,
-		.hInstance = hInstance,
+		.hInstance = hinstance,
 		.lpszClassName = "HandmadeHeroWindowClass",
 	};
 
@@ -133,7 +132,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hInstance,
 	                                 WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 	                                 CW_USEDEFAULT, CW_USEDEFAULT,
 	                                 CW_USEDEFAULT, CW_USEDEFAULT, nullptr,
-	                                 nullptr, hInstance, nullptr);
+	                                 nullptr, hinstance, nullptr);
 	if (!winhandle) {
 		// TODO(fredy): Logging
 		logi("error");
@@ -141,14 +140,25 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hInstance,
 	}
 
 	MSG msg;
-	while (true) {
-		BOOL msgres = GetMessageA(&msg, nullptr, 0, 0);
-		if (msgres <= 0) {
-			break;
+	running = true;
+	int x_offset = 0;
+	int y_offset = 0;
+	while (running) {
+		while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
+			if (msg.message == WM_QUIT) {
+				running = false;
+			}
+			TranslateMessage(&msg);
+			DispatchMessageA(&msg);
 		}
+		render_weird_gradient(x_offset, y_offset);
+		HDC dchandle = GetDC(winhandle);
+		RECT client_rec;
+		GetClientRect(winhandle, &client_rec);
+		update_window(dchandle, &client_rec);
+		ReleaseDC(winhandle, dchandle);
 
-		TranslateMessage(&msg);
-		DispatchMessageA(&msg);
+		++x_offset;
 	}
 
 	return EXIT_SUCCESS;
