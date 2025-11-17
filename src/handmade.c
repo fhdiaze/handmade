@@ -14,7 +14,6 @@ struct Win_OffScreenBuffer {
 	long width;
 	long height;
 	long pitch; // size of a row in bytes
-	long bytes_per_pixel;
 };
 
 static boolean global_running = false;
@@ -61,7 +60,8 @@ static void win_resize_dib_section(struct Win_OffScreenBuffer *buffer,
 
 	buffer->width = win_width;
 	buffer->height = win_height;
-	buffer->bytes_per_pixel = 4;
+
+	long bytes_per_pixel = 4;
 
 	buffer->bitmap_info.bmiHeader.biSize =
 		sizeof(buffer->bitmap_info.bmiHeader);
@@ -74,11 +74,11 @@ static void win_resize_dib_section(struct Win_OffScreenBuffer *buffer,
 	buffer->bitmap_info.bmiHeader.biCompression = BI_RGB;
 
 	long bitmap_memory_size =
-		buffer->width * buffer->height * buffer->bytes_per_pixel;
+		buffer->width * buffer->height * bytes_per_pixel;
 
 	buffer->memory = VirtualAlloc(nullptr, (size_t)bitmap_memory_size,
 	                              MEM_COMMIT, PAGE_READWRITE);
-	buffer->pitch = buffer->width * buffer->bytes_per_pixel;
+	buffer->pitch = buffer->width * bytes_per_pixel;
 }
 
 static void win_buffer_display_in_window(struct Win_OffScreenBuffer buffer,
@@ -136,7 +136,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
                      [[__maybe_unused__]] int nCmdShow)
 {
 	WNDCLASS window_class = {
-		.style = CS_HREDRAW | CS_VREDRAW,
+		.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
 		.lpfnWndProc = win_main_window_callback,
 		.hInstance = hinstance,
 		.lpszClassName = "HandmadeHeroWindowClass",
@@ -167,6 +167,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	global_running = true;
 	int x_offset = 0;
 	int y_offset = 0;
+	HDC dchandle = GetDC(winhandle);
 	while (global_running) {
 		while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			if (msg.message == WM_QUIT) {
@@ -176,12 +177,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			DispatchMessageA(&msg);
 		}
 		render_weird_gradient(global_back_buffer, x_offset, y_offset);
-		HDC dchandle = GetDC(winhandle);
 		struct Win_WindowDimensions windim =
 			win_window_get_dimensions(winhandle);
 		win_buffer_display_in_window(global_back_buffer, dchandle,
 		                             windim.width, windim.height);
-		ReleaseDC(winhandle, dchandle);
 
 		++x_offset;
 		y_offset += 2;
