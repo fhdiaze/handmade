@@ -1,7 +1,11 @@
 #include "log.h"
+#include <Xinput.h>
 #include <limits.h>
+#include <minwindef.h>
 #include <stdint.h>
 #include <windows.h>
+#include <winnt.h>
+#include <xinput.h>
 
 struct Win_WindowDimensions {
 	long width;
@@ -18,6 +22,34 @@ struct Win_OffScreenBuffer {
 
 static boolean global_running = false;
 static struct Win_OffScreenBuffer global_back_buffer;
+
+// NOTE(fredy): XInputGetState
+#define X_INPUT_GET_STATE(name)                                   \
+	DWORD WINAPI name([[__maybe_unused__]] DWORD dwUserIndex, \
+	                  [[__maybe_unused__]] XINPUT_STATE *pState)
+typedef X_INPUT_GET_STATE(x_input_get_state);
+X_INPUT_GET_STATE(XInputGetStateStub)
+{
+	return 0;
+}
+static x_input_get_state *XInputGetState_ = XInputGetStateStub;
+#define XInputGetState XInputGetState_
+
+// NOTE(fredy): XInputSetState
+#define X_INPUT_SET_STATE(name)                                   \
+	DWORD WINAPI name([[__maybe_unused__]] DWORD dwUserIndex, \
+	                  [[__maybe_unused__]] XINPUT_VIBRATION *pVibration)
+typedef X_INPUT_SET_STATE(x_input_set_state);
+X_INPUT_SET_STATE(XInputSetStateStub)
+{
+	return 0;
+}
+static x_input_set_state *XInputSetState_ = XInputSetStateStub;
+#define XInputSetState XInputSetState_
+
+static void win_xinput_load(void)
+{
+}
 
 static struct Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 {
@@ -90,10 +122,9 @@ static void win_buffer_display_in_window(struct Win_OffScreenBuffer buffer,
 	              &buffer.bitmap_info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-LRESULT CALLBACK win_main_window_callback([[__maybe_unused__]] HWND winhandle,
-                                          [[__maybe_unused__]] UINT msg,
-                                          [[__maybe_unused__]] WPARAM wparam,
-                                          [[__maybe_unused__]] LPARAM lparam)
+static LRESULT CALLBACK win_main_window_callback(
+	[[__maybe_unused__]] HWND winhandle, [[__maybe_unused__]] UINT msg,
+	[[__maybe_unused__]] WPARAM wparam, [[__maybe_unused__]] LPARAM lparam)
 {
 	LRESULT result = 0;
 
@@ -176,6 +207,44 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			TranslateMessage(&msg);
 			DispatchMessageA(&msg);
 		}
+
+		for (WORD i = 0; i < XUSER_MAX_COUNT; ++i) {
+			XINPUT_STATE state;
+			if (XInputGetState(i, &state) == ERROR_SUCCESS) {
+				// Plugged in
+				XINPUT_GAMEPAD *pad = &state.Gamepad;
+				WORD up = (pad->wButtons &
+				           XINPUT_GAMEPAD_DPAD_UP);
+				WORD down = (pad->wButtons &
+				             XINPUT_GAMEPAD_DPAD_DOWN);
+				WORD left = (pad->wButtons &
+				             XINPUT_GAMEPAD_DPAD_LEFT);
+				WORD right = (pad->wButtons &
+				              XINPUT_GAMEPAD_DPAD_RIGHT);
+				WORD start =
+					(pad->wButtons & XINPUT_GAMEPAD_START);
+				WORD back =
+					(pad->wButtons & XINPUT_GAMEPAD_BACK);
+				WORD left_shoulder =
+					(pad->wButtons &
+				         XINPUT_GAMEPAD_LEFT_SHOULDER);
+				WORD right_shoulder =
+					(pad->wButtons &
+				         XINPUT_GAMEPAD_RIGHT_SHOULDER);
+				WORD a_button =
+					(pad->wButtons & XINPUT_GAMEPAD_A);
+				WORD b_button =
+					(pad->wButtons & XINPUT_GAMEPAD_B);
+				WORD x_button =
+					(pad->wButtons & XINPUT_GAMEPAD_X);
+				WORD y_button =
+					(pad->wButtons & XINPUT_GAMEPAD_Y);
+
+				SHORT stick_x = pad->sThumbLX;
+				SHORT stick_y = pad->sThumbLY;
+			}
+		}
+
 		render_weird_gradient(global_back_buffer, x_offset, y_offset);
 		struct Win_WindowDimensions windim =
 			win_window_get_dimensions(winhandle);
