@@ -1,10 +1,8 @@
 #include "log.h"
-#include <Xinput.h>
+#include <libloaderapi.h>
 #include <limits.h>
-#include <minwindef.h>
 #include <stdint.h>
 #include <windows.h>
-#include <winnt.h>
 #include <xinput.h>
 
 struct Win_WindowDimensions {
@@ -49,6 +47,19 @@ static x_input_set_state *XInputSetState_ = XInputSetStateStub;
 
 static void win_xinput_load(void)
 {
+	HMODULE xinput_lib = LoadLibraryA("xinput1_3.dll");
+	if (xinput_lib) {
+		XInputGetState = (x_input_get_state *)GetProcAddress(
+			xinput_lib, "XInputGetState");
+		if (!XInputGetState) {
+			XInputGetState = XInputGetStateStub;
+		}
+		XInputSetState = (x_input_set_state *)GetProcAddress(
+			xinput_lib, "XInputSetState");
+		if (!XInputSetState) {
+			XInputSetState = XInputSetStateStub;
+		}
+	}
 }
 
 static struct Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
@@ -62,13 +73,13 @@ static struct Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 	return result;
 }
 
-static void render_weird_gradient(struct Win_OffScreenBuffer buffer,
+static void render_weird_gradient(struct Win_OffScreenBuffer *buffer,
                                   long blue_offset, long green_offset)
 {
-	uint8_t *row = (uint8_t *)buffer.memory;
-	for (long y = 0; y < buffer.height; ++y) {
+	uint8_t *row = (uint8_t *)buffer->memory;
+	for (long y = 0; y < buffer->height; ++y) {
 		uint32_t *pixel = (uint32_t *)row;
-		for (long x = 0; x < buffer.width; ++x) {
+		for (long x = 0; x < buffer->width; ++x) {
 			// Little endian in memory  B G R X -> because of the endianess
 			// little endian on a register: 0xXXRRGGBB
 			uint8_t blue = (uint8_t)(x + blue_offset);
@@ -76,7 +87,7 @@ static void render_weird_gradient(struct Win_OffScreenBuffer buffer,
 			*pixel = (uint32_t)(green << CHAR_BIT) | blue;
 			++pixel;
 		}
-		row += buffer.pitch;
+		row += buffer->pitch;
 	}
 }
 
@@ -113,16 +124,16 @@ static void win_resize_dib_section(struct Win_OffScreenBuffer *buffer,
 	buffer->pitch = buffer->width * bytes_per_pixel;
 }
 
-static void win_buffer_display_in_window(struct Win_OffScreenBuffer buffer,
-                                         HDC device_context, long win_width,
+static void win_buffer_display_in_window(struct Win_OffScreenBuffer *buffer,
+                                         HDC dchandle, long win_width,
                                          long win_height)
 {
-	StretchDIBits(device_context, 0, 0, win_width, win_height, 0, 0,
-	              buffer.width, buffer.height, buffer.memory,
-	              &buffer.bitmap_info, DIB_RGB_COLORS, SRCCOPY);
+	StretchDIBits(dchandle, 0, 0, win_width, win_height, 0, 0,
+	              buffer->width, buffer->height, buffer->memory,
+	              &buffer->bitmap_info, DIB_RGB_COLORS, SRCCOPY);
 }
 
-static LRESULT CALLBACK win_main_window_callback(
+static LRESULT CALLBACK win_main_window_proc(
 	[[__maybe_unused__]] HWND winhandle, [[__maybe_unused__]] UINT msg,
 	[[__maybe_unused__]] WPARAM wparam, [[__maybe_unused__]] LPARAM lparam)
 {
@@ -143,12 +154,36 @@ static LRESULT CALLBACK win_main_window_callback(
 	case WM_ACTIVATEAPP: {
 		OutputDebugStringA("WM_ACTIVATEAPP\n");
 	} break;
+	case WM_SYSKEYDOWN:
+	case WM_SYSKEYUP:
+	case WM_KEYDOWN:
+	case WM_KEYUP: {
+		DWORD vk_code = (DWORD)wparam;
+		boolean was_down = ((lparam & (1 << 30)) != 0);
+		boolean is_down = ((lparam & (1 << 31)) == 0);
+
+		if (was_down != is_down) {
+			if (vk_code == 'W') {
+			} else if (vk_code == 'A') {
+			} else if (vk_code == 'S') {
+			} else if (vk_code == 'D') {
+			} else if (vk_code == 'Q') {
+			} else if (vk_code == 'E') {
+			} else if (vk_code == VK_UP) {
+			} else if (vk_code == VK_LEFT) {
+			} else if (vk_code == VK_DOWN) {
+			} else if (vk_code == VK_RIGHT) {
+			} else if (vk_code == VK_ESCAPE) {
+			} else if (vk_code == VK_SPACE) {
+			}
+		}
+	} break;
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
 		HDC dchandle = BeginPaint(winhandle, &paint);
 		struct Win_WindowDimensions windim =
 			win_window_get_dimensions(winhandle);
-		win_buffer_display_in_window(global_back_buffer, dchandle,
+		win_buffer_display_in_window(&global_back_buffer, dchandle,
 		                             windim.width, windim.height);
 		EndPaint(winhandle, &paint);
 	} break;
@@ -166,9 +201,9 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine,
                      [[__maybe_unused__]] int nCmdShow)
 {
-	WNDCLASS window_class = {
+	WNDCLASSA window_class = {
 		.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-		.lpfnWndProc = win_main_window_callback,
+		.lpfnWndProc = win_main_window_proc,
 		.hInstance = hinstance,
 		.lpszClassName = "HandmadeHeroWindowClass",
 	};
@@ -242,17 +277,17 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 				SHORT stick_x = pad->sThumbLX;
 				SHORT stick_y = pad->sThumbLY;
+
+				x_offset = stick_x >> 12;
+				y_offset = stick_y >> 12;
 			}
 		}
 
-		render_weird_gradient(global_back_buffer, x_offset, y_offset);
+		render_weird_gradient(&global_back_buffer, x_offset, y_offset);
 		struct Win_WindowDimensions windim =
 			win_window_get_dimensions(winhandle);
-		win_buffer_display_in_window(global_back_buffer, dchandle,
+		win_buffer_display_in_window(&global_back_buffer, dchandle,
 		                             windim.width, windim.height);
-
-		++x_offset;
-		y_offset += 2;
 	}
 
 	return EXIT_SUCCESS;
