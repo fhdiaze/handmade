@@ -1,16 +1,10 @@
 #include "log.h"
-#include <cstddef>
 #include <dsound.h>
 #include <libloaderapi.h>
 #include <limits.h>
-#include <minwindef.h>
-#include <mmeapi.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <windef.h>
 #include <windows.h>
-#include <winerror.h>
-#include <winnt.h>
 #include <xinput.h>
 
 typedef int64_t bool64;
@@ -110,7 +104,7 @@ static void win_dsound_init(HWND winhandle, size_t samples_per_sec, size_t buffe
 	WAVEFORMATEX waveformat = {
 		.wFormatTag = WAVE_FORMAT_PCM,
 		.nChannels = 2,
-		.nSamplesPerSec = samples_per_sec,
+		.nSamplesPerSec = (DWORD)samples_per_sec,
 		.wBitsPerSample = 16,
 		.cbSize = 0,
 	};
@@ -136,7 +130,7 @@ static void win_dsound_init(HWND winhandle, size_t samples_per_sec, size_t buffe
 	// NOTE(fredy): create the secondary buffer
 	DSBUFFERDESC secbufferdesc = {};
 	primbufferdesc.dwSize = sizeof(secbufferdesc);
-	primbufferdesc.dwBufferBytes = buffersize;
+	primbufferdesc.dwBufferBytes = (DWORD)buffersize;
 	primbufferdesc.lpwfxFormat = &waveformat;
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &secbufferdesc, &secbuffer,
 	                                          nullptr))) {
