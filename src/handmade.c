@@ -95,11 +95,6 @@ static void win_dsound_init(HWND winhandle, size_t samples_per_sec, size_t buffe
 		OutputDebugStringA("Error creating the handler for direct sound");
 	}
 
-	if (FAILED(IDirectSound_SetCooperativeLevel(direct_sound, winhandle, DSSCL_PRIORITY))) {
-		// TODO(fredy): diagnostic
-		OutputDebugStringA("Error setting the cooperative level for direct sound");
-	}
-
 	// NOTE(fredy): create the buffers
 	WAVEFORMATEX waveformat = {
 		.wFormatTag = WAVE_FORMAT_PCM,
@@ -111,10 +106,16 @@ static void win_dsound_init(HWND winhandle, size_t samples_per_sec, size_t buffe
 	waveformat.nBlockAlign = waveformat.nChannels * waveformat.wBitsPerSample / CHAR_BIT;
 	waveformat.nAvgBytesPerSec = waveformat.nSamplesPerSec * waveformat.nBlockAlign;
 
+	if (FAILED(IDirectSound_SetCooperativeLevel(direct_sound, winhandle, DSSCL_PRIORITY))) {
+		// TODO(fredy): diagnostic
+		OutputDebugStringA("Error setting the cooperative level for direct sound");
+	}
+
 	// NOTE(fredy): create the primary buffer
-	DSBUFFERDESC primbufferdesc = {};
-	primbufferdesc.dwSize = sizeof(primbufferdesc);
-	primbufferdesc.dwFlags = DSBCAPS_PRIMARYBUFFER;
+	DSBUFFERDESC primbufferdesc = {
+		.dwSize = sizeof(primbufferdesc),
+		.dwFlags = DSBCAPS_PRIMARYBUFFER,
+	};
 	LPDIRECTSOUNDBUFFER primbuffer;
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &primbufferdesc, &primbuffer,
 	                                          nullptr))) {
@@ -128,10 +129,11 @@ static void win_dsound_init(HWND winhandle, size_t samples_per_sec, size_t buffe
 	}
 
 	// NOTE(fredy): create the secondary buffer
-	DSBUFFERDESC secbufferdesc = {};
-	primbufferdesc.dwSize = sizeof(secbufferdesc);
-	primbufferdesc.dwBufferBytes = (DWORD)buffersize;
-	primbufferdesc.lpwfxFormat = &waveformat;
+	DSBUFFERDESC secbufferdesc = {
+		.dwSize = sizeof(secbufferdesc),
+		.dwBufferBytes = (DWORD)buffersize,
+		.lpwfxFormat = &waveformat,
+	};
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &secbufferdesc, &secbuffer,
 	                                          nullptr))) {
 		// TODO(fredy): diagnostic
@@ -335,7 +337,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		for (WORD i = 0; i < XUSER_MAX_COUNT; ++i) {
 			XINPUT_STATE state;
-			if (XInputGetState(i, &state) != ERROR_SUCCESS) {
+			if (XInputGetState(i, &state) == ERROR_SUCCESS) {
 				continue;
 			}
 
