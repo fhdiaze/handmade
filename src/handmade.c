@@ -1,12 +1,16 @@
-#include "log.h"
+#include <basetsd.h>
 #include <dsound.h>
 #include <libloaderapi.h>
 #include <limits.h>
+#include <math.h>
+#include <playsoundapi.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <windows.h>
+#include <winerror.h>
 #include <xinput.h>
 
+#define Pi32 3.14159265359f
 typedef int64_t bool64;
 
 struct Win_WindowDimensions {
@@ -74,7 +78,7 @@ static void win_xinput_load(void)
 /*
 * TODO(fredy): it looks like direct sound is deprecated
 */
-static void win_dsound_init(HWND winhandle, size_t samples_per_sec, size_t buffersize)
+static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffersize)
 {
 	HMODULE dsound_lib = LoadLibraryA("dsound.dll");
 	if (!dsound_lib) {
@@ -138,6 +142,55 @@ static void win_dsound_init(HWND winhandle, size_t samples_per_sec, size_t buffe
 	                                          nullptr))) {
 		// TODO(fredy): diagnostic
 		OutputDebugStringA("Error creating the secondary buffer");
+	}
+}
+
+struct Win_SoundOutput {
+	size_t samples_per_sec;
+	size_t tone_hz;
+	float_t tone_volume;
+	size_t running_sample_index;
+	size_t wave_period;
+	size_t bytes_per_sample;
+	size_t buffer_size;
+};
+
+static void win_sound_output_fill_buffer(struct Win_SoundOutput *sound_output, size_t byte_to_lock,
+                                         size_t bytes_to_write)
+{
+	DWORD region_sample_count = sound_output.region_one_size / bytes_per_sample;
+	int16_t *sample_out = (int16_t *)region_one;
+	float_t sample_value = 0;
+	for (DWORD i = 0; i < region_sample_count; ++i) {
+		float_t t = 2.0f * Pi32 * (float_t)running_sample_index / (float_t)wave_period;
+		float_t sine_value = sinf(t);
+		sample_value = sine_value * tone_volume;
+		*sample_out = (int16_t)sample_value; // channel one
+		++sample_out;
+		*sample_out = (int16_t)sample_value; // channel two
+		++sample_out;
+
+		++running_sample_index;
+	}
+
+	sample_out = (int16_t *)region_two;
+	region_sample_count = region_two_size / bytes_per_sample;
+	for (DWORD i = 0; i < region_sample_count; ++i) {
+		float_t t = 2.0f * Pi32 * (float_t)running_sample_index / (float_t)wave_period;
+		float_t sine_value = sinf(t);
+		sample_value = sine_value * tone_volume;
+		*sample_out = (int16_t)sample_value; // channel one
+		++sample_out;
+		*sample_out = (int16_t)sample_value; // channel two
+		++sample_out;
+
+		++running_sample_index;
+	}
+
+	if (FAILED(IDirectSoundBuffer_Unlock(secbuffer, region_one, region_one_size, region_two,
+	                                     region_two_size))) {
+		// TODO(fredy): diagnostic
+		OutputDebugStringA("Error unlocking dsound secondary buffer");
 	}
 }
 
@@ -293,7 +346,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	ATOM main_window_atom = RegisterClassA(&window_class);
 	if (!main_window_atom) {
 		// TODO(fredy): Logging
-		logi("error");
+		OutputDebugStringA("error");
 		return EXIT_FAILURE;
 	}
 
@@ -303,7 +356,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	                                 nullptr, hinstance, nullptr);
 	if (!winhandle) {
 		// TODO(fredy): Logging
-		logi("error");
+		OutputDebugStringA("error");
 		return EXIT_FAILURE;
 	}
 
@@ -314,16 +367,18 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	int y_offset = 0;
 
 	// NOTE(fredy): sound test
-	size_t samples_per_sec = 48000;
-	size_t tone_hz = 256;
-	size_t square_wave_period = samples_per_sec / tone_hz;
-	size_t half_square_wave_period = square_wave_period / 2;
-	size_t bytes_per_sample = sizeof(uint16_t) * 2;
-	size_t running_sample_index = 0;
-	size_t buffer_size = samples_per_sec * bytes_per_sample;
+	struct Win_SoundOutput sound_output = {
+		.samples_per_sec = 48000,
+		.tone_hz = 256,
+		.tone_volume = 3000,
+		.bytes_per_sample = sizeof(uint16_t) * 2,
+	};
+	sound_output.wave_period = sound_output.samples_per_sec / sound_output.tone_hz;
+	sound_output.buffer_size = sound_output.samples_per_sec * sound_output.bytes_per_sample;
 
-	win_dsound_init(winhandle, samples_per_sec, buffer_size);
+	win_sound_init(winhandle, sound_output.samples_per_sec, sound_output.buffer_size);
 
+	bool is_sound_playing = false;
 	global_running = true;
 	while (global_running) {
 		MSG msg;
@@ -337,7 +392,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		for (WORD i = 0; i < XUSER_MAX_COUNT; ++i) {
 			XINPUT_STATE state;
-			if (XInputGetState(i, &state) == ERROR_SUCCESS) {
+			if (XInputGetState(i, &state) != ERROR_SUCCESS) {
 				continue;
 			}
 
@@ -362,11 +417,14 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			SHORT stick_x = pad->sThumbLX;
 			SHORT stick_y = pad->sThumbLY;
 
-			x_offset = stick_x >> 12;
-			y_offset = stick_y >> 12;
+			x_offset += stick_x >> 12;
+			y_offset += stick_y >> 12;
 		}
 
 		render_weird_gradient(&global_back_buffer, x_offset, y_offset);
+
+		++x_offset;
+		y_offset += 2;
 
 		DWORD play_cursor;
 		DWORD write_cursor;
@@ -375,12 +433,13 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			// TODO(fredy): diagnostic
 			OutputDebugStringA(
 				"Error getting current position of dsound secondary buffer");
-			continue;
 		}
 
-		size_t byte_to_lock = running_sample_index * bytes_per_sample % buffer_size;
+		size_t byte_to_lock = (running_sample_index * bytes_per_sample) % buffer_size;
 		size_t bytes_to_write;
-		if (byte_to_lock > play_cursor) {
+		if (byte_to_lock == play_cursor) {
+			bytes_to_write = buffer_size;
+		} else if (byte_to_lock > play_cursor) {
 			bytes_to_write = buffer_size - byte_to_lock;
 			bytes_to_write += play_cursor;
 		} else {
@@ -397,26 +456,13 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		                                   &region_two_size, 0))) {
 			// TODO(fredy): diagnostic
 			OutputDebugStringA("Error locking dsound secondary buffer");
-			continue;
 		}
 
-		int16_t *sample_out = (int16_t *)region_one;
-		int16_t sample_value = 0;
-		DWORD region_sample_count = region_one_size / bytes_per_sample;
-		for (DWORD i = 0; i < region_sample_count; ++i) {
-			sample_value = (running_sample_index / half_square_wave_period) % 2 ?
-			                       16000 :
-			                       -16000;
-			*sample_out = sample_value; // channel one
-			++sample_out;
-			*sample_out = sample_value; // channel two
-			++sample_out;
-
-			++running_sample_index;
-		}
-
-		region_sample_count = region_two_size / bytes_per_sample;
-		for (DWORD i = 0; i < region_sample_count; ++i) {
+		if (!is_sound_playing) {
+			if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
+				OutputDebugStringA("Error playing dsound secondary buffer");
+			}
+			is_sound_playing = true;
 		}
 
 		struct Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
