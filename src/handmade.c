@@ -155,36 +155,49 @@ struct Win_SoundOutput {
 	size_t buffer_size;
 };
 
-static void win_sound_output_fill_buffer(struct Win_SoundOutput *sound_output, size_t byte_to_lock,
-                                         size_t bytes_to_write)
+static void win_sound_fill_buffer(struct Win_SoundOutput *sound_output, size_t byte_to_lock,
+                                  size_t bytes_to_write)
 {
-	DWORD region_sample_count = sound_output.region_one_size / bytes_per_sample;
+	void *region_one;
+	DWORD region_one_size;
+	void *region_two;
+	DWORD region_two_size;
+
+	if (FAILED(IDirectSoundBuffer_Lock(secbuffer, byte_to_lock, bytes_to_write, &region_one,
+	                                   &region_one_size, &region_two, &region_two_size, 0))) {
+		// TODO(fredy): diagnostic
+		OutputDebugStringA("Error locking dsound secondary buffer");
+	}
+
+	DWORD region_sample_count = region_one_size / sound_output->bytes_per_sample;
 	int16_t *sample_out = (int16_t *)region_one;
 	float_t sample_value = 0;
 	for (DWORD i = 0; i < region_sample_count; ++i) {
-		float_t t = 2.0f * Pi32 * (float_t)running_sample_index / (float_t)wave_period;
+		float_t t = 2.0f * Pi32 * (float_t)(sound_output->running_sample_index) /
+		            (float_t)sound_output->wave_period;
 		float_t sine_value = sinf(t);
-		sample_value = sine_value * tone_volume;
+		sample_value = sine_value * sound_output->tone_volume;
 		*sample_out = (int16_t)sample_value; // channel one
 		++sample_out;
 		*sample_out = (int16_t)sample_value; // channel two
 		++sample_out;
 
-		++running_sample_index;
+		++(sound_output->running_sample_index);
 	}
 
 	sample_out = (int16_t *)region_two;
-	region_sample_count = region_two_size / bytes_per_sample;
+	region_sample_count = region_two_size / sound_output->bytes_per_sample;
 	for (DWORD i = 0; i < region_sample_count; ++i) {
-		float_t t = 2.0f * Pi32 * (float_t)running_sample_index / (float_t)wave_period;
+		float_t t = 2.0f * Pi32 * (float_t)(sound_output->running_sample_index) /
+		            (float_t)sound_output->wave_period;
 		float_t sine_value = sinf(t);
-		sample_value = sine_value * tone_volume;
+		sample_value = sine_value * sound_output->tone_volume;
 		*sample_out = (int16_t)sample_value; // channel one
 		++sample_out;
 		*sample_out = (int16_t)sample_value; // channel two
 		++sample_out;
 
-		++running_sample_index;
+		++(sound_output->running_sample_index);
 	}
 
 	if (FAILED(IDirectSoundBuffer_Unlock(secbuffer, region_one, region_one_size, region_two,
@@ -370,8 +383,9 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	struct Win_SoundOutput sound_output = {
 		.samples_per_sec = 48000,
 		.tone_hz = 256,
-		.tone_volume = 3000,
+		.running_sample_index = 0,
 		.bytes_per_sample = sizeof(uint16_t) * 2,
+		.tone_volume = 3000,
 	};
 	sound_output.wave_period = sound_output.samples_per_sec / sound_output.tone_hz;
 	sound_output.buffer_size = sound_output.samples_per_sec * sound_output.bytes_per_sample;
@@ -435,28 +449,20 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				"Error getting current position of dsound secondary buffer");
 		}
 
-		size_t byte_to_lock = (running_sample_index * bytes_per_sample) % buffer_size;
+		size_t byte_to_lock =
+			(sound_output.running_sample_index * sound_output.bytes_per_sample) %
+			sound_output.buffer_size;
 		size_t bytes_to_write;
 		if (byte_to_lock == play_cursor) {
-			bytes_to_write = buffer_size;
+			bytes_to_write = sound_output.buffer_size;
 		} else if (byte_to_lock > play_cursor) {
-			bytes_to_write = buffer_size - byte_to_lock;
+			bytes_to_write = sound_output.buffer_size - byte_to_lock;
 			bytes_to_write += play_cursor;
 		} else {
 			bytes_to_write = play_cursor - byte_to_lock;
 		}
 
-		void *region_one;
-		DWORD region_one_size;
-		void *region_two;
-		DWORD region_two_size;
-
-		if (FAILED(IDirectSoundBuffer_Lock(secbuffer, byte_to_lock, bytes_to_write,
-		                                   &region_one, &region_one_size, &region_two,
-		                                   &region_two_size, 0))) {
-			// TODO(fredy): diagnostic
-			OutputDebugStringA("Error locking dsound secondary buffer");
-		}
+		win_sound_fill_buffer(&sound_output, byte_to_lock, bytes_to_write);
 
 		if (!is_sound_playing) {
 			if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
