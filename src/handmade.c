@@ -3,6 +3,7 @@
 #include <libloaderapi.h>
 #include <limits.h>
 #include <math.h>
+#include <minwindef.h>
 #include <playsoundapi.h>
 #include <stddef.h>
 #include <stdint.h>
@@ -153,6 +154,8 @@ struct Win_SoundOutput {
 	size_t wave_period;
 	size_t bytes_per_sample;
 	size_t buffer_size;
+	float_t tsine;
+	size_t latency_sample_count;
 };
 
 static void win_sound_fill_buffer(struct Win_SoundOutput *sound_output, size_t byte_to_lock,
@@ -173,30 +176,28 @@ static void win_sound_fill_buffer(struct Win_SoundOutput *sound_output, size_t b
 	int16_t *sample_out = (int16_t *)region_one;
 	float_t sample_value = 0;
 	for (DWORD i = 0; i < region_sample_count; ++i) {
-		float_t t = 2.0f * Pi32 * (float_t)(sound_output->running_sample_index) /
-		            (float_t)sound_output->wave_period;
-		float_t sine_value = sinf(t);
+		float_t sine_value = sinf(sound_output->tsine);
 		sample_value = sine_value * sound_output->tone_volume;
 		*sample_out = (int16_t)sample_value; // channel one
 		++sample_out;
 		*sample_out = (int16_t)sample_value; // channel two
 		++sample_out;
 
+		sound_output->tsine += 2.0f * Pi32 / (float_t)sound_output->wave_period;
 		++(sound_output->running_sample_index);
 	}
 
 	sample_out = (int16_t *)region_two;
 	region_sample_count = region_two_size / sound_output->bytes_per_sample;
 	for (DWORD i = 0; i < region_sample_count; ++i) {
-		float_t t = 2.0f * Pi32 * (float_t)(sound_output->running_sample_index) /
-		            (float_t)sound_output->wave_period;
-		float_t sine_value = sinf(t);
+		float_t sine_value = sinf(sound_output->tsine);
 		sample_value = sine_value * sound_output->tone_volume;
 		*sample_out = (int16_t)sample_value; // channel one
 		++sample_out;
 		*sample_out = (int16_t)sample_value; // channel two
 		++sample_out;
 
+		sound_output->tsine += 2.0f * Pi32 / (float_t)sound_output->wave_period;
 		++(sound_output->running_sample_index);
 	}
 
@@ -389,10 +390,16 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	};
 	sound_output.wave_period = sound_output.samples_per_sec / sound_output.tone_hz;
 	sound_output.buffer_size = sound_output.samples_per_sec * sound_output.bytes_per_sample;
+	sound_output.latency_sample_count = sound_output.samples_per_sec / 15;
 
 	win_sound_init(winhandle, sound_output.samples_per_sec, sound_output.buffer_size);
+	win_sound_fill_buffer(&sound_output, 0,
+	                      sound_output.latency_sample_count * sound_output.bytes_per_sample);
 
-	bool is_sound_playing = false;
+	if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
+		OutputDebugStringA("Error playing dsound secondary buffer");
+	}
+
 	global_running = true;
 	while (global_running) {
 		MSG msg;
@@ -449,27 +456,22 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				"Error getting current position of dsound secondary buffer");
 		}
 
+		DWORD target_cursor = (play_cursor + (DWORD)(sound_output.latency_sample_count *
+		                                             sound_output.bytes_per_sample)) %
+		                      sound_output.buffer_size;
 		size_t byte_to_lock =
 			(sound_output.running_sample_index * sound_output.bytes_per_sample) %
 			sound_output.buffer_size;
 		size_t bytes_to_write;
-		if (byte_to_lock == play_cursor) {
-			bytes_to_write = sound_output.buffer_size;
-		} else if (byte_to_lock > play_cursor) {
+
+		if (byte_to_lock > target_cursor) {
 			bytes_to_write = sound_output.buffer_size - byte_to_lock;
-			bytes_to_write += play_cursor;
+			bytes_to_write += target_cursor;
 		} else {
-			bytes_to_write = play_cursor - byte_to_lock;
+			bytes_to_write = target_cursor - byte_to_lock;
 		}
 
 		win_sound_fill_buffer(&sound_output, byte_to_lock, bytes_to_write);
-
-		if (!is_sound_playing) {
-			if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
-				OutputDebugStringA("Error playing dsound secondary buffer");
-			}
-			is_sound_playing = true;
-		}
 
 		struct Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
