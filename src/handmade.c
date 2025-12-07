@@ -1,14 +1,8 @@
-#include <basetsd.h>
 #include <dsound.h>
-#include <libloaderapi.h>
-#include <limits.h>
 #include <math.h>
-#include <minwindef.h>
-#include <playsoundapi.h>
-#include <stddef.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <windows.h>
-#include <winerror.h>
 #include <xinput.h>
 
 #define Pi32 3.14159265359f
@@ -27,7 +21,7 @@ struct Win_OffScreenBuffer {
 	long pitch; // size of a row in bytes
 };
 
-static boolean global_running = false;
+static bool64 global_running = false;
 static struct Win_OffScreenBuffer global_back_buffer;
 static LPDIRECTSOUNDBUFFER secbuffer;
 
@@ -60,6 +54,11 @@ typedef DSOUND_CREATE(direct_sound_create);
 static void win_xinput_load(void)
 {
 	HMODULE xinput_lib = LoadLibraryA("xinput1_4.dll");
+
+	if (!xinput_lib) {
+		xinput_lib = LoadLibraryA("xinput9_1_0.dll");
+	}
+
 	if (!xinput_lib) {
 		xinput_lib = LoadLibraryA("xinput1_3.dll");
 	}
@@ -302,8 +301,8 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 	case WM_KEYDOWN:
 	case WM_KEYUP: {
 		DWORD vk_code = (DWORD)wparam;
-		boolean was_down = ((lparam & (1 << 30)) != 0);
-		boolean is_down = ((lparam & (1 << 31)) == 0);
+		bool64 was_down = ((lparam & (1 << 30)) != 0);
+		bool64 is_down = ((lparam & (1 << 31)) == 0);
 
 		if (was_down != is_down) {
 			if (vk_code == 'W') {
@@ -335,7 +334,7 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 	} break;
 	default: {
 		OutputDebugStringA("default\n");
-		result = DefWindowProc(winhandle, msg, wparam, lparam);
+		result = DefWindowProcA(winhandle, msg, wparam, lparam);
 	} break;
 	}
 
@@ -346,6 +345,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
                      [[__maybe_unused__]] HINSTANCE hprevinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nCmdShow)
 {
+	LARGE_INTEGER perf_count_frequency_result;
+	QueryPerformanceFrequency(&perf_count_frequency_result);
+	int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
+
 	win_xinput_load();
 
 	WNDCLASSA window_class = {
@@ -401,6 +404,9 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	}
 
 	global_running = true;
+	LARGE_INTEGER last_counter;
+	QueryPerformanceCounter(&last_counter);
+	uint64_t last_cycle_count = __rdtsc();
 	while (global_running) {
 		MSG msg;
 		while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -438,8 +444,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			SHORT stick_x = pad->sThumbLX;
 			SHORT stick_y = pad->sThumbLY;
 
-			x_offset += stick_x >> 12;
-			y_offset += stick_y >> 12;
+			x_offset += stick_x / 4096;
+			y_offset += stick_y / 4096;
 		}
 
 		render_weird_gradient(&global_back_buffer, x_offset, y_offset);
@@ -476,6 +482,26 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		struct Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
+
+		uint64_t end_cycle_count = __rdtsc();
+
+		LARGE_INTEGER end_counter;
+		QueryPerformanceCounter(&end_counter);
+
+		uint64_t cycles_elapsed = end_cycle_count - last_cycle_count;
+		int64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
+		float_t ms_per_frame =
+			1000.0f * (float_t)counter_elapsed / (float_t)perf_count_frequency;
+		float_t fps = (float_t)ms_per_frame / (float_t)counter_elapsed;
+		float_t mcpf = (float_t)cycles_elapsed / 1000000.0f;
+
+		char perf_buffer[256];
+		sprintf(perf_buffer, "%fms/f, %ff/s, %fmc/f", ms_per_frame, fps, mcpf);
+
+		OutputDebugStringA(perf_buffer);
+
+		last_counter = end_counter;
+		last_cycle_count = end_cycle_count;
 	}
 
 	return EXIT_SUCCESS;
