@@ -1,4 +1,6 @@
-// Windows platform code
+/*
+* Windows platform code
+*/
 
 #include <dsound.h>
 #include <math.h>
@@ -7,7 +9,7 @@
 #include <windows.h>
 #include <xinput.h>
 
-#include "handmade.c"
+#include "game.c"
 
 #define Pi32 3.14159265359f
 
@@ -226,24 +228,6 @@ static struct Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 	return result;
 }
 
-static void render_weird_gradient(struct Win_OffScreenBuffer *buffer, long blue_offset,
-                                  long green_offset)
-{
-	uint8_t *row = (uint8_t *)buffer->memory;
-	for (long y = 0; y < buffer->height; ++y) {
-		uint32_t *pixel = (uint32_t *)row;
-		for (long x = 0; x < buffer->width; ++x) {
-			// Little endian in memory  B G R X -> because of the endianess
-			// little endian on a register: 0xXXRRGGBB
-			uint8_t blue = (uint8_t)(x + blue_offset);
-			uint8_t green = (uint8_t)(y + green_offset);
-			*pixel = (uint32_t)(green << CHAR_BIT) | blue;
-			++pixel;
-		}
-		row += buffer->pitch;
-	}
-}
-
 /*
  * dib: device independent bitmap
  */
@@ -456,7 +440,11 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			y_offset += stick_y / 4096;
 		}
 
-		render_weird_gradient(&global_back_buffer, x_offset, y_offset);
+		struct Game_OffScreenBuffer buffer = { .memory = global_back_buffer.memory,
+			                               .width = global_back_buffer.width,
+			                               .height = global_back_buffer.height,
+			                               .pitch = global_back_buffer.pitch };
+		game_update_and_render(&buffer, x_offset, y_offset);
 
 		++x_offset;
 		y_offset += 2;
@@ -513,8 +501,4 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	}
 
 	return EXIT_SUCCESS;
-}
-
-void plat_file_load(void)
-{
 }

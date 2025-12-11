@@ -1,14 +1,16 @@
 # Handmade hero
 
 ## Arch
--> means use
+Virtualising the game for the OS (platform)
+
+- "->" means use
 
 os -> platform <-> core
 
 ## Unity build
--> means include
+- "->" means include
 
-win_handmade.c -> handmade.c <- lin_handmade.c
-                     |
-                     v
-                  handmade.h
+plat_win_handmade.c -> game.c <- plat_lin_handmade.c
+                         |
+                         v
+                       game.h
