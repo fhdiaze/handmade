@@ -2,16 +2,13 @@
 * Windows platform code
 */
 
+#include "game.c"
 #include <dsound.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <windows.h>
 #include <xinput.h>
-
-#include "game.c"
-
-#define Pi32 3.14159265359f
 
 /*
 * Boolean without the overhead of normalization. Take into account that any value greater than 0 is true
@@ -157,18 +154,49 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 
 struct Win_SoundOutput {
 	size_t samples_per_sec;
-	size_t tone_hz;
-	float_t tone_volume;
+	size_t tonehz;
+	float_t tonevol;
 	size_t running_sample_index;
 	size_t wave_period;
-	size_t bytes_per_sample;
-	size_t buffer_size;
+	size_t sample_size;
+	size_t buffsize;
 	float_t tsine;
 	size_t latency_sample_count;
 };
 
-static void win_sound_fill_buffer(struct Win_SoundOutput *sound_output, size_t byte_to_lock,
-                                  size_t bytes_to_write)
+static void win_sound_clear_buffer(struct Win_SoundOutput *sound_output)
+{
+	void *region_one;
+	DWORD region_one_size;
+	void *region_two;
+	DWORD region_two_size;
+	if (FAILED(IDirectSoundBuffer_Lock(secbuffer, 0, sound_output->buffsize, &region_one,
+	                                   &region_one_size, &region_two, &region_two_size, 0))) {
+		OutputDebugStringA("Error locking dsound secondary buffer");
+	}
+
+	size_t bytes_count = region_one_size;
+	int8_t *byte_out = (int8_t *)region_one;
+	for (size_t i = 0; i < bytes_count; ++i) {
+		*byte_out = 0;
+		++byte_out;
+	}
+
+	byte_out = (int8_t *)region_two;
+	bytes_count = region_two_size;
+	for (size_t i = 0; i < bytes_count; ++i) {
+		*byte_out = 0;
+		++byte_out;
+	}
+
+	if (FAILED(IDirectSoundBuffer_Unlock(secbuffer, region_one, region_one_size, region_two,
+	                                     region_two_size))) {
+		OutputDebugStringA("Error unlocking dsound secondary buffer");
+	}
+}
+
+static void win_sound_fill_buffer(struct Win_SoundOutput *soundout, size_t byte_to_lock,
+                                  size_t bytes_to_write, Game_SoundBuffer *soundbuff)
 {
 	void *region_one;
 	DWORD region_one_size;
@@ -177,42 +205,38 @@ static void win_sound_fill_buffer(struct Win_SoundOutput *sound_output, size_t b
 
 	if (FAILED(IDirectSoundBuffer_Lock(secbuffer, byte_to_lock, bytes_to_write, &region_one,
 	                                   &region_one_size, &region_two, &region_two_size, 0))) {
-		// TODO(fredy): diagnostic
 		OutputDebugStringA("Error locking dsound secondary buffer");
 	}
 
-	DWORD region_sample_count = region_one_size / sound_output->bytes_per_sample;
+	DWORD region_sample_count = region_one_size / soundout->sample_size;
 	int16_t *sample_out = (int16_t *)region_one;
-	float_t sample_value = 0;
+	int16_t *sample_in = soundbuff->samples;
 	for (DWORD i = 0; i < region_sample_count; ++i) {
-		float_t sine_value = sinf(sound_output->tsine);
-		sample_value = sine_value * sound_output->tone_volume;
-		*sample_out = (int16_t)sample_value; // channel one
+		*sample_out = *sample_in; // channel one
 		++sample_out;
-		*sample_out = (int16_t)sample_value; // channel two
+		++sample_in;
+		*sample_out = *sample_in; // channel two
 		++sample_out;
+		++sample_in;
 
-		sound_output->tsine += 2.0f * Pi32 / (float_t)sound_output->wave_period;
-		++(sound_output->running_sample_index);
+		++(soundout->running_sample_index);
 	}
 
 	sample_out = (int16_t *)region_two;
-	region_sample_count = region_two_size / sound_output->bytes_per_sample;
+	region_sample_count = region_two_size / soundout->sample_size;
 	for (DWORD i = 0; i < region_sample_count; ++i) {
-		float_t sine_value = sinf(sound_output->tsine);
-		sample_value = sine_value * sound_output->tone_volume;
-		*sample_out = (int16_t)sample_value; // channel one
+		*sample_out = *sample_in; // channel one
 		++sample_out;
-		*sample_out = (int16_t)sample_value; // channel two
+		++sample_in;
+		*sample_out = *sample_in; // channel two
 		++sample_out;
+		++sample_in;
 
-		sound_output->tsine += 2.0f * Pi32 / (float_t)sound_output->wave_period;
-		++(sound_output->running_sample_index);
+		++(soundout->running_sample_index);
 	}
 
 	if (FAILED(IDirectSoundBuffer_Unlock(secbuffer, region_one, region_one_size, region_two,
 	                                     region_two_size))) {
-		// TODO(fredy): diagnostic
 		OutputDebugStringA("Error unlocking dsound secondary buffer");
 	}
 }
@@ -354,7 +378,6 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	ATOM main_window_atom = RegisterClassA(&window_class);
 	if (!main_window_atom) {
-		// TODO(fredy): Logging
 		OutputDebugStringA("error");
 		return EXIT_FAILURE;
 	}
@@ -376,24 +399,29 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	int y_offset = 0;
 
 	// NOTE(fredy): sound test
-	struct Win_SoundOutput sound_output = {
+	struct Win_SoundOutput soundout = {
 		.samples_per_sec = 48000,
-		.tone_hz = 256,
-		.running_sample_index = 0,
-		.bytes_per_sample = sizeof(uint16_t) * 2,
-		.tone_volume = 3000,
+		.tonehz = 256,
+		.tonevol = 3000,
+		.sample_size = sizeof(uint16_t) * 2,
 	};
-	sound_output.wave_period = sound_output.samples_per_sec / sound_output.tone_hz;
-	sound_output.buffer_size = sound_output.samples_per_sec * sound_output.bytes_per_sample;
-	sound_output.latency_sample_count = sound_output.samples_per_sec / 15;
+	soundout.wave_period = soundout.samples_per_sec / soundout.tonehz;
+	soundout.buffsize = soundout.samples_per_sec * soundout.sample_size;
+	soundout.latency_sample_count = soundout.samples_per_sec / 15;
 
-	win_sound_init(winhandle, sound_output.samples_per_sec, sound_output.buffer_size);
-	win_sound_fill_buffer(&sound_output, 0,
-	                      sound_output.latency_sample_count * sound_output.bytes_per_sample);
+	win_sound_init(winhandle, soundout.samples_per_sec, soundout.buffsize);
+	win_sound_clear_buffer(&soundout);
 
 	if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
 		OutputDebugStringA("Error playing dsound secondary buffer");
 	}
+
+	int16_t *samples = (int16_t *)VirtualAlloc(nullptr, soundout.buffsize,
+	                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	Game_SoundBuffer soundbuff = {
+		.samples_per_sec = soundout.samples_per_sec,
+		.samples = samples,
+	};
 
 	global_running = true;
 	LARGE_INTEGER last_counter;
@@ -440,40 +468,47 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			y_offset += stick_y / 4096;
 		}
 
-		struct Game_OffScreenBuffer buffer = { .memory = global_back_buffer.memory,
-			                               .width = global_back_buffer.width,
-			                               .height = global_back_buffer.height,
-			                               .pitch = global_back_buffer.pitch };
-		game_update_and_render(&buffer, x_offset, y_offset);
-
-		++x_offset;
-		y_offset += 2;
-
 		DWORD play_cursor;
 		DWORD write_cursor;
+		unsigned is_sound_valid = true;
 		if (FAILED(IDirectSoundBuffer_GetCurrentPosition(secbuffer, &play_cursor,
 		                                                 &write_cursor))) {
-			// TODO(fredy): diagnostic
+			is_sound_valid = false;
 			OutputDebugStringA(
 				"Error getting current position of dsound secondary buffer");
 		}
 
-		DWORD target_cursor = (play_cursor + (DWORD)(sound_output.latency_sample_count *
-		                                             sound_output.bytes_per_sample)) %
-		                      sound_output.buffer_size;
+		DWORD target_cursor = (play_cursor + (DWORD)(soundout.latency_sample_count *
+		                                             soundout.sample_size)) %
+		                      soundout.buffsize;
 		size_t byte_to_lock =
-			(sound_output.running_sample_index * sound_output.bytes_per_sample) %
-			sound_output.buffer_size;
+			(soundout.running_sample_index * soundout.sample_size) % soundout.buffsize;
 		size_t bytes_to_write;
 
 		if (byte_to_lock > target_cursor) {
-			bytes_to_write = sound_output.buffer_size - byte_to_lock;
+			bytes_to_write = soundout.buffsize - byte_to_lock;
 			bytes_to_write += target_cursor;
 		} else {
 			bytes_to_write = target_cursor - byte_to_lock;
 		}
 
-		win_sound_fill_buffer(&sound_output, byte_to_lock, bytes_to_write);
+		soundbuff.sample_count = bytes_to_write / soundout.sample_size;
+
+		Game_OffScreenBuffer screenbuff = {
+			.memory = global_back_buffer.memory,
+			.width = global_back_buffer.width,
+			.height = global_back_buffer.height,
+			.pitch = global_back_buffer.pitch,
+		};
+		game_update_and_render(&screenbuff, &soundbuff, x_offset, y_offset,
+		                       soundout.tonehz);
+
+		++x_offset;
+		y_offset += 2;
+
+		if (is_sound_valid) {
+			win_sound_fill_buffer(&soundout, byte_to_lock, bytes_to_write, &soundbuff);
+		}
 
 		struct Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,

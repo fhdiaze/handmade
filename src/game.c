@@ -4,9 +4,35 @@
 
 #include "game.h"
 #include <limits.h>
+#include <math.h>
 #include <stdint.h>
 
-static void game_render_weird_gradient(struct Game_OffScreenBuffer *buffer, long blue_offset,
+/**
+ * @brief
+ *
+ * @param buffer
+ * @param samples
+ */
+void game_sound_output(Game_SoundBuffer *buffer, size_t tonehz)
+{
+	static float tsine;
+	float tone_volume = 3000;
+	size_t wave_period = buffer->samples_per_sec / tonehz;
+	int16_t *sample_out = buffer->samples;
+	float sample_value = 0;
+	for (size_t i = 0; i < buffer->sample_count; ++i) {
+		float_t sine_value = sinf(tsine);
+		sample_value = sine_value * tone_volume;
+		*sample_out = (int16_t)sample_value; // channel one
+		++sample_out;
+		*sample_out = (int16_t)sample_value; // channel two
+		++sample_out;
+
+		tsine += 2.0f * Pi32 / (float_t)wave_period;
+	}
+}
+
+static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, long blue_offset,
                                        long green_offset)
 {
 	uint8_t *row = (uint8_t *)buffer->memory;
@@ -24,8 +50,9 @@ static void game_render_weird_gradient(struct Game_OffScreenBuffer *buffer, long
 	}
 }
 
-void game_update_and_render(struct Game_OffScreenBuffer *buffer, long blue_offset,
-                            long green_offset)
+void game_update_and_render(Game_OffScreenBuffer *screenbuff, Game_SoundBuffer *soundbuff,
+                            long blue_offset, long green_offset, size_t tonehz)
 {
-	game_render_weird_gradient(buffer, blue_offset, green_offset);
+	game_sound_output(soundbuff, tonehz);
+	game_render_weird_gradient(screenbuff, blue_offset, green_offset);
 }
