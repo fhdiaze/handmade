@@ -2,31 +2,13 @@
 * Windows platform code
 */
 
+#include "win_handmade.h"
 #include "game.c"
 #include <dsound.h>
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <windows.h>
 #include <xinput.h>
-
-/*
-* Boolean without the overhead of normalization. Take into account that any value greater than 0 is true
-*/
-typedef uint8_t bool8;
-
-struct Win_WindowDimensions {
-	long width;
-	long height;
-};
-
-struct Win_OffScreenBuffer {
-	BITMAPINFO bitmap_info;
-	void *memory;
-	long width;
-	long height;
-	long pitch; // size of a row in bytes
-};
 
 static bool8 global_running = false;
 static struct Win_OffScreenBuffer global_back_buffer;
@@ -152,18 +134,6 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	}
 }
 
-struct Win_SoundOutput {
-	size_t samples_per_sec;
-	size_t tonehz;
-	float_t tonevol;
-	size_t running_sample_index;
-	size_t wave_period;
-	size_t sample_size;
-	size_t buffsize;
-	float_t tsine;
-	size_t latency_sample_count;
-};
-
 static void win_sound_clear_buffer(struct Win_SoundOutput *sound_output)
 {
 	void *region_one;
@@ -239,6 +209,13 @@ static void win_sound_fill_buffer(struct Win_SoundOutput *soundout, size_t byte_
 	                                     region_two_size))) {
 		OutputDebugStringA("Error unlocking dsound secondary buffer");
 	}
+}
+
+static void win_input_process_digital_button(DWORD xinput_button_state, Game_ButtonState *oldstate,
+                                             DWORD buttonbit, Game_ButtonState *newstate)
+{
+	newstate->ended_down = (xinput_button_state & buttonbit) == buttonbit;
+	newstate->half_transition_count = oldstate->ended_down != newstate->ended_down;
 }
 
 static struct Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
@@ -394,18 +371,11 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	HDC dchandle = GetDC(winhandle);
 
-	// NOTE(fredy): render test
-	int x_offset = 0;
-	int y_offset = 0;
-
 	// NOTE(fredy): sound test
 	struct Win_SoundOutput soundout = {
 		.samples_per_sec = 48000,
-		.tonehz = 256,
-		.tonevol = 3000,
 		.sample_size = sizeof(uint16_t) * 2,
 	};
-	soundout.wave_period = soundout.samples_per_sec / soundout.tonehz;
 	soundout.buffsize = soundout.samples_per_sec * soundout.sample_size;
 	soundout.latency_sample_count = soundout.samples_per_sec / 15;
 
@@ -427,8 +397,12 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	LARGE_INTEGER last_counter;
 	QueryPerformanceCounter(&last_counter);
 	uint64_t last_cycle_count = __rdtsc();
+	Game_Input inputs[2] = {};
+	Game_Input *new_input = &inputs[0];
+	Game_Input *old_input = &inputs[1];
 	while (global_running) {
 		MSG msg;
+
 		while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
 			if (msg.message == WM_QUIT) {
 				global_running = false;
@@ -437,7 +411,14 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			DispatchMessageA(&msg);
 		}
 
-		for (WORD i = 0; i < XUSER_MAX_COUNT; ++i) {
+		WORD max_controller_count = XUSER_MAX_COUNT;
+		if (max_controller_count > game_max_controllers) {
+			max_controller_count = game_max_controllers;
+		}
+
+		for (WORD i = 0; i < max_controller_count; ++i) {
+			Game_ControllerInput *old_controller = &old_input->controllers[i];
+			Game_ControllerInput *new_controller = &new_input->controllers[i];
 			XINPUT_STATE state;
 			if (XInputGetState(i, &state) != ERROR_SUCCESS) {
 				continue;
@@ -445,27 +426,44 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 			// Plugged in
 			XINPUT_GAMEPAD *pad = &state.Gamepad;
+
 			[[__maybe_unused__]] WORD up = (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP);
 			[[__maybe_unused__]] WORD down = (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN);
 			[[__maybe_unused__]] WORD left = (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT);
 			[[__maybe_unused__]] WORD right =
 				(pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT);
-			[[__maybe_unused__]] WORD start = (pad->wButtons & XINPUT_GAMEPAD_START);
-			[[__maybe_unused__]] WORD back = (pad->wButtons & XINPUT_GAMEPAD_BACK);
-			[[__maybe_unused__]] WORD left_shoulder =
-				(pad->wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER);
-			[[__maybe_unused__]] WORD right_shoulder =
-				(pad->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER);
-			[[__maybe_unused__]] WORD a_button = (pad->wButtons & XINPUT_GAMEPAD_A);
-			[[__maybe_unused__]] WORD b_button = (pad->wButtons & XINPUT_GAMEPAD_B);
-			[[__maybe_unused__]] WORD x_button = (pad->wButtons & XINPUT_GAMEPAD_X);
-			[[__maybe_unused__]] WORD y_button = (pad->wButtons & XINPUT_GAMEPAD_Y);
 
-			SHORT stick_x = pad->sThumbLX;
-			SHORT stick_y = pad->sThumbLY;
+			new_controller->analog = true;
+			new_controller->startx = old_controller->startx;
+			new_controller->starty = old_controller->starty;
 
-			x_offset += stick_x / 4096;
-			y_offset += stick_y / 4096;
+			float stickx_lim = pad->sThumbLX < 0 ? 32768.0f : 32767.0f;
+			float sticky_lim = pad->sThumbLY < 0 ? 32768.0f : 32767.0f;
+			[[__maybe_unused__]] float stickx = (float)pad->sThumbLX / stickx_lim;
+			[[__maybe_unused__]] float sticky = (float)pad->sThumbLY / sticky_lim;
+
+			new_controller->minx = new_controller->maxx = new_controller->endx = stickx;
+			new_controller->miny = new_controller->maxy = new_controller->endy = sticky;
+
+			win_input_process_digital_button(pad->wButtons, &old_controller->down,
+			                                 XINPUT_GAMEPAD_A, &new_controller->down);
+			win_input_process_digital_button(pad->wButtons, &old_controller->right,
+			                                 XINPUT_GAMEPAD_B, &new_controller->right);
+			win_input_process_digital_button(pad->wButtons, &old_controller->left,
+			                                 XINPUT_GAMEPAD_X, &new_controller->left);
+			win_input_process_digital_button(pad->wButtons, &old_controller->up,
+			                                 XINPUT_GAMEPAD_Y, &new_controller->up);
+			win_input_process_digital_button(pad->wButtons,
+			                                 &old_controller->left_shoulder,
+			                                 XINPUT_GAMEPAD_LEFT_SHOULDER,
+			                                 &new_controller->left_shoulder);
+			win_input_process_digital_button(pad->wButtons,
+			                                 &old_controller->right_shoulder,
+			                                 XINPUT_GAMEPAD_RIGHT_SHOULDER,
+			                                 &new_controller->right_shoulder);
+
+			//[[__maybe_unused__]] WORD start = (pad->wButtons & XINPUT_GAMEPAD_START);
+			//[[__maybe_unused__]] WORD back = (pad->wButtons & XINPUT_GAMEPAD_BACK);
 		}
 
 		DWORD play_cursor;
@@ -500,11 +498,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			.height = global_back_buffer.height,
 			.pitch = global_back_buffer.pitch,
 		};
-		game_update_and_render(&screenbuff, &soundbuff, x_offset, y_offset,
-		                       soundout.tonehz);
-
-		++x_offset;
-		y_offset += 2;
+		game_update_and_render(new_input, &screenbuff, &soundbuff);
 
 		if (is_sound_valid) {
 			win_sound_fill_buffer(&soundout, byte_to_lock, bytes_to_write, &soundbuff);
@@ -533,6 +527,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		last_counter = end_counter;
 		last_cycle_count = end_cycle_count;
+
+		Game_Input *temp = new_input;
+		new_input = old_input;
+		old_input = temp;
 	}
 
 	return EXIT_SUCCESS;

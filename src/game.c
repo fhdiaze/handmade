@@ -13,7 +13,7 @@
  * @param buffer
  * @param samples
  */
-void game_sound_output(Game_SoundBuffer *buffer, size_t tonehz)
+static void game_sound_output(Game_SoundBuffer *buffer, size_t tonehz)
 {
 	static float tsine;
 	float tone_volume = 3000;
@@ -50,9 +50,24 @@ static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, long blue_o
 	}
 }
 
-void game_update_and_render(Game_OffScreenBuffer *screenbuff, Game_SoundBuffer *soundbuff,
-                            long blue_offset, long green_offset, size_t tonehz)
+void game_update_and_render(Game_Input *input, Game_OffScreenBuffer *screenbuff,
+                            Game_SoundBuffer *soundbuff)
 {
+	static long blue_offset = 0;
+	static long green_offset = 0;
+	static size_t tonehz = 256;
+
+	Game_ControllerInput *izero = &input->controllers[0];
+	if (izero->analog) {
+		tonehz = 256 + (size_t)(128.0f * (float)izero->endy);
+		blue_offset += (long)(4.0f * (float)izero->endx);
+	} else {
+	}
+
+	if (izero->down.ended_down) {
+		green_offset += 1;
+	}
+
 	game_sound_output(soundbuff, tonehz);
 	game_render_weird_gradient(screenbuff, blue_offset, green_offset);
 }
