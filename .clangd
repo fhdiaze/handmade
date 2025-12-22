@@ -14,7 +14,7 @@ If:
   PathMatch: .*\.h
 
 CompileFlags:
-  Add: [-xc-header]
+  Add: [-xc-header, -DDEBUG]
 
 ---
 

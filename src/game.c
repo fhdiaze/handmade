@@ -3,6 +3,7 @@
 */
 
 #include "game.h"
+#include <assert.h>
 #include <limits.h>
 #include <math.h>
 #include <stdint.h>
@@ -50,24 +51,30 @@ static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, long blue_o
 	}
 }
 
-void game_update_and_render(Game_Input *input, Game_OffScreenBuffer *screenbuff,
-                            Game_SoundBuffer *soundbuff)
+void game_update_and_render(Game_Memory *memory, Game_Input *input,
+                            Game_OffScreenBuffer *screenbuff, Game_SoundBuffer *soundbuff)
 {
-	static long blue_offset = 0;
-	static long green_offset = 0;
-	static size_t tonehz = 256;
+	assert(sizeof(Game_State) <= memory->permsize);
+
+	Game_State *game_state = memory->permstorage;
+	if (!memory->initialized) {
+		game_state->tonehz = 256;
+		game_state->blue_offset = 0;
+		game_state->green_offset = 0;
+		memory->initialized = true;
+	}
 
 	Game_ControllerInput *izero = &input->controllers[0];
 	if (izero->analog) {
-		tonehz = 256 + (size_t)(128.0f * (float)izero->endy);
-		blue_offset += (long)(4.0f * (float)izero->endx);
+		game_state->tonehz = 256 + (size_t)(128.0f * (float)izero->endy);
+		game_state->blue_offset += (long)(4.0f * (float)izero->endx);
 	} else {
 	}
 
 	if (izero->down.ended_down) {
-		green_offset += 1;
+		game_state->green_offset += 1;
 	}
 
-	game_sound_output(soundbuff, tonehz);
-	game_render_weird_gradient(screenbuff, blue_offset, green_offset);
+	game_sound_output(soundbuff, game_state->tonehz);
+	game_render_weird_gradient(screenbuff, game_state->blue_offset, game_state->green_offset);
 }

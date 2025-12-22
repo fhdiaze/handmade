@@ -388,6 +388,19 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	int16_t *samples = (int16_t *)VirtualAlloc(nullptr, soundout.buffsize,
 	                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+	Game_Memory game_memory = {};
+	game_memory.permsize = MB_TO_BYTE(64);
+	game_memory.transize = GB_TO_BYTE(4);
+	size_t total_size = game_memory.permsize + game_memory.transize;
+	game_memory.permstorage =
+		VirtualAlloc(BASE_ADDRESS, total_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	game_memory.transtorage = (uint8_t *)game_memory.permstorage + game_memory.permsize;
+
+	if (!samples || !game_memory.permstorage || !game_memory.transtorage) {
+		return EXIT_FAILURE;
+	}
+
 	Game_SoundBuffer soundbuff = {
 		.samples_per_sec = soundout.samples_per_sec,
 		.samples = samples,
@@ -498,7 +511,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			.height = global_back_buffer.height,
 			.pitch = global_back_buffer.pitch,
 		};
-		game_update_and_render(new_input, &screenbuff, &soundbuff);
+		game_update_and_render(&game_memory, new_input, &screenbuff, &soundbuff);
 
 		if (is_sound_valid) {
 			win_sound_fill_buffer(&soundout, byte_to_lock, bytes_to_write, &soundbuff);
