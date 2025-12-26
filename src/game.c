@@ -61,6 +61,14 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 		game_state->tonehz = 256;
 		game_state->blue_offset = 0;
 		game_state->green_offset = 0;
+
+		char *filename = __FILE__;
+		Plat_ReadFileResult read = plat_debug_readfile(filename);
+		if (read.memory) {
+			plat_debug_writefile("test.out", read.size, read.memory);
+			plat_debug_freefile(read.memory);
+			read.size = 0;
+		}
 		memory->initialized = true;
 	}
 

@@ -7,6 +7,7 @@
 #ifndef GAME_H
 #define GAME_H
 
+#include <assert.h>
 #include <stdint.h>
 
 #define KB_TO_BYTE(_pr_v) (_pr_v * 1024ull)
@@ -23,13 +24,6 @@
 static constexpr float Pi32 = 3.14159265359f;
 static constexpr unsigned game_max_controllers = 4;
 
-// Game services
-
-/*
-* Boolean without the overhead of normalization. Take into account that any value greater than 0 is true
-*/
-typedef uint8_t bool8;
-
 typedef struct Game_OffScreenBuffer {
 	void *memory;
 	long width;
@@ -45,11 +39,11 @@ typedef struct Game_SoundBuffer {
 
 typedef struct Game_ButtonState {
 	int half_transition_count;
-	bool8 ended_down;
+	bool ended_down;
 } Game_ButtonState;
 
 typedef struct Game_ControllerInput {
-	bool8 analog;
+	bool analog;
 
 	float startx;
 	float starty;
@@ -96,6 +90,22 @@ typedef struct Game_Memory {
 	void *transtorage; // This should be zero initialized
 } Game_Memory;
 
+// Utilities
+
+/**
+ * @brief truncates a int64_t into a uint32_t.
+ *
+ * @param value
+ * @return uint32_t
+ */
+static inline uint32_t lltoul(int64_t value)
+{
+	assert(value < INT32_MAX);
+	assert(value >= 0);
+	return (uint32_t)value;
+}
+// Game services
+
 /**
  * @brief Updates the game status and renders it
  *
@@ -106,5 +116,18 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
                             Game_OffScreenBuffer *screenbuff, Game_SoundBuffer *soundbuff);
 
 // Platform services
+
+#ifdef DEBUG
+
+typedef struct Plat_ReadFileResult {
+	size_t size;
+	void *memory;
+} Plat_ReadFileResult;
+
+Plat_ReadFileResult plat_debug_readfile(char *filename);
+void plat_debug_freefile(void *memory);
+bool plat_debug_writefile(char *filename, size_t memorysize, void *memory);
+
+#endif // DEBUG
 
 #endif // GAME_H

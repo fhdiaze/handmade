@@ -7,6 +7,9 @@ InlayHints:
   DefaultArguments: false
   TypeNameLimit: 24
 
+CompileFlags:
+  Add: [-DDEBUG]
+
 ---
 
 # Flags for .h files
@@ -14,7 +17,7 @@ If:
   PathMatch: .*\.h
 
 CompileFlags:
-  Add: [-xc-header, -DDEBUG]
+  Add: [-xc-header]
 
 ---
 

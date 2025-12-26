@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <xinput.h>
 
-static bool8 global_running = false;
+static bool global_running = false;
 static struct Win_OffScreenBuffer global_back_buffer;
 static LPDIRECTSOUNDBUFFER secbuffer;
 
@@ -39,6 +39,83 @@ static x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define DSOUND_CREATE(name) \
 	HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DSOUND_CREATE(direct_sound_create);
+
+Plat_ReadFileResult plat_debug_readfile(char *filename)
+{
+	Plat_ReadFileResult result = {};
+	HANDLE handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
+	                            0, nullptr);
+	if (handle == INVALID_HANDLE_VALUE) {
+		return result;
+	}
+
+	LARGE_INTEGER filesize_struct;
+	if (!GetFileSizeEx(handle, &filesize_struct)) {
+		goto error_cleanup;
+	}
+
+	uint32_t filesize = lltoul(filesize_struct.QuadPart);
+	result.memory = VirtualAlloc(nullptr, filesize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	if (!result.memory) {
+		goto error_cleanup;
+	}
+
+	DWORD bytesread;
+	if (!ReadFile(handle, result.memory, filesize, &bytesread, nullptr) ||
+	    bytesread != filesize) {
+		goto error_cleanup;
+	}
+
+	result.size = filesize;
+
+	CloseHandle(handle);
+
+	return result;
+
+error_cleanup:
+	if (handle != INVALID_HANDLE_VALUE) {
+		CloseHandle(handle);
+	}
+
+	plat_debug_freefile(result.memory);
+
+	result.memory = nullptr;
+	result.size = 0;
+
+	return result;
+}
+
+void plat_debug_freefile(void *memory)
+{
+	if (memory) {
+		VirtualFree(memory, 0, MEM_RELEASE);
+	}
+}
+
+bool plat_debug_writefile(char *filename, size_t memorysize, void *memory)
+{
+	bool result = false;
+	HANDLE handle = CreateFileA(filename, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+	if (handle == INVALID_HANDLE_VALUE) {
+		return result;
+	}
+
+	DWORD byteswritten;
+	if (!WriteFile(handle, memory, (DWORD)memorysize, &byteswritten, nullptr)) {
+		goto error_cleanup;
+	}
+
+	CloseHandle(handle);
+
+	return byteswritten == memorysize;
+
+error_cleanup:
+	if (handle != INVALID_HANDLE_VALUE) {
+		CloseHandle(handle);
+	}
+
+	return false;
+}
 
 static void win_xinput_load(void)
 {
@@ -294,8 +371,8 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 	case WM_KEYDOWN:
 	case WM_KEYUP: {
 		DWORD vk_code = (DWORD)wparam;
-		bool8 was_down = ((lparam & (1 << 30)) != 0);
-		bool8 is_down = ((lparam & (1 << 31)) == 0);
+		bool was_down = ((lparam & (1 << 30)) != 0);
+		bool is_down = ((lparam & (1 << 31)) == 0);
 
 		if (was_down != is_down) {
 			if (vk_code == 'W') {
@@ -312,7 +389,7 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 			} else if (vk_code == VK_SPACE) {
 			}
 		}
-		bool8 alt_key_was_down = (lparam & (1 << 29)) != 0;
+		bool alt_key_was_down = (lparam & (1 << 29)) != 0;
 		if ((vk_code == VK_F4) && alt_key_was_down) {
 			global_running = false;
 		}
