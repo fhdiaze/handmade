@@ -288,11 +288,77 @@ static void win_sound_fill_buffer(struct Win_SoundOutput *soundout, size_t byte_
 	}
 }
 
+static void win_input_process_keyboard_msg(Game_ButtonState *newstate, bool is_down)
+{
+	newstate->ended_down = is_down;
+	++newstate->half_transition_count;
+}
+
 static void win_input_process_digital_button(DWORD xinput_button_state, Game_ButtonState *oldstate,
                                              DWORD buttonbit, Game_ButtonState *newstate)
 {
 	newstate->ended_down = (xinput_button_state & buttonbit) == buttonbit;
 	newstate->half_transition_count = oldstate->ended_down != newstate->ended_down;
+}
+
+static void win_process_messages(Game_ControllerInput *keyboard_controller)
+{
+	MSG msg;
+	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
+		switch (msg.message) {
+		case WM_QUIT: {
+			global_running = false;
+		} break;
+		case WM_SYSKEYDOWN: {
+		} break;
+		case WM_SYSKEYUP: {
+			DWORD vk_code = (DWORD)msg.wParam;
+			bool was_down = ((msg.lParam & (1 << 30)) != 0);
+			bool is_down = ((msg.lParam & (1 << 31)) == 0);
+
+			if (was_down != is_down) {
+				if (vk_code == 'W') {
+				} else if (vk_code == 'A') {
+				} else if (vk_code == 'S') {
+				} else if (vk_code == 'D') {
+				} else if (vk_code == 'Q') {
+					win_input_process_keyboard_msg(
+						&keyboard_controller->left_shoulder, is_down);
+				} else if (vk_code == 'E') {
+					win_input_process_keyboard_msg(
+						&keyboard_controller->right_shoulder, is_down);
+				} else if (vk_code == VK_UP) {
+					win_input_process_keyboard_msg(&keyboard_controller->up,
+					                               is_down);
+				} else if (vk_code == VK_LEFT) {
+					win_input_process_keyboard_msg(&keyboard_controller->left,
+					                               is_down);
+				} else if (vk_code == VK_DOWN) {
+					win_input_process_keyboard_msg(&keyboard_controller->down,
+					                               is_down);
+				} else if (vk_code == VK_RIGHT) {
+					win_input_process_keyboard_msg(&keyboard_controller->right,
+					                               is_down);
+				} else if (vk_code == VK_ESCAPE) {
+					global_running = false;
+				} else if (vk_code == VK_SPACE) {
+				}
+			}
+			bool alt_key_was_down = (msg.lParam & (1 << 29)) != 0;
+			if ((vk_code == VK_F4) && alt_key_was_down) {
+				global_running = false;
+			}
+		} break;
+		case WM_KEYDOWN: {
+		} break;
+		case WM_KEYUP: {
+		} break;
+		default: {
+			TranslateMessage(&msg);
+			DispatchMessageA(&msg);
+		} break;
+		}
+	}
 }
 
 static struct Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
@@ -352,47 +418,20 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 	LRESULT result = 0;
 
 	switch (msg) {
-	case WM_SIZE: {
-		OutputDebugStringA("WM_SIZE\n");
-	} break;
 	case WM_CLOSE: {
-		OutputDebugStringA("WM_CLOSE\n");
-		global_running = false;
-	} break;
-	case WM_DESTROY: {
-		OutputDebugStringA("WM_DESTROY\n");
 		global_running = false;
 	} break;
 	case WM_ACTIVATEAPP: {
 		OutputDebugStringA("WM_ACTIVATEAPP\n");
 	} break;
+	case WM_DESTROY: {
+		global_running = false;
+	} break;
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
 	case WM_KEYDOWN:
 	case WM_KEYUP: {
-		DWORD vk_code = (DWORD)wparam;
-		bool was_down = ((lparam & (1 << 30)) != 0);
-		bool is_down = ((lparam & (1 << 31)) == 0);
-
-		if (was_down != is_down) {
-			if (vk_code == 'W') {
-			} else if (vk_code == 'A') {
-			} else if (vk_code == 'S') {
-			} else if (vk_code == 'D') {
-			} else if (vk_code == 'Q') {
-			} else if (vk_code == 'E') {
-			} else if (vk_code == VK_UP) {
-			} else if (vk_code == VK_LEFT) {
-			} else if (vk_code == VK_DOWN) {
-			} else if (vk_code == VK_RIGHT) {
-			} else if (vk_code == VK_ESCAPE) {
-			} else if (vk_code == VK_SPACE) {
-			}
-		}
-		bool alt_key_was_down = (lparam & (1 << 29)) != 0;
-		if ((vk_code == VK_F4) && alt_key_was_down) {
-			global_running = false;
-		}
+		assert(false && "We are supposed to be processing the keyboard in other place");
 	} break;
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
@@ -468,7 +507,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	Game_Memory game_memory = {};
 	game_memory.permsize = MB_TO_BYTE(64);
-	game_memory.transize = GB_TO_BYTE(4);
+	game_memory.transize = GB_TO_BYTE(1);
 	size_t total_size = game_memory.permsize + game_memory.transize;
 	game_memory.permstorage =
 		VirtualAlloc(BASE_ADDRESS, total_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -491,15 +530,11 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	Game_Input *new_input = &inputs[0];
 	Game_Input *old_input = &inputs[1];
 	while (global_running) {
-		MSG msg;
+		Game_ControllerInput *keyboard_controller = &new_input->controllers[0];
+		Game_ControllerInput zero = {};
+		*keyboard_controller = zero;
 
-		while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
-			if (msg.message == WM_QUIT) {
-				global_running = false;
-			}
-			TranslateMessage(&msg);
-			DispatchMessageA(&msg);
-		}
+		win_process_messages(keyboard_controller);
 
 		WORD max_controller_count = XUSER_MAX_COUNT;
 		if (max_controller_count > game_max_controllers) {

@@ -1,6 +1,6 @@
 -std=c23
 -Wall
--Werror
+-fbuiltin
 -Wextra
 -Wsign-compare
 -Wconversion
@@ -11,3 +11,7 @@
 -luser32
 -lgdi32
 -Wl,/subsystem:windows
+-static
+-Wl,/MAP:bin/win_handmade.map,/MAPINFO:EXPORTS
+-Wl,/opt:ref
+-Wl,/opt:icf

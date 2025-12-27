@@ -2,12 +2,13 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "build-debug",
+            "label": "build-x64",
             "type": "shell",
             "command": ".\\misc\\build.ps1",
             "args": [
                 "-SourceFile", "${file}",
-                "-BuildMode", "Debug"
+                "-BuildMode", "debug",
+                "-Architecture", "x64"
             ],
             "group": {
                 "kind": "build",
@@ -16,12 +17,13 @@
             "problemMatcher": ["$msCompile"]
         },
         {
-            "label": "build-release",
+            "label": "build-x86",
             "type": "shell",
             "command": ".\\misc\\build.ps1",
             "args": [
                 "-SourceFile", "${file}",
-                "-BuildMode", "Release"
+                "-BuildMode", "debug",
+                "-Architectur", "x86"
             ],
             "group": "build",
             "problemMatcher": ["$msCompile"]

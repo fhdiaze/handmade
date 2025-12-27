@@ -74,8 +74,8 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 
 	Game_ControllerInput *izero = &input->controllers[0];
 	if (izero->analog) {
-		game_state->tonehz = 256 + (size_t)(128.0f * (float)izero->endy);
-		game_state->blue_offset += (long)(4.0f * (float)izero->endx);
+		game_state->tonehz = 256 + (size_t)(128.0f * izero->endy);
+		game_state->blue_offset += (long)(4.0f * izero->endx);
 	} else {
 	}
 
