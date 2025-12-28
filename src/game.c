@@ -22,14 +22,14 @@ static void game_sound_output(Game_SoundBuffer *buffer, size_t tonehz)
 	int16_t *sample_out = buffer->samples;
 	float sample_value = 0;
 	for (size_t i = 0; i < buffer->sample_count; ++i) {
-		float_t sine_value = sinf(tsine);
+		float sine_value = sinf(tsine);
 		sample_value = sine_value * tone_volume;
 		*sample_out = (int16_t)sample_value; // channel one
 		++sample_out;
 		*sample_out = (int16_t)sample_value; // channel two
 		++sample_out;
 
-		tsine += 2.0f * Pi32 / (float_t)wave_period;
+		tsine += 2.0f * PIE / (float_t)wave_period;
 	}
 }
 
@@ -62,7 +62,7 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 		game_state->blue_offset = 0;
 		game_state->green_offset = 0;
 
-		char *filename = __FILE__;
+		const char *filename = __FILE__;
 		Plat_ReadFileResult read = plat_debug_readfile(filename);
 		if (read.memory) {
 			plat_debug_writefile("test.out", read.size, read.memory);

@@ -11,7 +11,7 @@
 #include <xinput.h>
 
 static bool global_running = false;
-static struct Win_OffScreenBuffer global_back_buffer;
+static Win_OffScreenBuffer global_back_buffer;
 static LPDIRECTSOUNDBUFFER secbuffer;
 
 #define X_INPUT_GET_STATE(name)                                   \
@@ -40,7 +40,7 @@ static x_input_set_state *XInputSetState_ = XInputSetStateStub;
 	HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DSOUND_CREATE(direct_sound_create);
 
-Plat_ReadFileResult plat_debug_readfile(char *filename)
+Plat_ReadFileResult plat_debug_readfile(const char *filename)
 {
 	Plat_ReadFileResult result = {};
 	HANDLE handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
@@ -92,7 +92,7 @@ void plat_debug_freefile(void *memory)
 	}
 }
 
-bool plat_debug_writefile(char *filename, size_t memorysize, void *memory)
+bool plat_debug_writefile(const char *filename, size_t memorysize, void *memory)
 {
 	bool result = false;
 	HANDLE handle = CreateFileA(filename, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
@@ -211,7 +211,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	}
 }
 
-static void win_sound_clear_buffer(struct Win_SoundOutput *sound_output)
+static void win_sound_clear_buffer(Win_SoundOutput *sound_output)
 {
 	void *region_one;
 	DWORD region_one_size;
@@ -220,6 +220,7 @@ static void win_sound_clear_buffer(struct Win_SoundOutput *sound_output)
 	if (FAILED(IDirectSoundBuffer_Lock(secbuffer, 0, sound_output->buffsize, &region_one,
 	                                   &region_one_size, &region_two, &region_two_size, 0))) {
 		OutputDebugStringA("Error locking dsound secondary buffer");
+		return;
 	}
 
 	size_t bytes_count = region_one_size;
@@ -229,8 +230,8 @@ static void win_sound_clear_buffer(struct Win_SoundOutput *sound_output)
 		++byte_out;
 	}
 
-	byte_out = (int8_t *)region_two;
 	bytes_count = region_two_size;
+	byte_out = (int8_t *)region_two;
 	for (size_t i = 0; i < bytes_count; ++i) {
 		*byte_out = 0;
 		++byte_out;
@@ -242,23 +243,23 @@ static void win_sound_clear_buffer(struct Win_SoundOutput *sound_output)
 	}
 }
 
-static void win_sound_fill_buffer(struct Win_SoundOutput *soundout, size_t byte_to_lock,
+static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock,
                                   size_t bytes_to_write, Game_SoundBuffer *soundbuff)
 {
 	void *region_one;
-	DWORD region_one_size;
+	unsigned long region_one_size;
 	void *region_two;
-	DWORD region_two_size;
+	unsigned long region_two_size;
 
 	if (FAILED(IDirectSoundBuffer_Lock(secbuffer, byte_to_lock, bytes_to_write, &region_one,
 	                                   &region_one_size, &region_two, &region_two_size, 0))) {
 		OutputDebugStringA("Error locking dsound secondary buffer");
 	}
 
-	DWORD region_sample_count = region_one_size / soundout->sample_size;
+	size_t region_sample_count = region_one_size / soundout->sample_size;
 	int16_t *sample_out = (int16_t *)region_one;
 	int16_t *sample_in = soundbuff->samples;
-	for (DWORD i = 0; i < region_sample_count; ++i) {
+	for (size_t i = 0; i < region_sample_count; ++i) {
 		*sample_out = *sample_in; // channel one
 		++sample_out;
 		++sample_in;
@@ -266,12 +267,12 @@ static void win_sound_fill_buffer(struct Win_SoundOutput *soundout, size_t byte_
 		++sample_out;
 		++sample_in;
 
-		++(soundout->running_sample_index);
+		++soundout->running_sample_index;
 	}
 
 	sample_out = (int16_t *)region_two;
 	region_sample_count = region_two_size / soundout->sample_size;
-	for (DWORD i = 0; i < region_sample_count; ++i) {
+	for (size_t i = 0; i < region_sample_count; ++i) {
 		*sample_out = *sample_in; // channel one
 		++sample_out;
 		++sample_in;
@@ -279,7 +280,7 @@ static void win_sound_fill_buffer(struct Win_SoundOutput *soundout, size_t byte_
 		++sample_out;
 		++sample_in;
 
-		++(soundout->running_sample_index);
+		++soundout->running_sample_index;
 	}
 
 	if (FAILED(IDirectSoundBuffer_Unlock(secbuffer, region_one, region_one_size, region_two,
@@ -304,7 +305,9 @@ static void win_input_process_digital_button(DWORD xinput_button_state, Game_But
 static void win_process_messages(Game_ControllerInput *keyboard_controller)
 {
 	MSG msg;
-	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
+	size_t max_msgs = 30;
+	size_t msg_count = 0;
+	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE) && msg_count < max_msgs) {
 		switch (msg.message) {
 		case WM_QUIT: {
 			global_running = false;
@@ -358,12 +361,14 @@ static void win_process_messages(Game_ControllerInput *keyboard_controller)
 			DispatchMessageA(&msg);
 		} break;
 		}
+
+		++msg_count;
 	}
 }
 
-static struct Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
+static Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 {
-	struct Win_WindowDimensions result;
+	Win_WindowDimensions result;
 	RECT client_rec;
 	GetClientRect(winhandle, &client_rec);
 	result.width = client_rec.right - client_rec.left;
@@ -375,8 +380,7 @@ static struct Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 /*
  * dib: device independent bitmap
  */
-static void win_resize_dib_section(struct Win_OffScreenBuffer *buffer, long win_width,
-                                   long win_height)
+static void win_resize_dib_section(Win_OffScreenBuffer *buffer, long win_width, long win_height)
 {
 	if (buffer->memory) {
 		VirtualFree(buffer->memory, 0, MEM_RELEASE);
@@ -403,8 +407,8 @@ static void win_resize_dib_section(struct Win_OffScreenBuffer *buffer, long win_
 	buffer->pitch = buffer->width * bytes_per_pixel;
 }
 
-static void win_buffer_display_in_window(struct Win_OffScreenBuffer *buffer, HDC dchandle,
-                                         long win_width, long win_height)
+static void win_buffer_display_in_window(Win_OffScreenBuffer *buffer, HDC dchandle, long win_width,
+                                         long win_height)
 {
 	StretchDIBits(dchandle, 0, 0, win_width, win_height, 0, 0, buffer->width, buffer->height,
 	              buffer->memory, &buffer->bitmap_info, DIB_RGB_COLORS, SRCCOPY);
@@ -436,7 +440,7 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
 		HDC dchandle = BeginPaint(winhandle, &paint);
-		struct Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
+		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
 		EndPaint(winhandle, &paint);
@@ -487,8 +491,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	HDC dchandle = GetDC(winhandle);
 
-	// NOTE(fredy): sound test
-	struct Win_SoundOutput soundout = {
+	Win_SoundOutput soundout = {
 		.samples_per_sec = 48000,
 		.sample_size = sizeof(uint16_t) * 2,
 	};
@@ -525,7 +528,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	global_running = true;
 	LARGE_INTEGER last_counter;
 	QueryPerformanceCounter(&last_counter);
-	uint64_t last_cycle_count = __rdtsc();
+	size_t last_cycle_count = __rdtsc();
 	Game_Input inputs[2] = {};
 	Game_Input *new_input = &inputs[0];
 	Game_Input *old_input = &inputs[1];
@@ -629,7 +632,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			win_sound_fill_buffer(&soundout, byte_to_lock, bytes_to_write, &soundbuff);
 		}
 
-		struct Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
+		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
 
@@ -640,13 +643,13 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		uint64_t cycles_elapsed = end_cycle_count - last_cycle_count;
 		int64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-		float_t ms_per_frame =
-			1000.0f * (float_t)counter_elapsed / (float_t)perf_count_frequency;
-		float_t fps = (float_t)ms_per_frame / (float_t)counter_elapsed;
-		float_t mcpf = (float_t)cycles_elapsed / 1000000.0f;
+		float ms_per_frame = 1000.0f * (float)counter_elapsed / (float)perf_count_frequency;
+		float fps = (float)ms_per_frame / (float)counter_elapsed;
+		float mcpf = (float)cycles_elapsed / 1000000.0f;
 
 		char perf_buffer[256];
-		sprintf(perf_buffer, "%fms/f, %ff/s, %fmc/f", ms_per_frame, fps, mcpf);
+		sprintf(perf_buffer, "%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
+		        (double)mcpf);
 
 		OutputDebugStringA(perf_buffer);
 

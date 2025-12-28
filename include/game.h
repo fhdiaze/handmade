@@ -21,7 +21,7 @@
 #define BASE_ADDRESS (nullptr)
 #endif // DEBUG
 
-static constexpr float Pi32 = 3.14159265359f;
+static constexpr float PIE = 3.14159265359f;
 static constexpr unsigned game_max_controllers = 4;
 
 typedef struct Game_OffScreenBuffer {
@@ -43,8 +43,6 @@ typedef struct Game_ButtonState {
 } Game_ButtonState;
 
 typedef struct Game_ControllerInput {
-	bool analog;
-
 	float startx;
 	float starty;
 
@@ -68,6 +66,8 @@ typedef struct Game_ControllerInput {
 			Game_ButtonState right_shoulder;
 		};
 	};
+
+	bool analog;
 } Game_ControllerInput;
 
 typedef struct Game_Input {
@@ -75,19 +75,19 @@ typedef struct Game_Input {
 } Game_Input;
 
 typedef struct Game_State {
+	size_t tonehz;
 	long blue_offset;
 	long green_offset;
-	size_t tonehz;
 } Game_State;
 
 typedef struct Game_Memory {
-	bool initialized;
-
 	size_t permsize;
 	void *permstorage; // This should be zero initialized
 
 	size_t transize;
 	void *transtorage; // This should be zero initialized
+
+	bool initialized;
 } Game_Memory;
 
 // Utilities
@@ -124,9 +124,9 @@ typedef struct Plat_ReadFileResult {
 	void *memory;
 } Plat_ReadFileResult;
 
-Plat_ReadFileResult plat_debug_readfile(char *filename);
+Plat_ReadFileResult plat_debug_readfile(const char *filename);
 void plat_debug_freefile(void *memory);
-bool plat_debug_writefile(char *filename, size_t memorysize, void *memory);
+bool plat_debug_writefile(const char *filename, size_t memorysize, void *memory);
 
 #endif // DEBUG
 
