@@ -6,27 +6,37 @@
             "type": "shell",
             "command": ".\\misc\\build.ps1",
             "args": [
-                "-SourceFile", "${file}",
-                "-BuildMode", "debug",
-                "-Architecture", "x64"
+                "-SourceFile",
+                ".\\src\\win_handmade.c",
+                "-BuildMode",
+                "debug",
+                "-Architecture",
+                "x64"
             ],
             "group": {
                 "kind": "build",
                 "isDefault": true
             },
-            "problemMatcher": ["$msCompile"]
+            "problemMatcher": [
+                "$msCompile"
+            ]
         },
         {
             "label": "build-x86",
             "type": "shell",
             "command": ".\\misc\\build.ps1",
             "args": [
-                "-SourceFile", "${file}",
-                "-BuildMode", "debug",
-                "-Architectur", "x86"
+                "-SourceFile",
+                ".\\src\\win_handmade.c",
+                "-BuildMode",
+                "debug",
+                "-Architectur",
+                "x86"
             ],
             "group": "build",
-            "problemMatcher": ["$msCompile"]
+            "problemMatcher": [
+                "$msCompile"
+            ]
         }
     ]
 }

@@ -22,7 +22,8 @@
 #endif // DEBUG
 
 static constexpr float PIE = 3.14159265359f;
-static constexpr unsigned game_max_controllers = 4;
+static constexpr unsigned GAME_MAX_CONTROLLERS = 5;
+static constexpr unsigned GAME_MAX_BUTTONS = 12;
 
 typedef struct Game_OffScreenBuffer {
 	void *memory;
@@ -38,40 +39,47 @@ typedef struct Game_SoundBuffer {
 } Game_SoundBuffer;
 
 typedef struct Game_ButtonState {
+	// half transistion count per frame
 	int half_transition_count;
 	bool ended_down;
 } Game_ButtonState;
 
 typedef struct Game_ControllerInput {
-	float startx;
-	float starty;
-
-	float minx;
-	float miny;
-
-	float maxx;
-	float maxy;
-
-	float endx;
-	float endy;
+	float stick_avg_x;
+	float stick_avg_y;
 
 	union {
-		Game_ButtonState buttons[6];
+		Game_ButtonState buttons[GAME_MAX_BUTTONS];
 		struct {
-			Game_ButtonState up;
-			Game_ButtonState down;
-			Game_ButtonState left;
-			Game_ButtonState right;
+			Game_ButtonState moveup;
+			Game_ButtonState movedown;
+			Game_ButtonState moveleft;
+			Game_ButtonState moveright;
+
+			Game_ButtonState actionup;
+			Game_ButtonState actiondown;
+			Game_ButtonState actionleft;
+			Game_ButtonState actionright;
+
 			Game_ButtonState left_shoulder;
 			Game_ButtonState right_shoulder;
+
+			Game_ButtonState start;
+			Game_ButtonState back;
 		};
 	};
 
+	// TODO(fredy): bools in structs are suspicious
 	bool analog;
+	bool connected;
 } Game_ControllerInput;
 
+static_assert(sizeof(((Game_ControllerInput *)nullptr)->buttons) ==
+                      GAME_MAX_BUTTONS * sizeof(Game_ButtonState),
+              "Buttons array size must match GAME_MAX_BUTTONS");
+
 typedef struct Game_Input {
-	Game_ControllerInput controllers[game_max_controllers];
+	Game_ControllerInput controllers[GAME_MAX_CONTROLLERS];
 } Game_Input;
 
 typedef struct Game_State {
@@ -91,6 +99,13 @@ typedef struct Game_Memory {
 } Game_Memory;
 
 // Utilities
+
+static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
+                                                              size_t controller_index)
+{
+	assert(controller_index < GAME_MAX_CONTROLLERS);
+	return &input->controllers[controller_index];
+}
 
 /**
  * @brief truncates a int64_t into a uint32_t.
@@ -124,9 +139,9 @@ typedef struct Plat_ReadFileResult {
 	void *memory;
 } Plat_ReadFileResult;
 
-Plat_ReadFileResult plat_debug_readfile(const char *filename);
+Plat_ReadFileResult plat_debug_readfile(const char *const filename);
 void plat_debug_freefile(void *memory);
-bool plat_debug_writefile(const char *filename, size_t memorysize, void *memory);
+bool plat_debug_writefile(const char *const filename, size_t memorysize, void *memory);
 
 #endif // DEBUG
 

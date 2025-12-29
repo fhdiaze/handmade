@@ -58,29 +58,48 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 
 	Game_State *game_state = memory->permstorage;
 	if (!memory->initialized) {
-		game_state->tonehz = 256;
-		game_state->blue_offset = 0;
-		game_state->green_offset = 0;
-
-		const char *filename = __FILE__;
+		const char *const filename = __FILE__;
 		Plat_ReadFileResult read = plat_debug_readfile(filename);
 		if (read.memory) {
 			plat_debug_writefile("test.out", read.size, read.memory);
 			plat_debug_freefile(read.memory);
 			read.size = 0;
 		}
+
+		game_state->tonehz = 256;
+		game_state->blue_offset = 0;
+		game_state->green_offset = 0;
+
 		memory->initialized = true;
 	}
 
-	Game_ControllerInput *izero = &input->controllers[0];
-	if (izero->analog) {
-		game_state->tonehz = 256 + (size_t)(128.0f * izero->endy);
-		game_state->blue_offset += (long)(4.0f * izero->endx);
-	} else {
-	}
+	for (size_t i = 0; i < GAME_MAX_CONTROLLERS; ++i) {
+		Game_ControllerInput *controller = game_input_get_controller(input, i);
 
-	if (izero->down.ended_down) {
-		game_state->green_offset += 1;
+		if (!controller->connected) {
+			continue;
+		}
+
+		if (controller->analog) {
+			game_state->blue_offset += (long)(4.0f * controller->stick_avg_x);
+			game_state->tonehz = 256 + (size_t)(128.0f * controller->stick_avg_y);
+		} else {
+			if (controller->moveleft.ended_down) {
+				game_state->blue_offset -= 1;
+			}
+
+			if (controller->moveright.ended_down) {
+				game_state->blue_offset += 1;
+			}
+		}
+
+		if (controller->actiondown.ended_down) {
+			game_state->green_offset += 1;
+		}
+
+		if (controller->actionup.ended_down) {
+			game_state->green_offset -= 1;
+		}
 	}
 
 	game_sound_output(soundbuff, game_state->tonehz);
