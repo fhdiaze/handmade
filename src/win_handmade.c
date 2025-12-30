@@ -10,9 +10,13 @@
 #include <stdio.h>
 #include <xinput.h>
 
+// globals
 static bool global_running = false;
 static Win_OffScreenBuffer global_back_buffer;
 static LPDIRECTSOUNDBUFFER secbuffer;
+static int64_t global_perf_count_frequency;
+
+// macros
 
 #define X_INPUT_GET_STATE(name)                                   \
 	DWORD WINAPI name([[__maybe_unused__]] DWORD dwUserIndex, \
@@ -39,6 +43,8 @@ static x_input_set_state *XInputSetState_ = XInputSetStateStub;
 #define DSOUND_CREATE(name) \
 	HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DSOUND_CREATE(direct_sound_create);
+
+// services
 
 Plat_ReadFileResult plat_debug_readfile(const char *const filename)
 {
@@ -478,13 +484,30 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 	return result;
 }
 
+static inline LARGE_INTEGER win_clock_get_wall(void)
+{
+	LARGE_INTEGER counter;
+	QueryPerformanceCounter(&counter);
+
+	return counter;
+}
+
+static inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER end)
+{
+	return (float)(end.QuadPart - start.QuadPart) / (float)global_perf_count_frequency;
+}
+
 int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
                      [[__maybe_unused__]] HINSTANCE hprevinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nCmdShow)
 {
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
-	int64_t perf_count_frequency = perf_count_frequency_result.QuadPart;
+	global_perf_count_frequency = perf_count_frequency_result.QuadPart;
+
+	// sets the scheduler granularity to 1ms, so that our Sleep() can be more granular
+	unsigned desire_scheduler_ms = 1;
+	bool sleep_granular = timeBeginPeriod(desire_scheduler_ms) == TIMERR_NOERROR;
 
 	win_xinput_load();
 
@@ -497,6 +520,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	win_resize_dib_section(&global_back_buffer, 1200, 700);
 
+	unsigned monitorhz = 60;
+	unsigned gamehz = monitorhz / 2;
+	float target_secs_per_frame = 1.0f / (float)gamehz;
+
 	ATOM main_window_atom = RegisterClassA(&window_class);
 	if (!main_window_atom) {
 		OutputDebugStringA("error");
@@ -508,7 +535,6 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	                                 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr,
 	                                 nullptr, hinstance, nullptr);
 	if (!winhandle) {
-		// TODO(fredy): Logging
 		OutputDebugStringA("error");
 		return EXIT_FAILURE;
 	}
@@ -549,13 +575,14 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.samples = samples,
 	};
 
-	global_running = true;
-	LARGE_INTEGER last_counter;
-	QueryPerformanceCounter(&last_counter);
-	size_t last_cycle_count = __rdtsc();
 	Game_Input inputs[2] = {};
 	Game_Input *new_input = &inputs[0];
 	Game_Input *old_input = &inputs[1];
+
+	LARGE_INTEGER last_counter = win_clock_get_wall();
+
+	global_running = true;
+	size_t last_cycle_count = __rdtsc();
 	while (global_running) {
 		Game_ControllerInput *old_keyboard_controller =
 			game_input_get_controller(old_input, 0);
@@ -708,33 +735,52 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			win_sound_fill_buffer(&soundout, byte_to_lock, bytes_to_write, &soundbuff);
 		}
 
+		LARGE_INTEGER work_counter = win_clock_get_wall();
+		float work_secs_elapsed = win_clock_elapsed_secs(last_counter, work_counter);
+
+		float secs_elapsed_for_frame = work_secs_elapsed;
+		if (secs_elapsed_for_frame < target_secs_per_frame) {
+			if (sleep_granular) {
+				unsigned long sleep_ms =
+					(unsigned long)(1000.0f * (target_secs_per_frame -
+				                                   secs_elapsed_for_frame));
+				if (sleep_ms > 0) {
+					Sleep(sleep_ms);
+				}
+			}
+
+			while (secs_elapsed_for_frame < target_secs_per_frame) {
+				secs_elapsed_for_frame =
+					win_clock_elapsed_secs(last_counter, win_clock_get_wall());
+			}
+		} else {
+			// missed frame rate!
+		}
+
 		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
 
-		uint64_t end_cycle_count = __rdtsc();
-
-		LARGE_INTEGER end_counter;
-		QueryPerformanceCounter(&end_counter);
-
-		uint64_t cycles_elapsed = end_cycle_count - last_cycle_count;
-		int64_t counter_elapsed = end_counter.QuadPart - last_counter.QuadPart;
-		float ms_per_frame = 1000.0f * (float)counter_elapsed / (float)perf_count_frequency;
-		float fps = (float)ms_per_frame / (float)counter_elapsed;
-		float mcpf = (float)cycles_elapsed / 1000000.0f;
-
-		char perf_buffer[256];
-		sprintf(perf_buffer, "%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
-		        (double)mcpf);
-
-		OutputDebugStringA(perf_buffer);
-
-		last_counter = end_counter;
-		last_cycle_count = end_cycle_count;
-
 		Game_Input *temp = new_input;
 		new_input = old_input;
 		old_input = temp;
+
+		LARGE_INTEGER end_counter = win_clock_get_wall();
+		float ms_per_frame = 1000.0f * win_clock_elapsed_secs(last_counter, end_counter);
+
+		last_counter = end_counter;
+
+		uint64_t end_cycle_count = __rdtsc();
+		uint64_t cycles_elapsed = end_cycle_count - last_cycle_count;
+		last_cycle_count = end_cycle_count;
+
+		float fps = (float)1000 / (float)ms_per_frame;
+		float mega_cycles_per_frame = (float)cycles_elapsed / 1000000.0f;
+
+		char perf_buffer[256];
+		sprintf(perf_buffer, "%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
+		        (double)mega_cycles_per_frame);
+		OutputDebugStringA(perf_buffer);
 	}
 
 	return EXIT_SUCCESS;

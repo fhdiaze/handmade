@@ -74,10 +74,6 @@ typedef struct Game_ControllerInput {
 	bool connected;
 } Game_ControllerInput;
 
-static_assert(sizeof(((Game_ControllerInput *)nullptr)->buttons) ==
-                      GAME_MAX_BUTTONS * sizeof(Game_ButtonState),
-              "Buttons array size must match GAME_MAX_BUTTONS");
-
 typedef struct Game_Input {
 	Game_ControllerInput controllers[GAME_MAX_CONTROLLERS];
 } Game_Input;

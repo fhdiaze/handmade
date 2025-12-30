@@ -27,6 +27,7 @@
 -D_CRT_SECURE_NO_WARNINGS
 -luser32
 -lgdi32
+-lwinmm
 -Wl,/subsystem:windows
 -static
 -Wl,/MAP:bin/win_handmade.map,/MAPINFO:EXPORTS
