@@ -8,7 +8,6 @@
 -Wpadded
 -Wcast-qual
 -Wformat=2
--Wcast-align
 -Wwrite-strings
 -Wnull-dereference
 -Wdouble-promotion
@@ -18,6 +17,7 @@
 -Wuninitialized
 -Wshadow
 -Wundef
+-Wvla
 -Wfloat-equal
 -Wstrict-overflow=2
 -Wredundant-decls

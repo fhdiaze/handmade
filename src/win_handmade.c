@@ -11,7 +11,7 @@
 #include <xinput.h>
 
 // globals
-static bool global_running = false;
+static bool is_global_running = false;
 static Win_OffScreenBuffer global_back_buffer;
 static LPDIRECTSOUNDBUFFER secbuffer;
 static int64_t global_perf_count_frequency;
@@ -262,7 +262,7 @@ static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock
 		OutputDebugStringA("Error locking dsound secondary buffer");
 	}
 
-	size_t region_sample_count = region_one_size / soundout->sample_size;
+	size_t region_sample_count = region_one_size / soundout->bytes_per_sample;
 	int16_t *sample_out = (int16_t *)region_one;
 	int16_t *sample_in = soundbuff->samples;
 	for (size_t i = 0; i < region_sample_count; ++i) {
@@ -277,7 +277,7 @@ static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock
 	}
 
 	sample_out = (int16_t *)region_two;
-	region_sample_count = region_two_size / soundout->sample_size;
+	region_sample_count = region_two_size / soundout->bytes_per_sample;
 	for (size_t i = 0; i < region_sample_count; ++i) {
 		*sample_out = *sample_in; // channel one
 		++sample_out;
@@ -334,7 +334,7 @@ static void win_process_messages(Game_ControllerInput *keyboard_controller)
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
 		switch (msg.message) {
 		case WM_QUIT: {
-			global_running = false;
+			is_global_running = false;
 		} break;
 		case WM_SYSKEYDOWN:
 		case WM_SYSKEYUP:
@@ -385,7 +385,7 @@ static void win_process_messages(Game_ControllerInput *keyboard_controller)
 			}
 			bool alt_key_was_down = (msg.lParam & (1 << 29)) != 0;
 			if ((vk_code == VK_F4) && alt_key_was_down) {
-				global_running = false;
+				is_global_running = false;
 			}
 		} break;
 		default: {
@@ -418,9 +418,7 @@ static void win_resize_dib_section(Win_OffScreenBuffer *buffer, long win_width, 
 
 	buffer->width = win_width;
 	buffer->height = win_height;
-
-	long bytes_per_pixel = 4;
-
+	buffer->bytes_per_pixel = 4;
 	buffer->bitmap_info.bmiHeader.biSize = sizeof(buffer->bitmap_info.bmiHeader);
 	buffer->bitmap_info.bmiHeader.biWidth = buffer->width;
 	// NOTE(fredy): top-down layout (opposite to bottom-up).
@@ -430,11 +428,11 @@ static void win_resize_dib_section(Win_OffScreenBuffer *buffer, long win_width, 
 	buffer->bitmap_info.bmiHeader.biBitCount = 32;
 	buffer->bitmap_info.bmiHeader.biCompression = BI_RGB;
 
-	long bitmap_memory_size = buffer->width * buffer->height * bytes_per_pixel;
+	long bitmap_memory_size = buffer->width * buffer->height * buffer->bytes_per_pixel;
 
 	buffer->memory = VirtualAlloc(nullptr, (size_t)bitmap_memory_size, MEM_RESERVE | MEM_COMMIT,
 	                              PAGE_READWRITE);
-	buffer->pitch = buffer->width * bytes_per_pixel;
+	buffer->pitch = buffer->width * buffer->bytes_per_pixel;
 }
 
 static void win_buffer_display_in_window(Win_OffScreenBuffer *buffer, HDC dchandle, long win_width,
@@ -453,13 +451,13 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 
 	switch (msg) {
 	case WM_CLOSE: {
-		global_running = false;
+		is_global_running = false;
 	} break;
 	case WM_ACTIVATEAPP: {
 		OutputDebugStringA("WM_ACTIVATEAPP\n");
 	} break;
 	case WM_DESTROY: {
-		global_running = false;
+		is_global_running = false;
 	} break;
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
@@ -497,6 +495,72 @@ static inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER en
 	return (float)(end.QuadPart - start.QuadPart) / (float)global_perf_count_frequency;
 }
 
+/**
+ * @brief
+ *
+ * @param screen_buffer
+ * @param x pixel index
+ * @param top pixel index
+ * @param bottom pixel index
+ */
+static void win_debug_draw_vertical(Win_OffScreenBuffer *screen_buffer, size_t x, size_t top,
+                                    size_t bottom, uint32_t color)
+{
+	uint8_t *pixel_start = (uint8_t *)screen_buffer->memory +
+	                       x * (size_t)screen_buffer->bytes_per_pixel +
+	                       top * (size_t)screen_buffer->pitch;
+	uint32_t *pixel;
+	for (size_t y = top; y < bottom; ++y) {
+		pixel = (uint32_t *)pixel_start;
+		*pixel = color;
+		pixel_start += screen_buffer->pitch;
+	}
+}
+
+static inline void win_debug_draw_sound_buffer_mark(Win_OffScreenBuffer *screen_buffer,
+                                                    Win_SoundOutput *soundout,
+                                                    float pixels_per_byte, size_t padx, size_t top,
+                                                    size_t bottom, unsigned long value,
+                                                    uint32_t color)
+{
+	assert(value < soundout->buffsize);
+	size_t x = padx + (size_t)(pixels_per_byte * (float)value);
+	win_debug_draw_vertical(screen_buffer, x, top, bottom, color);
+}
+
+/**
+ * @brief debug code for sound
+ *
+ * @param screen_buffer
+ * @param last_play_cursors_size
+ * @param last_play_cursors sound play cursor positions inside the sound buffer
+ * @param soundout
+ * @param target_secs_per_frame
+ */
+static void win_debug_sync_display(Win_OffScreenBuffer *screen_buffer,
+                                   size_t last_cursors_marks_size,
+                                   Win_DebugTimeMark *last_cursors_marks, Win_SoundOutput *soundout,
+                                   float target_secs_per_frame)
+{
+	size_t padx = 16;
+	size_t pady = 16;
+
+	size_t top = pady;
+	size_t bottom = (size_t)screen_buffer->height - pady;
+
+	size_t painting_width = (size_t)screen_buffer->width - 2 * padx;
+	float pixels_per_byte = (float)painting_width / (float)soundout->buffsize;
+
+	for (size_t i = 0; i < last_cursors_marks_size; ++i) {
+		Win_DebugTimeMark current_mark = last_cursors_marks[i];
+		win_debug_draw_sound_buffer_mark(screen_buffer, soundout, pixels_per_byte, padx,
+		                                 top, bottom, current_mark.play_cursor, 0xFFFFFFFF);
+		win_debug_draw_sound_buffer_mark(screen_buffer, soundout, pixels_per_byte, padx,
+		                                 top, bottom, current_mark.write_cursor,
+		                                 0xFFFF0000);
+	}
+}
+
 int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
                      [[__maybe_unused__]] HINSTANCE hprevinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nCmdShow)
@@ -511,7 +575,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	win_xinput_load();
 
-	WNDCLASSA window_class = {
+	WNDCLASSA winclass = {
 		.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
 		.lpfnWndProc = win_main_window_proc,
 		.hInstance = hinstance,
@@ -520,17 +584,17 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	win_resize_dib_section(&global_back_buffer, 1200, 700);
 
-	unsigned monitorhz = 60;
-	unsigned gamehz = monitorhz / 2;
+	constexpr unsigned frames_of_audio_latency = 3;
+	constexpr unsigned monitorhz = 60;
+	constexpr unsigned gamehz = monitorhz / 2;
 	float target_secs_per_frame = 1.0f / (float)gamehz;
 
-	ATOM main_window_atom = RegisterClassA(&window_class);
-	if (!main_window_atom) {
+	if (!RegisterClassA(&winclass)) {
 		OutputDebugStringA("error");
 		return EXIT_FAILURE;
 	}
 
-	HWND winhandle = CreateWindowExA(0, MAKEINTATOM(main_window_atom), "Handmade Hero",
+	HWND winhandle = CreateWindowExA(0, winclass.lpszClassName, "Handmade Hero",
 	                                 WS_OVERLAPPEDWINDOW | WS_VISIBLE, CW_USEDEFAULT,
 	                                 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr,
 	                                 nullptr, hinstance, nullptr);
@@ -543,10 +607,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	Win_SoundOutput soundout = {
 		.samples_per_sec = 48000,
-		.sample_size = sizeof(uint16_t) * 2,
+		.bytes_per_sample = sizeof(uint16_t) * 2,
 	};
-	soundout.buffsize = soundout.samples_per_sec * soundout.sample_size;
-	soundout.latency_sample_count = soundout.samples_per_sec / 15;
+	soundout.buffsize = soundout.samples_per_sec * soundout.bytes_per_sample;
+	soundout.latency_sample_count = frames_of_audio_latency * soundout.samples_per_sec / gamehz;
 
 	win_sound_init(winhandle, soundout.samples_per_sec, soundout.buffsize);
 	win_sound_clear_buffer(&soundout);
@@ -554,6 +618,22 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
 		OutputDebugStringA("Error playing dsound secondary buffer");
 	}
+
+	is_global_running = true;
+
+#if 0
+	// NOTE(fredy): debug the play/write cursor update frequency
+	// on the handmade hero machine it was 480 samples
+	while (is_global_running) {
+		unsigned long play_cursor;
+		unsigned long write_cursor;
+		IDirectSoundBuffer_GetCurrentPosition(secbuffer, &play_cursor, &write_cursor);
+
+		char text_buffer[256];
+		sprintf(text_buffer, "PC: %lu, WC: %lu", play_cursor, write_cursor);
+		OutputDebugStringA(text_buffer);
+	}
+#endif // Debug play/write cursor update latency
 
 	int16_t *samples = (int16_t *)VirtualAlloc(nullptr, soundout.buffsize,
 	                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
@@ -581,9 +661,15 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	LARGE_INTEGER last_counter = win_clock_get_wall();
 
-	global_running = true;
+	constexpr size_t debug_last_cursor_marks_size = gamehz / 2;
+	size_t debug_last_cursor_mark_index = 0;
+	Win_DebugTimeMark debug_last_cursor_marks[debug_last_cursor_marks_size] = {};
+
+	unsigned long last_play_cursor = 0;
+	bool is_sound_valid = false;
+
 	size_t last_cycle_count = __rdtsc();
-	while (global_running) {
+	while (is_global_running) {
 		Game_ControllerInput *old_keyboard_controller =
 			game_input_get_controller(old_input, 0);
 		Game_ControllerInput *new_keyboard_controller =
@@ -600,7 +686,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		win_process_messages(new_keyboard_controller);
 
 		// +1 Taking into account keyboard controller
-		WORD max_controller_count = XUSER_MAX_COUNT;
+		unsigned short max_controller_count = XUSER_MAX_COUNT;
 		if (max_controller_count > GAME_MAX_CONTROLLERS - 1) {
 			max_controller_count = GAME_MAX_CONTROLLERS - 1;
 		}
@@ -696,32 +782,32 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			                                 XINPUT_GAMEPAD_BACK,
 			                                 &new_controller->back);
 		}
+		size_t byte_to_lock = 0;
+		size_t bytes_to_write = 0;
+		size_t target_cursor = 0;
+		if (is_sound_valid) {
+			// NOTE(fredy): Compute how much sound to write and where
+			byte_to_lock = (soundout.running_sample_index * soundout.bytes_per_sample) %
+			               soundout.buffsize;
+			target_cursor =
+				(last_play_cursor + (unsigned long)(soundout.latency_sample_count *
+			                                            soundout.bytes_per_sample)) %
+				soundout.buffsize;
 
-		DWORD play_cursor;
-		DWORD write_cursor;
-		unsigned is_sound_valid = true;
-		if (FAILED(IDirectSoundBuffer_GetCurrentPosition(secbuffer, &play_cursor,
-		                                                 &write_cursor))) {
-			is_sound_valid = false;
-			OutputDebugStringA(
-				"Error getting current position of dsound secondary buffer");
+			if (byte_to_lock > target_cursor) {
+				bytes_to_write = soundout.buffsize - byte_to_lock;
+				bytes_to_write += target_cursor;
+			} else {
+				bytes_to_write = target_cursor - byte_to_lock;
+			}
+
+			char text_buffer[256];
+			sprintf(text_buffer, "PC: %lu, BTL: %zu, TC: %zu, BTW: %zu",
+			        last_play_cursor, byte_to_lock, target_cursor, bytes_to_write);
+			OutputDebugStringA(text_buffer);
 		}
 
-		DWORD target_cursor = (play_cursor + (DWORD)(soundout.latency_sample_count *
-		                                             soundout.sample_size)) %
-		                      soundout.buffsize;
-		size_t byte_to_lock =
-			(soundout.running_sample_index * soundout.sample_size) % soundout.buffsize;
-		size_t bytes_to_write;
-
-		if (byte_to_lock > target_cursor) {
-			bytes_to_write = soundout.buffsize - byte_to_lock;
-			bytes_to_write += target_cursor;
-		} else {
-			bytes_to_write = target_cursor - byte_to_lock;
-		}
-
-		soundbuff.sample_count = bytes_to_write / soundout.sample_size;
+		soundbuff.sample_count = bytes_to_write / soundout.bytes_per_sample;
 
 		Game_OffScreenBuffer screenbuff = {
 			.memory = global_back_buffer.memory,
@@ -732,6 +818,20 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		game_update_and_render(&game_memory, new_input, &screenbuff, &soundbuff);
 
 		if (is_sound_valid) {
+#ifdef DEBUG
+			{
+				unsigned long play_cursor;
+				unsigned long write_cursor;
+				IDirectSoundBuffer_GetCurrentPosition(secbuffer, &play_cursor,
+				                                      &write_cursor);
+				char text_buffer[256];
+				sprintf(text_buffer,
+				        "LPC: %lu, BTL: %zu, TC: %zu, BTW: %zu - PC: %lu, WC: %lu",
+				        last_play_cursor, byte_to_lock, target_cursor,
+				        bytes_to_write, play_cursor, write_cursor);
+				OutputDebugStringA(text_buffer);
+			}
+#endif
 			win_sound_fill_buffer(&soundout, byte_to_lock, bytes_to_write, &soundbuff);
 		}
 
@@ -757,18 +857,52 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			// missed frame rate!
 		}
 
+		LARGE_INTEGER end_counter = win_clock_get_wall();
+		float ms_per_frame = 1000.0f * win_clock_elapsed_secs(last_counter, end_counter);
+		last_counter = end_counter;
+
 		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
+
+#ifdef DEBUG
+		win_debug_sync_display(&global_back_buffer, debug_last_cursor_marks_size,
+		                       debug_last_cursor_marks, &soundout, target_secs_per_frame);
+#endif
+
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
+
+		unsigned long play_cursor;
+		unsigned long write_cursor;
+		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(secbuffer, &play_cursor,
+		                                                    &write_cursor))) {
+			last_play_cursor = play_cursor;
+			if (!is_sound_valid) {
+				soundout.running_sample_index =
+					write_cursor / soundout.bytes_per_sample;
+				is_sound_valid = true;
+			}
+		} else {
+			is_sound_valid = false;
+			OutputDebugStringA(
+				"Error getting current position of dsound secondary buffer");
+		}
+
+#ifdef DEBUG
+		{
+			if (is_sound_valid) {
+				Win_DebugTimeMark *mark =
+					&debug_last_cursor_marks[debug_last_cursor_mark_index];
+				mark->play_cursor = play_cursor;
+				mark->write_cursor = write_cursor;
+				debug_last_cursor_mark_index = (debug_last_cursor_mark_index + 1) %
+				                               debug_last_cursor_marks_size;
+			}
+		}
+#endif
 
 		Game_Input *temp = new_input;
 		new_input = old_input;
 		old_input = temp;
-
-		LARGE_INTEGER end_counter = win_clock_get_wall();
-		float ms_per_frame = 1000.0f * win_clock_elapsed_secs(last_counter, end_counter);
-
-		last_counter = end_counter;
 
 		uint64_t end_cycle_count = __rdtsc();
 		uint64_t cycles_elapsed = end_cycle_count - last_cycle_count;
@@ -777,10 +911,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		float fps = (float)1000 / (float)ms_per_frame;
 		float mega_cycles_per_frame = (float)cycles_elapsed / 1000000.0f;
 
-		char perf_buffer[256];
-		sprintf(perf_buffer, "%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
+		char text_buffer[256];
+		sprintf(text_buffer, "%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
 		        (double)mega_cycles_per_frame);
-		OutputDebugStringA(perf_buffer);
+		OutputDebugStringA(text_buffer);
 	}
 
 	return EXIT_SUCCESS;
