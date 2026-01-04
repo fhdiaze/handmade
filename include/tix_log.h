@@ -28,47 +28,33 @@
 #define STRGY(n) STRINGIFY(n)
 
 #ifdef DEBUG
-#define TIX_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...) \
-	TIX_LOG_FILE_MSG(log_level, fmt, file_name, func_name, line_number __VA_OPT__(, ) __VA_ARGS__)
+#define TIX_LOG_WRITE(fmt, ...)                                        \
+	do {                                                           \
+		FILE *_pr_log_file = fopen("./bin/log.txt", "a+");     \
+		if (_pr_log_file == nullptr) {                         \
+			break;                                         \
+		}                                                      \
+		fprintf(_pr_log_file, fmt __VA_OPT__(, ) __VA_ARGS__); \
+                                                                       \
+		fclose(_pr_log_file);                                  \
+	} while (false)
 #else
-#define TIX_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...) \
-	TIX_LOG_STDOUT_MSG(log_level, fmt, file_name, func_name, line_number __VA_OPT__(, ) __VA_ARGS__)
+#define TIX_LOG_WRITE(fmt, ...) printf(fmt __VA_OPT__(, ) __VA_ARGS__)
 #endif
 
-#define TIX_LOG_STDOUT_MSG(log_level, fmt, file_name, func_name, line_number, ...)         \
-	do {                                                                           \
-		char _pr_tstamp_str[TIX_LOG_TSTAMP_BUF_SIZE];                              \
-		struct timespec _pr_ts;                                                \
-		struct tm _pr_tm;                                                      \
-                                                                                       \
-		timespec_get(&_pr_ts, TIME_UTC);                                       \
-		gmtime_s(&_pr_tm, &_pr_ts.tv_sec);                                     \
-		strftime(_pr_tstamp_str, TIX_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm);       \
-                                                                                       \
-		printf("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str, \
-		       _pr_ts.tv_nsec, file_name, func_name,                           \
-		       STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);                 \
-	} while (false)
-
-#define TIX_LOG_FILE_MSG(log_level, fmt, file_name, func_name, line_number, ...)          \
-	do {                                                                          \
-		char _pr_tstamp_str[TIX_LOG_TSTAMP_BUF_SIZE];                             \
-		struct timespec _pr_ts;                                               \
-		struct tm _pr_tm;                                                     \
-                                                                                      \
-		timespec_get(&_pr_ts, TIME_UTC);                                      \
-		gmtime_s(&_pr_tm, &_pr_ts.tv_sec);                                    \
-		strftime(_pr_tstamp_str, TIX_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm);      \
-                                                                                      \
-		FILE *_pr_log_file = fopen("./bin/log.txt", "a+");                    \
-		if (_pr_log_file == nullptr) {                                        \
-			break;                                                        \
-		}                                                                     \
-		fprintf(_pr_log_file, "%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, \
-		        _pr_tstamp_str, _pr_ts.tv_nsec, file_name, func_name,         \
-		        STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);               \
-                                                                                      \
-		fclose(_pr_log_file);                                                 \
+#define TIX_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                   \
+	do {                                                                                  \
+		char _pr_tstamp_str[TIX_LOG_TSTAMP_BUF_SIZE];                                 \
+		struct timespec _pr_ts;                                                       \
+		struct tm _pr_tm;                                                             \
+                                                                                              \
+		timespec_get(&_pr_ts, TIME_UTC);                                              \
+		gmtime_s(&_pr_tm, &_pr_ts.tv_sec);                                            \
+		strftime(_pr_tstamp_str, TIX_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm);          \
+                                                                                              \
+		TIX_LOG_WRITE("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str, \
+		              _pr_ts.tv_nsec, file_name, func_name,                           \
+		              STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);                 \
 	} while (false)
 
 #define TIX_LOG_MSG_NOOP(...) ((void)0)

@@ -870,6 +870,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
 
+		// We want to know where was the play cursor immediately after we flipped the frame
+		// in order to synchronize audio and video: write sound between frame boundaries
 		unsigned long play_cursor;
 		unsigned long write_cursor;
 		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(secbuffer, &play_cursor,
@@ -907,7 +909,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		uint64_t cycles_elapsed = end_cycle_count - last_cycle_count;
 		last_cycle_count = end_cycle_count;
 
-		float fps = (float)1000 / (float)ms_per_frame;
+		float fps = 1000.0f / ms_per_frame;
 		float mega_cycles_per_frame = (float)cycles_elapsed / 1000000.0f;
 
 		tix_logi("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
