@@ -2,8 +2,12 @@
 * Windows platform code
 */
 
+#undef TIX_LOG_LEVEL
+#define TIX_LOG_LEVEL TIX_LOG_LEVEL_ERROR
+
 #include "win_handmade.h"
 #include "game.c"
+#include "tix_log.h"
 #include <dsound.h>
 #include <math.h>
 #include <stdint.h>
@@ -590,7 +594,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	float target_secs_per_frame = 1.0f / (float)gamehz;
 
 	if (!RegisterClassA(&winclass)) {
-		OutputDebugStringA("error");
+		tix_loge("error registering the window class");
 		return EXIT_FAILURE;
 	}
 
@@ -599,7 +603,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	                                 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr,
 	                                 nullptr, hinstance, nullptr);
 	if (!winhandle) {
-		OutputDebugStringA("error");
+		tix_loge("error creating the window");
 		return EXIT_FAILURE;
 	}
 
@@ -616,7 +620,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	win_sound_clear_buffer(&soundout);
 
 	if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
-		OutputDebugStringA("Error playing dsound secondary buffer");
+		tix_loge("Error playing dsound secondary buffer");
 	}
 
 	is_global_running = true;
@@ -800,11 +804,6 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			} else {
 				bytes_to_write = target_cursor - byte_to_lock;
 			}
-
-			char text_buffer[256];
-			sprintf(text_buffer, "PC: %lu, BTL: %zu, TC: %zu, BTW: %zu",
-			        last_play_cursor, byte_to_lock, target_cursor, bytes_to_write);
-			OutputDebugStringA(text_buffer);
 		}
 
 		soundbuff.sample_count = bytes_to_write / soundout.bytes_per_sample;
@@ -824,12 +823,12 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				unsigned long write_cursor;
 				IDirectSoundBuffer_GetCurrentPosition(secbuffer, &play_cursor,
 				                                      &write_cursor);
-				char text_buffer[256];
-				sprintf(text_buffer,
-				        "LPC: %lu, BTL: %zu, TC: %zu, BTW: %zu - PC: %lu, WC: %lu",
-				        last_play_cursor, byte_to_lock, target_cursor,
-				        bytes_to_write, play_cursor, write_cursor);
-				OutputDebugStringA(text_buffer);
+				if (byte_to_lock <= write_cursor) {
+					tix_loge(
+						"LPC: %lu, BTL: %zu, TC: %zu, BTW: %zu - PC: %lu, WC: %lu",
+						last_play_cursor, byte_to_lock, target_cursor,
+						bytes_to_write, play_cursor, write_cursor);
+				}
 			}
 #endif
 			win_sound_fill_buffer(&soundout, byte_to_lock, bytes_to_write, &soundbuff);
@@ -883,13 +882,13 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			}
 		} else {
 			is_sound_valid = false;
-			OutputDebugStringA(
-				"Error getting current position of dsound secondary buffer");
+			tix_loge("Error getting current position of dsound secondary buffer");
 		}
 
 #ifdef DEBUG
 		{
 			if (is_sound_valid) {
+				assert(debug_last_cursor_mark_index < debug_last_cursor_marks_size);
 				Win_DebugTimeMark *mark =
 					&debug_last_cursor_marks[debug_last_cursor_mark_index];
 				mark->play_cursor = play_cursor;
@@ -911,10 +910,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		float fps = (float)1000 / (float)ms_per_frame;
 		float mega_cycles_per_frame = (float)cycles_elapsed / 1000000.0f;
 
-		char text_buffer[256];
-		sprintf(text_buffer, "%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
-		        (double)mega_cycles_per_frame);
-		OutputDebugStringA(text_buffer);
+		tix_logi("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
+		         (double)mega_cycles_per_frame);
 	}
 
 	return EXIT_SUCCESS;

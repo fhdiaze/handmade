@@ -1,0 +1,124 @@
+// clang-format Language: C
+
+#ifndef TIX_LOG_H
+#define TIX_LOG_H
+
+#include <stdint.h>
+#include <stdio.h> // IWYU pragma: keep
+#include <time.h>
+
+// Constants
+#define TIX_LOG_TSTAMP_BUF_SIZE 32
+#define TIX_LOG_LEVEL_ALL 0UL
+#define TIX_LOG_LEVEL_TRACE 1UL
+#define TIX_LOG_LEVEL_DEBUG 2UL
+#define TIX_LOG_LEVEL_INFO 3UL
+#define TIX_LOG_LEVEL_WARN 4UL
+#define TIX_LOG_LEVEL_ERROR 5UL
+#define TIX_LOG_LEVEL_FATAL 6UL
+#define TIX_LOG_LEVEL_OFF 7UL
+
+// Defines what is the minimum priority of a message to be logged.
+// Anything with higher priority is going to be logged.
+#ifndef TIX_LOG_LEVEL
+#define TIX_LOG_LEVEL TIX_LOG_LEVEL_ALL
+#endif // TIX_LOG_LEVEL
+
+#define STRINGIFY(n) #n
+#define STRGY(n) STRINGIFY(n)
+
+#ifdef DEBUG
+#define TIX_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...) \
+	TIX_LOG_FILE_MSG(log_level, fmt, file_name, func_name, line_number __VA_OPT__(, ) __VA_ARGS__)
+#else
+#define TIX_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...) \
+	TIX_LOG_STDOUT_MSG(log_level, fmt, file_name, func_name, line_number __VA_OPT__(, ) __VA_ARGS__)
+#endif
+
+#define TIX_LOG_STDOUT_MSG(log_level, fmt, file_name, func_name, line_number, ...)         \
+	do {                                                                           \
+		char _pr_tstamp_str[TIX_LOG_TSTAMP_BUF_SIZE];                              \
+		struct timespec _pr_ts;                                                \
+		struct tm _pr_tm;                                                      \
+                                                                                       \
+		timespec_get(&_pr_ts, TIME_UTC);                                       \
+		gmtime_s(&_pr_tm, &_pr_ts.tv_sec);                                     \
+		strftime(_pr_tstamp_str, TIX_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm);       \
+                                                                                       \
+		printf("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str, \
+		       _pr_ts.tv_nsec, file_name, func_name,                           \
+		       STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);                 \
+	} while (false)
+
+#define TIX_LOG_FILE_MSG(log_level, fmt, file_name, func_name, line_number, ...)          \
+	do {                                                                          \
+		char _pr_tstamp_str[TIX_LOG_TSTAMP_BUF_SIZE];                             \
+		struct timespec _pr_ts;                                               \
+		struct tm _pr_tm;                                                     \
+                                                                                      \
+		timespec_get(&_pr_ts, TIME_UTC);                                      \
+		gmtime_s(&_pr_tm, &_pr_ts.tv_sec);                                    \
+		strftime(_pr_tstamp_str, TIX_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm);      \
+                                                                                      \
+		FILE *_pr_log_file = fopen("./bin/log.txt", "a+");                    \
+		if (_pr_log_file == nullptr) {                                        \
+			break;                                                        \
+		}                                                                     \
+		fprintf(_pr_log_file, "%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, \
+		        _pr_tstamp_str, _pr_ts.tv_nsec, file_name, func_name,         \
+		        STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);               \
+                                                                                      \
+		fclose(_pr_log_file);                                                 \
+	} while (false)
+
+#define TIX_LOG_MSG_NOOP(...) ((void)0)
+
+// Logs a trace message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_TRACE
+// Usage: tix_logd("Log trace: x=%d", x);
+#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_TRACE
+#define logt(fmt, ...) TIX_LOG_MSG('T', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define logt(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // logt
+
+// Logs a debug message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_DEBUG.
+// Usage: tix_logd("log debug: x=%d", x);
+#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_DEBUG
+#define tix_logd(fmt, ...) TIX_LOG_MSG('D', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define tix_logd(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // tix_logd
+
+// Logs an information message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_INFO
+// Usage: tix_logi("Log info: x=%d", x);
+#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_INFO
+#define tix_logi(fmt, ...) TIX_LOG_MSG('I', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define tix_logi(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // tix_logi
+
+// Logs a warning message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_WARN
+// Usage: tix_logw("Log warn: x=%d", x);
+#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_WARN
+#define tix_logw(fmt, ...) TIX_LOG_MSG('W', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define tix_logw(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // tix_logw
+
+// Logs an error message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_ERROR
+// Usage: tix_loge("Log error: x=%d", x);
+#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_ERROR
+#define tix_loge(fmt, ...) TIX_LOG_MSG('E', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define tix_loge(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // tix_loge
+
+// Logs a fatal message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_FATAL
+// Usage: tix_logf("Log fatal: x=%d", x);
+#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_FATAL
+#define tix_logf(fmt, ...) TIX_LOG_MSG('F', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define tix_logf(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // tix_logf
+
+#endif // TIX_LOG_H
