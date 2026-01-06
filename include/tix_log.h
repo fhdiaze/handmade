@@ -60,51 +60,51 @@
 #define TIX_LOG_MSG_NOOP(...) ((void)0)
 
 // Logs a trace message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_TRACE
-// Usage: tix_logd("Log trace: x=%d", x);
+// Usage: TIX_LOGD("Log trace: x=%d", x);
 #if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_TRACE
-#define logt(fmt, ...) TIX_LOG_MSG('T', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#define TIX_LOGT(fmt, ...) TIX_LOG_MSG('T', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define logt(fmt, ...) TIX_LOG_MSG_NOOP()
+#define TIX_LOGT(fmt, ...) TIX_LOG_MSG_NOOP()
 #endif // logt
 
 // Logs a debug message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_DEBUG.
-// Usage: tix_logd("log debug: x=%d", x);
+// Usage: TIX_LOGD("log debug: x=%d", x);
 #if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_DEBUG
-#define tix_logd(fmt, ...) TIX_LOG_MSG('D', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#define TIX_LOGD(fmt, ...) TIX_LOG_MSG('D', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define tix_logd(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // tix_logd
+#define TIX_LOGD(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // TIX_LOGD
 
 // Logs an information message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_INFO
-// Usage: tix_logi("Log info: x=%d", x);
+// Usage: TIX_LOGI("Log info: x=%d", x);
 #if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_INFO
-#define tix_logi(fmt, ...) TIX_LOG_MSG('I', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#define TIX_LOGI(fmt, ...) TIX_LOG_MSG('I', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define tix_logi(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // tix_logi
+#define TIX_LOGI(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // TIX_LOGI
 
 // Logs a warning message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_WARN
-// Usage: tix_logw("Log warn: x=%d", x);
+// Usage: TIX_LOGW("Log warn: x=%d", x);
 #if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_WARN
-#define tix_logw(fmt, ...) TIX_LOG_MSG('W', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#define TIX_LOGW(fmt, ...) TIX_LOG_MSG('W', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define tix_logw(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // tix_logw
+#define TIX_LOGW(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // TIX_LOGW
 
 // Logs an error message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_ERROR
-// Usage: tix_loge("Log error: x=%d", x);
+// Usage: TIX_LOGE("Log error: x=%d", x);
 #if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_ERROR
-#define tix_loge(fmt, ...) TIX_LOG_MSG('E', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#define TIX_LOGE(fmt, ...) TIX_LOG_MSG('E', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define tix_loge(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // tix_loge
+#define TIX_LOGE(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // TIX_LOGE
 
 // Logs a fatal message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_FATAL
-// Usage: tix_logf("Log fatal: x=%d", x);
+// Usage: TIX_LOGF("Log fatal: x=%d", x);
 #if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_FATAL
-#define tix_logf(fmt, ...) TIX_LOG_MSG('F', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#define TIX_LOGF(fmt, ...) TIX_LOG_MSG('F', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define tix_logf(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // tix_logf
+#define TIX_LOGF(fmt, ...) TIX_LOG_MSG_NOOP()
+#endif // TIX_LOGF
 
 #endif // TIX_LOG_H

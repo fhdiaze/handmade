@@ -47,17 +47,17 @@ static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, long blue_o
 			*pixel = (uint32_t)(green << CHAR_BIT) | blue;
 			++pixel;
 		}
-		row += buffer->pitch;
+		row += buffer->pitch_bytes;
 	}
 }
 
 void game_update_and_render(Game_Memory *memory, Game_Input *input,
-                            Game_OffScreenBuffer *screenbuff, Game_SoundBuffer *soundbuff)
+                            Game_OffScreenBuffer *screenbuff)
 {
 	assert(sizeof(Game_State) <= memory->permsize);
 
 	Game_State *game_state = memory->permstorage;
-	if (!memory->initialized) {
+	if (!memory->is_initialized) {
 		const char *const filename = __FILE__;
 		Plat_ReadFileResult read = plat_debug_readfile(filename);
 		if (read.memory) {
@@ -70,17 +70,17 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 		game_state->blue_offset = 0;
 		game_state->green_offset = 0;
 
-		memory->initialized = true;
+		memory->is_initialized = true;
 	}
 
 	for (size_t i = 0; i < GAME_MAX_CONTROLLERS; ++i) {
 		Game_ControllerInput *controller = game_input_get_controller(input, i);
 
-		if (!controller->connected) {
+		if (!controller->is_connected) {
 			continue;
 		}
 
-		if (controller->analog) {
+		if (controller->is_analog) {
 			game_state->blue_offset += (long)(4.0f * controller->stick_avg_x);
 			game_state->tonehz = 256 + (size_t)(128.0f * controller->stick_avg_y);
 		} else {
@@ -102,6 +102,13 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 		}
 	}
 
-	game_sound_output(soundbuff, game_state->tonehz);
 	game_render_weird_gradient(screenbuff, game_state->blue_offset, game_state->green_offset);
+}
+
+void game_sound_create_samples(Game_Memory *memory, Game_SoundBuffer *soundbuff)
+{
+	assert(sizeof(Game_State) <= memory->permsize);
+
+	Game_State *game_state = memory->permstorage;
+	game_sound_output(soundbuff, game_state->tonehz);
 }

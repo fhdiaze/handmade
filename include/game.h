@@ -15,6 +15,23 @@
 #define GB_TO_BYTE(_pr_v) (MB_TO_BYTE(_pr_v) * 1024ull)
 #define TB_TO_BYTE(_pr_v) (GB_TO_BYTE(_pr_v) * 1024ull)
 
+/**
+ * @brief Calculates the distance between two indexes in a ring buffer
+ */
+#define RING_DIFF(size, start, end) ((end) >= (start) ? (end) - (start) : (size) - (start) + (end))
+
+/**
+ * @brief Adds an offset to a index in a ring buffer
+ */
+#define RING_ADD(size, index, offset) (((index) + (offset)) % (size))
+
+/**
+ * @brief Checks if an index is between start and end indexes in a ring buffer
+ */
+#define RING_BETWEEN(start, end, test)                               \
+	((end) >= (start) ? ((test) >= (start) && (test) <= (end)) : \
+	                    ((test) >= (start) || (test) <= (end)))
+
 #ifdef DEBUG
 #define BASE_ADDRESS ((void *)TB_TO_BYTE(2))
 #else
@@ -29,7 +46,7 @@ typedef struct Game_OffScreenBuffer {
 	void *memory;
 	long width;
 	long height;
-	long pitch; // size of a row in bytes
+	long pitch_bytes; // size of a row in bytes
 } Game_OffScreenBuffer;
 
 typedef struct Game_SoundBuffer {
@@ -70,8 +87,8 @@ typedef struct Game_ControllerInput {
 	};
 
 	// TODO(fredy): bools in structs are suspicious
-	bool analog;
-	bool connected;
+	bool is_analog;
+	bool is_connected;
 } Game_ControllerInput;
 
 typedef struct Game_Input {
@@ -85,13 +102,13 @@ typedef struct Game_State {
 } Game_State;
 
 typedef struct Game_Memory {
-	size_t permsize;
+	size_t permsize; // permanent storage in bytes
 	void *permstorage; // This should be zero initialized
 
-	size_t transize;
+	size_t transize; // transient storage in bytes
 	void *transtorage; // This should be zero initialized
 
-	bool initialized;
+	bool is_initialized;
 } Game_Memory;
 
 // Utilities
@@ -124,7 +141,9 @@ static inline uint32_t lltoul(int64_t value)
  * @param soundbuff
  */
 void game_update_and_render(Game_Memory *memory, Game_Input *input,
-                            Game_OffScreenBuffer *screenbuff, Game_SoundBuffer *soundbuff);
+                            Game_OffScreenBuffer *screenbuff);
+
+void game_sound_create_samples(Game_Memory *memory, Game_SoundBuffer *soundbuff);
 
 // Platform services
 

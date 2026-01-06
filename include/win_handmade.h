@@ -13,8 +13,8 @@ typedef struct Win_WindowDimensions {
 typedef struct Win_OffScreenBuffer {
 	long width;
 	long height;
-	long pitch; // size of a row in bytes
-	long bytes_per_pixel;
+	long pitch_bytes; // size of a row in bytes
+	long pixel_size_bytes;
 	void *memory;
 	BITMAPINFO bitmap_info;
 } Win_OffScreenBuffer;
@@ -22,9 +22,9 @@ typedef struct Win_OffScreenBuffer {
 typedef struct Win_SoundOutput {
 	size_t samples_per_sec;
 	size_t running_sample_index;
-	size_t bytes_per_sample; // Size of the sample in bytes
+	size_t sample_size_bytes; // Size of the sample in bytes
 	size_t buffsize;
-	size_t latency_sample_count;
+	size_t sefety_bytes;
 	float tsine;
 } Win_SoundOutput;
 
