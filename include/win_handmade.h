@@ -11,26 +11,33 @@ typedef struct Win_WindowDimensions {
 } Win_WindowDimensions;
 
 typedef struct Win_OffScreenBuffer {
-	long width;
-	long height;
-	long pitch_bytes; // size of a row in bytes
-	long pixel_size_bytes;
+	unsigned width;
+	unsigned height;
+	unsigned pitch_bytes; // size of a row in bytes
+	unsigned pixel_size_bytes;
 	void *memory;
 	BITMAPINFO bitmap_info;
 } Win_OffScreenBuffer;
 
 typedef struct Win_SoundOutput {
-	size_t samples_per_sec;
 	size_t running_sample_index;
-	size_t sample_size_bytes; // Size of the sample in bytes
-	size_t buffsize;
-	size_t sefety_bytes;
-	float tsine;
+	unsigned samples_per_sec;
+	unsigned bytes_per_sample; // Size of the sample in bytes
+	unsigned buffsize;
+	unsigned safety_bytes;
 } Win_SoundOutput;
 
 typedef struct Win_DebugTimeMark {
-	unsigned long play_cursor;
-	unsigned long write_cursor;
+	unsigned long output_play_cursor;
+	unsigned long output_write_cursor;
+
+	unsigned long flip_play_cursor;
+	unsigned long flip_write_cursor;
+
+	unsigned output_location;
+	unsigned output_byte_count;
+
+	unsigned frame_flip_byte;
 } Win_DebugTimeMark;
 
 #endif // WIN_HANDMADE_H

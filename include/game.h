@@ -21,9 +21,19 @@
 #define RING_DIFF(size, start, end) ((end) >= (start) ? (end) - (start) : (size) - (start) + (end))
 
 /**
- * @brief Adds an offset to a index in a ring buffer
+ * @brief Calculates the complement to the ring size for a value
+ */
+#define RING_COMPLEMENT(size, value) ((size) - (value))
+
+/**
+ * @brief Adds a positive offset to a index in a ring buffer
  */
 #define RING_ADD(size, index, offset) (((index) + (offset)) % (size))
+
+/**
+ * @brief Subtracts a positive offset to a index in a ring buffer
+ */
+#define RING_SUB(size, index, offset) (((index) + RING_COMPLEMENT((size), (offset))) % (size))
 
 /**
  * @brief Checks if an index is between start and end indexes in a ring buffer
@@ -44,20 +54,20 @@ static constexpr unsigned GAME_MAX_BUTTONS = 12;
 
 typedef struct Game_OffScreenBuffer {
 	void *memory;
-	long width;
-	long height;
-	long pitch_bytes; // size of a row in bytes
+	unsigned width;
+	unsigned height;
+	unsigned pitch_bytes; // size of a row in bytes
 } Game_OffScreenBuffer;
 
 typedef struct Game_SoundBuffer {
-	size_t samples_per_sec;
-	size_t sample_count;
+	unsigned samples_per_sec;
+	unsigned sample_count;
 	int16_t *samples;
 } Game_SoundBuffer;
 
 typedef struct Game_ButtonState {
 	// half transistion count per frame
-	int half_transition_count;
+	unsigned half_transition_count;
 	bool ended_down;
 } Game_ButtonState;
 
@@ -96,9 +106,9 @@ typedef struct Game_Input {
 } Game_Input;
 
 typedef struct Game_State {
-	size_t tonehz;
-	long blue_offset;
-	long green_offset;
+	unsigned tonehz;
+	unsigned blue_offset;
+	unsigned green_offset;
 } Game_State;
 
 typedef struct Game_Memory {

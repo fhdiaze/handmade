@@ -16,6 +16,7 @@
 
 // globals
 static bool is_global_running = false;
+static bool is_global_pause = false;
 static Win_OffScreenBuffer global_back_buffer;
 static LPDIRECTSOUNDBUFFER secbuffer;
 static int64_t global_perf_count_frequency;
@@ -274,7 +275,7 @@ static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock
 		OutputDebugStringA("Error locking dsound secondary buffer");
 	}
 
-	size_t region_sample_count = region_one_size / soundout->sample_size_bytes;
+	size_t region_sample_count = region_one_size / soundout->bytes_per_sample;
 	int16_t *sample_out = (int16_t *)region_one;
 	int16_t *sample_in = soundbuff->samples;
 	for (size_t i = 0; i < region_sample_count; ++i) {
@@ -289,7 +290,7 @@ static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock
 	}
 
 	sample_out = (int16_t *)region_two;
-	region_sample_count = region_two_size / soundout->sample_size_bytes;
+	region_sample_count = region_two_size / soundout->bytes_per_sample;
 	for (size_t i = 0; i < region_sample_count; ++i) {
 		*sample_out = *sample_in; // channel one
 		++sample_out;
@@ -394,6 +395,13 @@ static void win_process_messages(Game_ControllerInput *keyboard_controller)
 					win_input_process_keyboard_msg(&keyboard_controller->back,
 					                               is_down);
 				}
+#if DEBUG
+				else if (vk_code == 'P') {
+					if (is_down) {
+						is_global_pause = !is_global_pause;
+					}
+				}
+#endif
 			}
 			bool was_alt_key_down = (msg.lParam & (1 << 29)) != 0;
 			if ((vk_code == VK_F4) && was_alt_key_down) {
@@ -422,7 +430,8 @@ static Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 /*
  * dib: device independent bitmap
  */
-static void win_resize_dib_section(Win_OffScreenBuffer *buffer, long win_width, long win_height)
+static void win_resize_dib_section(Win_OffScreenBuffer *buffer, unsigned win_width,
+                                   unsigned win_height)
 {
 	if (buffer->memory) {
 		VirtualFree(buffer->memory, 0, MEM_RELEASE);
@@ -432,15 +441,15 @@ static void win_resize_dib_section(Win_OffScreenBuffer *buffer, long win_width, 
 	buffer->height = win_height;
 	buffer->pixel_size_bytes = 4;
 	buffer->bitmap_info.bmiHeader.biSize = sizeof(buffer->bitmap_info.bmiHeader);
-	buffer->bitmap_info.bmiHeader.biWidth = buffer->width;
+	buffer->bitmap_info.bmiHeader.biWidth = (long)buffer->width;
 	// NOTE(fredy): top-down layout (opposite to bottom-up).
 	// The first three bytes on the bitmap are for the top-left pixel
-	buffer->bitmap_info.bmiHeader.biHeight = -buffer->height;
+	buffer->bitmap_info.bmiHeader.biHeight = -(long)buffer->height;
 	buffer->bitmap_info.bmiHeader.biPlanes = 1;
 	buffer->bitmap_info.bmiHeader.biBitCount = 32;
 	buffer->bitmap_info.bmiHeader.biCompression = BI_RGB;
 
-	long bitmap_memory_size = buffer->width * buffer->height * buffer->pixel_size_bytes;
+	long bitmap_memory_size = (long)(buffer->width * buffer->height * buffer->pixel_size_bytes);
 
 	buffer->memory = VirtualAlloc(nullptr, (size_t)bitmap_memory_size, MEM_RESERVE | MEM_COMMIT,
 	                              PAGE_READWRITE);
@@ -450,8 +459,9 @@ static void win_resize_dib_section(Win_OffScreenBuffer *buffer, long win_width, 
 static void win_buffer_display_in_window(Win_OffScreenBuffer *buffer, HDC dchandle, long win_width,
                                          long win_height)
 {
-	StretchDIBits(dchandle, 0, 0, win_width, win_height, 0, 0, buffer->width, buffer->height,
-	              buffer->memory, &buffer->bitmap_info, DIB_RGB_COLORS, SRCCOPY);
+	StretchDIBits(dchandle, 0, 0, win_width, win_height, 0, 0, (int)buffer->width,
+	              (int)buffer->height, buffer->memory, &buffer->bitmap_info, DIB_RGB_COLORS,
+	              SRCCOPY);
 }
 
 static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle,
@@ -515,9 +525,14 @@ static inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER en
  * @param top pixel index
  * @param bottom pixel index
  */
-static void win_debug_draw_vertical(Win_OffScreenBuffer *screen_buffer, size_t x, size_t top,
-                                    size_t bottom, uint32_t color)
+static void win_debug_draw_vertical(Win_OffScreenBuffer *screen_buffer, unsigned x, unsigned top,
+                                    unsigned bottom, unsigned color)
 {
+	assert(x >= 0 && x < screen_buffer->width);
+	assert(bottom >= 0 && bottom < screen_buffer->height);
+	assert(top >= 0 && top < screen_buffer->height);
+	assert(top <= bottom);
+
 	uint8_t *pixel_start = (uint8_t *)screen_buffer->memory +
 	                       x * (size_t)screen_buffer->pixel_size_bytes +
 	                       top * (size_t)screen_buffer->pitch_bytes;
@@ -531,12 +546,12 @@ static void win_debug_draw_vertical(Win_OffScreenBuffer *screen_buffer, size_t x
 
 static inline void win_debug_draw_sound_buffer_mark(Win_OffScreenBuffer *screen_buffer,
                                                     Win_SoundOutput *soundout,
-                                                    float pixels_per_byte, size_t padx, size_t top,
-                                                    size_t bottom, unsigned long value,
+                                                    float pixels_per_byte, unsigned padx,
+                                                    unsigned top, unsigned bottom, unsigned value,
                                                     uint32_t color)
 {
 	assert(value < soundout->buffsize);
-	size_t x = padx + (size_t)(pixels_per_byte * (float)value);
+	unsigned x = padx + (unsigned)(pixels_per_byte * (float)value);
 	win_debug_draw_vertical(screen_buffer, x, top, bottom, color);
 }
 
@@ -550,26 +565,82 @@ static inline void win_debug_draw_sound_buffer_mark(Win_OffScreenBuffer *screen_
  * @param target_secs_per_frame
  */
 static void win_debug_sync_display(Win_OffScreenBuffer *screen_buffer,
-                                   size_t last_cursors_marks_size,
-                                   Win_DebugTimeMark *last_cursors_marks, Win_SoundOutput *soundout,
-                                   float target_secs_per_frame)
+                                   unsigned last_cursors_marks_size,
+                                   Win_DebugTimeMark *last_cursors_marks,
+                                   unsigned current_mark_index, Win_SoundOutput *winsound)
 {
-	size_t padx = 16;
-	size_t pady = 16;
+	unsigned padx = 16;
+	unsigned pady = 16;
 
-	size_t top = pady;
-	size_t bottom = (size_t)screen_buffer->height - pady;
+	unsigned line_height = 64;
 
-	size_t painting_width = (size_t)screen_buffer->width - 2 * padx;
-	float pixels_per_byte = (float)painting_width / (float)soundout->buffsize;
+	unsigned painting_width = (unsigned)screen_buffer->width - 2 * padx;
+	float pixels_per_byte = (float)painting_width / (float)winsound->buffsize;
 
 	for (size_t i = 0; i < last_cursors_marks_size; ++i) {
 		Win_DebugTimeMark current_mark = last_cursors_marks[i];
-		win_debug_draw_sound_buffer_mark(screen_buffer, soundout, pixels_per_byte, padx,
-		                                 top, bottom, current_mark.play_cursor, 0xFFFFFFFF);
-		win_debug_draw_sound_buffer_mark(screen_buffer, soundout, pixels_per_byte, padx,
-		                                 top, bottom, current_mark.write_cursor,
-		                                 0xFFFF0000);
+		unsigned long play_color = 0xFFFFFFFF;
+		unsigned long write_color = 0xFFFF0000;
+		unsigned long frame_flip_byte_color = 0xFFFFFF00;
+		unsigned long play_window_color = 0xFFFF00FF;
+
+		unsigned top = pady;
+		unsigned bottom = pady + line_height;
+		unsigned first_top = 0;
+		if (i == current_mark_index) {
+			top += pady + line_height;
+			bottom += pady + line_height;
+
+			first_top = top;
+
+			win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte,
+			                                 padx, top, bottom,
+			                                 current_mark.output_play_cursor,
+			                                 play_color);
+			win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte,
+			                                 padx, top, bottom,
+			                                 current_mark.output_write_cursor,
+			                                 write_color);
+
+			top += pady + line_height;
+			bottom += pady + line_height;
+
+			win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte,
+			                                 padx, top, bottom,
+			                                 current_mark.output_location, play_color);
+			win_debug_draw_sound_buffer_mark(
+				screen_buffer, winsound, pixels_per_byte, padx, top, bottom,
+				RING_ADD(winsound->buffsize, current_mark.output_location,
+			                 current_mark.output_byte_count),
+				write_color);
+
+			top += pady + line_height;
+			bottom += pady + line_height;
+
+			win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte,
+			                                 padx, first_top, bottom,
+			                                 current_mark.frame_flip_byte,
+			                                 frame_flip_byte_color);
+		}
+
+		win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte, padx,
+		                                 top, bottom, current_mark.flip_play_cursor,
+		                                 play_color);
+
+		win_debug_draw_sound_buffer_mark(
+			screen_buffer, winsound, pixels_per_byte, padx, top, bottom,
+			RING_SUB(winsound->buffsize, current_mark.flip_play_cursor,
+		                 480 * winsound->bytes_per_sample),
+			play_window_color);
+		win_debug_draw_sound_buffer_mark(
+			screen_buffer, winsound, pixels_per_byte, padx, top, bottom,
+			RING_ADD(winsound->buffsize, current_mark.flip_play_cursor,
+		                 480 * winsound->bytes_per_sample),
+			play_window_color);
+
+		win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte, padx,
+		                                 top, bottom, current_mark.flip_write_cursor,
+		                                 write_color);
 	}
 }
 
@@ -618,9 +689,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	Win_SoundOutput winsound = {
 		.samples_per_sec = 48000,
-		.sample_size_bytes = sizeof(uint16_t) * 2,
+		.bytes_per_sample = sizeof(uint16_t) * 2,
 	};
-	winsound.buffsize = winsound.samples_per_sec * winsound.sample_size_bytes;
+	winsound.buffsize = winsound.samples_per_sec * winsound.bytes_per_sample;
+	winsound.safety_bytes = winsound.samples_per_sec * winsound.bytes_per_sample / gamehz / 3;
 
 	win_sound_init(winhandle, winsound.samples_per_sec, winsound.buffsize);
 	win_sound_clear_buffer(&winsound);
@@ -682,14 +754,15 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	Game_Input *old_input = &inputs[1];
 
 	LARGE_INTEGER last_counter = win_clock_get_wall();
+	LARGE_INTEGER flip_wall_clock = win_clock_get_wall();
 
 	constexpr size_t debug_last_cursor_marks_size = gamehz / 2;
-	size_t debug_last_cursor_mark_index = 0;
+	unsigned debug_last_cursor_mark_index = 0;
 	Win_DebugTimeMark debug_last_cursor_marks[debug_last_cursor_marks_size] = {};
 
-	bool is_sound_valid = false;
 	size_t audio_latency_bytes = 0;
 	float audio_latency_secs = 0.0f;
+	bool is_sound_valid = false;
 
 	size_t last_cycle_count = __rdtsc();
 	while (is_global_running) {
@@ -710,6 +783,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		}
 
 		win_process_messages(new_keyboard_controller);
+
+		if (is_global_pause) {
+			continue;
+		}
 
 		// +1 Taking into account keyboard controller
 		unsigned short max_controller_count = XUSER_MAX_COUNT;
@@ -821,7 +898,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		};
 		game_update_and_render(&game_memory, new_input, &screenbuff);
 
-		size_t bytes_to_write = 0;
+		unsigned bytes_to_write = 0;
 
 		unsigned long play_cursor;
 		unsigned long write_cursor;
@@ -829,60 +906,67 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		                                                    &write_cursor))) {
 			if (!is_sound_valid) {
 				winsound.running_sample_index =
-					write_cursor / winsound.sample_size_bytes;
+					write_cursor / winsound.bytes_per_sample;
 				is_sound_valid = true;
-			} else {
-				// NOTE(fredy): Compute how much sound to write and where
-				size_t byte_to_lock = (winsound.running_sample_index *
-				                       winsound.sample_size_bytes) %
-				                      winsound.buffsize;
-
-				float elapsed_time_secs =
-					win_clock_elapsed_secs(last_counter, win_clock_get_wall());
-				float time_to_flip_secs = target_secs_per_frame - elapsed_time_secs;
-				size_t bytes_per_sec =
-					winsound.samples_per_sec * winsound.sample_size_bytes;
-				size_t bytes_to_flip =
-					(size_t)(time_to_flip_secs * (float)bytes_per_sec);
-				size_t bytes_per_frame = winsound.sample_size_bytes *
-				                         winsound.samples_per_sec / gamehz;
-				size_t frame_flip_byte =
-					RING_ADD(winsound.buffsize, play_cursor, bytes_to_flip);
-				size_t sound_flip_byte =
-					RING_BETWEEN(play_cursor, frame_flip_byte, write_cursor) ?
-						// Audio has low latency
-						frame_flip_byte :
-						// Audio has high latency
-						write_cursor;
-
-				TIX_LOGD("ET: %f secs, TTF: %f secs, BTF: %zu, FFB: %zu, SFB: %zu",
-				         (double)elapsed_time_secs, (double)time_to_flip_secs,
-				         bytes_to_flip, frame_flip_byte, sound_flip_byte);
-				size_t target_cursor = RING_ADD(winsound.buffsize, sound_flip_byte,
-				                                2 * bytes_per_frame);
-
-				bytes_to_write =
-					RING_DIFF(winsound.buffsize, byte_to_lock, target_cursor);
-
-				game_soundbuff.sample_count =
-					bytes_to_write / winsound.sample_size_bytes;
-				game_sound_create_samples(&game_memory, &game_soundbuff);
-
-				audio_latency_bytes =
-					RING_DIFF(winsound.buffsize, write_cursor, play_cursor);
-				audio_latency_secs = (float)audio_latency_bytes /
-				                     (float)winsound.sample_size_bytes /
-				                     (float)winsound.samples_per_sec;
-
-				TIX_LOGD(
-					"PC: %lu, WC: %lu, BTL: %zu, TC: %zu, BTW: %zu - LAT: %zu (%f secs)",
-					play_cursor, write_cursor, byte_to_lock, target_cursor,
-					bytes_to_write, audio_latency_bytes,
-					(double)audio_latency_secs);
-
-				win_sound_fill_buffer(&winsound, byte_to_lock, bytes_to_write,
-				                      &game_soundbuff);
 			}
+
+			// NOTE(fredy): Compute how much sound to write and where
+			unsigned byte_to_lock =
+				(winsound.running_sample_index * winsound.bytes_per_sample) %
+				winsound.buffsize;
+
+			float secs_from_flip =
+				win_clock_elapsed_secs(flip_wall_clock, win_clock_get_wall());
+			float secs_to_flip = target_secs_per_frame - secs_from_flip;
+			unsigned bytes_per_sec =
+				winsound.samples_per_sec * winsound.bytes_per_sample;
+			unsigned bytes_to_flip = (unsigned)(secs_to_flip * (float)bytes_per_sec);
+			unsigned bytes_per_frame =
+				winsound.bytes_per_sample * winsound.samples_per_sec / gamehz;
+			unsigned frame_flip_byte =
+				RING_ADD(winsound.buffsize, play_cursor, bytes_to_flip);
+			unsigned sound_flip_byte =
+				RING_BETWEEN(play_cursor, frame_flip_byte, write_cursor) ?
+					// Audio has low latency
+					frame_flip_byte :
+					// Audio has high latency
+					write_cursor;
+
+			TIX_LOGD("ET: %f secs, TTF: %f secs, BPF: %u, BTF: %u, FFB: %u, SFB: %u",
+			         (double)secs_from_flip, (double)secs_to_flip, bytes_per_frame,
+			         bytes_to_flip, frame_flip_byte, sound_flip_byte);
+			unsigned target_cursor = RING_ADD(winsound.buffsize, sound_flip_byte,
+			                                  bytes_per_frame + winsound.safety_bytes);
+
+			bytes_to_write = RING_DIFF(winsound.buffsize, byte_to_lock, target_cursor);
+
+			game_soundbuff.sample_count = bytes_to_write / winsound.bytes_per_sample;
+			game_sound_create_samples(&game_memory, &game_soundbuff);
+#if DEBUG
+			Win_DebugTimeMark *mark =
+				&debug_last_cursor_marks[debug_last_cursor_mark_index];
+
+			mark->output_play_cursor = play_cursor;
+			mark->output_write_cursor = write_cursor;
+			mark->output_location = byte_to_lock;
+			mark->output_byte_count = bytes_to_write;
+			mark->frame_flip_byte = frame_flip_byte;
+
+			audio_latency_bytes =
+				RING_DIFF(winsound.buffsize, play_cursor, write_cursor);
+			audio_latency_secs = (float)audio_latency_bytes /
+			                     (float)winsound.bytes_per_sample /
+			                     (float)winsound.samples_per_sec;
+
+			TIX_LOGD(
+				"Estimated - PC: %lu, WC: %lu, BTL: %u, TC: %u, BTW: %u - LAT: %zu (%f secs)",
+				play_cursor, write_cursor, byte_to_lock, target_cursor,
+				bytes_to_write, audio_latency_bytes, (double)audio_latency_secs);
+#endif
+
+			win_sound_fill_buffer(&winsound, byte_to_lock, bytes_to_write,
+			                      &game_soundbuff);
+
 		} else {
 			is_sound_valid = false;
 		}
@@ -924,31 +1008,31 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 #ifdef DEBUG
 		win_debug_sync_display(&global_back_buffer, debug_last_cursor_marks_size,
-		                       debug_last_cursor_marks, &winsound, target_secs_per_frame);
+		                       debug_last_cursor_marks, debug_last_cursor_mark_index - 1,
+		                       &winsound);
 #endif
 
 		// Flip the frame
 		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
 
+		flip_wall_clock = win_clock_get_wall();
+
 #ifdef DEBUG
 		{
 			unsigned long debug_play_cursor;
 			unsigned long debug_write_cursor;
-			if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(
-				    secbuffer, &debug_play_cursor, &debug_write_cursor))) {
-				if (is_sound_valid) {
-					assert(debug_last_cursor_mark_index <
-					       debug_last_cursor_marks_size);
-					Win_DebugTimeMark *mark =
-						&debug_last_cursor_marks
-							[debug_last_cursor_mark_index];
-					mark->play_cursor = debug_play_cursor;
-					mark->write_cursor = debug_write_cursor;
-					debug_last_cursor_mark_index =
-						(debug_last_cursor_mark_index + 1) %
-						debug_last_cursor_marks_size;
-				}
+			IDirectSoundBuffer_GetCurrentPosition(secbuffer, &debug_play_cursor,
+			                                      &debug_write_cursor);
+			if (is_sound_valid) {
+				assert(debug_last_cursor_mark_index < debug_last_cursor_marks_size);
+				Win_DebugTimeMark *mark =
+					&debug_last_cursor_marks[debug_last_cursor_mark_index];
+				mark->flip_play_cursor = debug_play_cursor;
+				mark->flip_write_cursor = debug_write_cursor;
+				TIX_LOGD("After flip - PC: %lu, WC: %lu, DPC: %lu, DWC: %lu",
+				         play_cursor, write_cursor, debug_play_cursor,
+				         debug_write_cursor);
 			}
 		}
 #endif
@@ -966,6 +1050,13 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		TIX_LOGI("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
 		         (double)mega_cycles_per_frame);
+
+#if DEBUG
+		{
+			debug_last_cursor_mark_index = RING_ADD(debug_last_cursor_marks_size,
+			                                        debug_last_cursor_mark_index, 1);
+		}
+#endif // debug
 	}
 
 	return EXIT_SUCCESS;

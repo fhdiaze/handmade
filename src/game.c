@@ -33,13 +33,13 @@ static void game_sound_output(Game_SoundBuffer *buffer, size_t tonehz)
 	}
 }
 
-static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, long blue_offset,
-                                       long green_offset)
+static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, unsigned blue_offset,
+                                       unsigned green_offset)
 {
 	uint8_t *row = (uint8_t *)buffer->memory;
-	for (long y = 0; y < buffer->height; ++y) {
+	for (size_t y = 0; y < buffer->height; ++y) {
 		uint32_t *pixel = (uint32_t *)row;
-		for (long x = 0; x < buffer->width; ++x) {
+		for (size_t x = 0; x < buffer->width; ++x) {
 			// Little endian in memory  B G R X -> because of the endianess
 			// little endian on a register: 0xXXRRGGBB
 			uint8_t blue = (uint8_t)(x + blue_offset);
@@ -81,8 +81,8 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 		}
 
 		if (controller->is_analog) {
-			game_state->blue_offset += (long)(4.0f * controller->stick_avg_x);
-			game_state->tonehz = 256 + (size_t)(128.0f * controller->stick_avg_y);
+			game_state->blue_offset += (unsigned)(4.0f * controller->stick_avg_x);
+			game_state->tonehz = 256 + (unsigned)(128.0f * controller->stick_avg_y);
 		} else {
 			if (controller->moveleft.ended_down) {
 				game_state->blue_offset -= 1;
