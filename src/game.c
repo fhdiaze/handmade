@@ -30,6 +30,9 @@ static void game_sound_output(Game_SoundBuffer *buffer, size_t tonehz)
 		++sample_out;
 
 		tsine += 2.0f * PIE / (float_t)wave_period;
+		if (tsine > 2.0f * PIE) {
+			tsine -= 2.0f * PIE;
+		}
 	}
 }
 
@@ -66,7 +69,7 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 			read.size = 0;
 		}
 
-		game_state->tonehz = 256;
+		game_state->tonehz = 512;
 		game_state->blue_offset = 0;
 		game_state->green_offset = 0;
 
@@ -82,7 +85,7 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 
 		if (controller->is_analog) {
 			game_state->blue_offset += (unsigned)(4.0f * controller->stick_avg_x);
-			game_state->tonehz = 256 + (unsigned)(128.0f * controller->stick_avg_y);
+			game_state->tonehz = 512 + (unsigned)(128.0f * controller->stick_avg_y);
 		} else {
 			if (controller->moveleft.ended_down) {
 				game_state->blue_offset -= 1;
