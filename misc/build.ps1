@@ -76,9 +76,9 @@ Write-Host "Flags: $($GameFlags -join ' ')"
 clang @GameFlags $GameFile -o $OutGame
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "Build succeeded!" -ForegroundColor Green
+    Write-Host "Game DLL build succeeded!" -ForegroundColor Green
 } else {
-    Write-Host "Build failed!" -ForegroundColor Red
+    Write-Host "Game DLL build failed!" -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
@@ -89,7 +89,8 @@ $PlatformFlags = $Flags + @(
     "-lgdi32",
     "-lwinmm",
     "-Wl,/subsystem:windows",
-    "-Wl,/MAP:bin/$PlatformFileName.map,/MAPINFO:EXPORTS"
+    "-Wl,/MAP:bin/$PlatformFileName.map,/MAPINFO:EXPORTS",
+    "-static"
 )
 
 Write-Host "Flags: $($PlatformFlags -join ' ')"
@@ -97,8 +98,8 @@ Write-Host "Flags: $($PlatformFlags -join ' ')"
 clang @PlatformFlags $PlatformFile -o $OutPlatform
 
 if ($LASTEXITCODE -eq 0) {
-    Write-Host "Build succeeded!" -ForegroundColor Green
+    Write-Host "Platform EXE build succeeded!" -ForegroundColor Green
 } else {
-    Write-Host "Build failed!" -ForegroundColor Red
+    Write-Host "Platform EXE build failed!" -ForegroundColor Red
     exit $LASTEXITCODE
 }

@@ -25,5 +25,5 @@
 -pedantic
 -I./include
 -D_CRT_SECURE_NO_WARNINGS
--static
 -DHANDMADE_WIN
+-Wl,/INCREMENTAL:NO
