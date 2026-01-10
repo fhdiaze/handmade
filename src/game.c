@@ -115,15 +115,3 @@ GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
 	Game_State *game_state = memory->permstorage;
 	game_sound_output(game_state, soundbuff);
 }
-
-#ifdef HANDMADE_WIN
-
-#include <windows.h>
-
-BOOL WINAPI DllMain([[__maybe_unused__]] _In_ HINSTANCE hinstance,
-                    [[__maybe_unused__]] _In_ DWORD fdw_reason,
-                    [[__maybe_unused__]] _In_ LPVOID lpv_reserved)
-{
-	return TRUE;
-}
-#endif // HANDMADE_WIN

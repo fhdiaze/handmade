@@ -89,8 +89,7 @@ $PlatformFlags = $Flags + @(
     "-lgdi32",
     "-lwinmm",
     "-Wl,/subsystem:windows",
-    "-Wl,/MAP:bin/$PlatformFileName.map,/MAPINFO:EXPORTS",
-    "-static"
+    "-Wl,/MAP:bin/$PlatformFileName.map,/MAPINFO:EXPORTS"
 )
 
 Write-Host "Flags: $($PlatformFlags -join ' ')"
