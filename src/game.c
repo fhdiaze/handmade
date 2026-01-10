@@ -15,24 +15,23 @@
  * @param buffer
  * @param samples
  */
-static void game_sound_output(Game_SoundBuffer *buffer, size_t tonehz)
+static void game_sound_output(Game_State *game_state, Game_SoundBuffer *buffer)
 {
-	static float tsine;
 	float tone_volume = 3000;
-	size_t wave_period = buffer->samples_per_sec / tonehz;
+	size_t wave_period = buffer->samples_per_sec / game_state->tonehz;
 	int16_t *sample_out = buffer->samples;
 	float sample_value = 0;
 	for (size_t i = 0; i < buffer->sample_count; ++i) {
-		float sine_value = sinf(tsine);
+		float sine_value = sinf(game_state->tsine);
 		sample_value = sine_value * tone_volume;
 		*sample_out = (int16_t)sample_value; // channel one
 		++sample_out;
 		*sample_out = (int16_t)sample_value; // channel two
 		++sample_out;
 
-		tsine += 2.0f * PIE / (float_t)wave_period;
-		if (tsine > 2.0f * PIE) {
-			tsine -= 2.0f * PIE;
+		game_state->tsine += 2.0f * PIE / (float_t)wave_period;
+		if (game_state->tsine > 2.0f * PIE) {
+			game_state->tsine -= 2.0f * PIE;
 		}
 	}
 }
@@ -72,6 +71,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		game_state->tonehz = 512;
 		game_state->blue_offset = 0;
 		game_state->green_offset = 0;
+		game_state->tsine = 0.0f;
 
 		memory->is_initialized = true;
 	}
@@ -113,7 +113,7 @@ GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
 	assert(sizeof(Game_State) <= memory->permsize);
 
 	Game_State *game_state = memory->permstorage;
-	game_sound_output(soundbuff, game_state->tonehz);
+	game_sound_output(game_state, soundbuff);
 }
 
 #ifdef HANDMADE_WIN

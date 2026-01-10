@@ -41,16 +41,24 @@ if ($Architecture -eq "x86") {
 
 # Add build mode specific flags
 if ($BuildMode -eq "debug") {
-    $Flags += "-g"              # Debug symbols
-    $Flags += "-O0"             # No optimization
-    $Flags += "-DDEBUG"         # Define DEBUG macro
+    $Flags += @(
+        "-g",              # Debug symbols
+        "-gcodeview",
+        "-O0",             # No optimization
+        "-DDEBUG",         # Define DEBUG macro
+        "-Wl,/DEBUG:FULL"
+    )
     #$Flags += "-fsanitize=address"
     #$Flags += "-fno-omit-frame-pointer"
     Write-Host "Building in DEBUG mode..."
 } else {
-    $Flags += "-O3"             # Maximum optimization
-    $Flags += "-DNDEBUG"        # Define NDEBUG macro
-    $Flags += "-flto"           # Link-time optimization
+    $Flags += @(
+        "-O3",             # Maximum optimization
+        "-DNDEBUG",        # Define NDEBUG macro
+        "-flto",           # Link-time optimization
+        "-Wl,/opt:ref",
+        "-Wl,/opt:icf"
+    )
     Write-Host "Building in RELEASE mode..."
 }
 
@@ -58,8 +66,8 @@ Write-Host "Compiling $GameFile -> $OutGame"
 
 $GameFlags = $Flags + @(
     "-Wl,/MAP:bin/$GameFileName.map,/MAPINFO:EXPORTS",
-    "-Wl,/EXPORT:game_sound_create_samples"
-    "-Wl,/EXPORT:game_update_and_render"
+    "-Wl,/EXPORT:game_sound_create_samples",
+    "-Wl,/EXPORT:game_update_and_render",
     "-shared"
 )
 
@@ -81,8 +89,7 @@ $PlatformFlags = $Flags + @(
     "-lgdi32",
     "-lwinmm",
     "-Wl,/subsystem:windows",
-    "-Wl,/MAP:bin/$PlatformFileName.map,/MAPINFO:EXPORTS",
-    "-static"
+    "-Wl,/MAP:bin/$PlatformFileName.map,/MAPINFO:EXPORTS"
 )
 
 Write-Host "Flags: $($PlatformFlags -join ' ')"

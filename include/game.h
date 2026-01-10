@@ -109,6 +109,8 @@ typedef struct Game_State {
 	unsigned tonehz;
 	unsigned blue_offset;
 	unsigned green_offset;
+
+	float tsine;
 } Game_State;
 
 // Utilities

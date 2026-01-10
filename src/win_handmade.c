@@ -138,10 +138,12 @@ typedef struct Win_GameCode {
 	bool is_valid;
 } Win_GameCode;
 
-static Win_GameCode win_code_load_game_dll()
+static Win_GameCode win_code_load_game()
 {
 	Win_GameCode result = {};
-	result.game_dll = LoadLibraryA("game.dll");
+
+	CopyFile("game.dll", "game_tmp.dll", false);
+	result.game_dll = LoadLibraryA("game_tmp.dll");
 
 	if (result.game_dll) {
 		result.update_and_render = (game_update_and_render_func *)GetProcAddress(
@@ -158,6 +160,18 @@ static Win_GameCode win_code_load_game_dll()
 	}
 
 	return result;
+}
+
+static void win_code_unload_game(Win_GameCode *game_code)
+{
+	if (game_code->game_dll) {
+		FreeLibrary(game_code->game_dll);
+		game_code->game_dll = nullptr;
+	}
+
+	game_code->is_valid = false;
+	game_code->sound_create_samples = game_sound_create_samples_stub;
+	game_code->update_and_render = game_update_and_render_stub;
 }
 
 static void win_xinput_load(void)
@@ -685,8 +699,6 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
                      [[__maybe_unused__]] HINSTANCE hprevinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nCmdShow)
 {
-	Win_GameCode game_code = win_code_load_game_dll();
-
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
 	global_perf_count_frequency = perf_count_frequency_result.QuadPart;
@@ -807,8 +819,18 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	float audio_latency_secs = 0.0f;
 	bool is_sound_valid = false;
 
+	Win_GameCode game_code = win_code_load_game();
+	unsigned load_counter = 0;
+
 	size_t last_cycle_count = __rdtsc();
 	while (is_global_running) {
+		if (load_counter == 120) {
+			win_code_unload_game(&game_code);
+			game_code = win_code_load_game();
+			load_counter = 0;
+		}
+		++load_counter;
+
 		/**
 		 * @brief Gather input
 		 */
@@ -1100,6 +1122,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			                                        debug_last_cursor_mark_index, 1);
 		}
 #endif // debug
+
 	}
 
 	return EXIT_SUCCESS;
