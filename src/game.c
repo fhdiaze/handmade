@@ -3,6 +3,7 @@
 */
 
 #include "game.h"
+
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
@@ -54,18 +55,17 @@ static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, unsigned bl
 	}
 }
 
-void game_update_and_render(Game_Memory *memory, Game_Input *input,
-                            Game_OffScreenBuffer *screenbuff)
+GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
 	assert(sizeof(Game_State) <= memory->permsize);
 
 	Game_State *game_state = memory->permstorage;
 	if (!memory->is_initialized) {
 		const char *const filename = __FILE__;
-		Plat_ReadFileResult read = plat_debug_readfile(filename);
+		Plat_ReadFileResult read = memory->plat_debug_read_file(filename);
 		if (read.memory) {
-			plat_debug_writefile("test.out", read.size, read.memory);
-			plat_debug_freefile(read.memory);
+			memory->plat_debug_write_file("test.out", read.size, read.memory);
+			memory->plat_debug_free_file(read.memory);
 			read.size = 0;
 		}
 
@@ -108,10 +108,22 @@ void game_update_and_render(Game_Memory *memory, Game_Input *input,
 	game_render_weird_gradient(screenbuff, game_state->blue_offset, game_state->green_offset);
 }
 
-void game_sound_create_samples(Game_Memory *memory, Game_SoundBuffer *soundbuff)
+GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
 {
 	assert(sizeof(Game_State) <= memory->permsize);
 
 	Game_State *game_state = memory->permstorage;
 	game_sound_output(soundbuff, game_state->tonehz);
 }
+
+#ifdef HANDMADE_WIN
+
+#include <windows.h>
+
+BOOL WINAPI DllMain([[__maybe_unused__]] _In_ HINSTANCE hinstance,
+                    [[__maybe_unused__]] _In_ DWORD fdw_reason,
+                    [[__maybe_unused__]] _In_ LPVOID lpv_reserved)
+{
+	return TRUE;
+}
+#endif // HANDMADE_WIN

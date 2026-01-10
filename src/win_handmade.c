@@ -5,8 +5,10 @@
 #undef TIX_LOG_LEVEL
 #define TIX_LOG_LEVEL TIX_LOG_LEVEL_DEBUG
 
+#include "game.h"
+
 #include "win_handmade.h"
-#include "game.c"
+
 #include "tix_log.h"
 #include <dsound.h>
 #include <math.h>
@@ -23,35 +25,42 @@ static int64_t global_perf_count_frequency;
 
 // macros
 
-#define X_INPUT_GET_STATE(name)                                   \
+#define XINPUT_GET_STATE(name)                                    \
 	DWORD WINAPI name([[__maybe_unused__]] DWORD dwUserIndex, \
 	                  [[__maybe_unused__]] XINPUT_STATE *pState)
-typedef X_INPUT_GET_STATE(x_input_get_state);
-X_INPUT_GET_STATE(XInputGetStateStub)
+typedef XINPUT_GET_STATE(xinput_get_state_func);
+XINPUT_GET_STATE(xinput_get_state_stub)
 {
 	return ERROR_DEVICE_NOT_CONNECTED;
 }
-static x_input_get_state *XInputGetState_ = XInputGetStateStub;
-#define XInputGetState XInputGetState_
+static xinput_get_state_func *xinput_get_state = xinput_get_state_stub;
+#define XInputGetState xinput_get_state
 
-#define X_INPUT_SET_STATE(name)                                   \
+#define XINPUT_SET_STATE(name)                                    \
 	DWORD WINAPI name([[__maybe_unused__]] DWORD dwUserIndex, \
 	                  [[__maybe_unused__]] XINPUT_VIBRATION *pVibration)
-typedef X_INPUT_SET_STATE(x_input_set_state);
-X_INPUT_SET_STATE(XInputSetStateStub)
+typedef XINPUT_SET_STATE(xinput_set_state_func);
+XINPUT_SET_STATE(xinput_set_state_stub)
 {
 	return ERROR_DEVICE_NOT_CONNECTED;
 }
-static x_input_set_state *XInputSetState_ = XInputSetStateStub;
-#define XInputSetState XInputSetState_
+static xinput_set_state_func *xinput_set_state = xinput_set_state_stub;
+#define XInputSetState xinput_set_state
 
 #define DSOUND_CREATE(name) \
 	HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
-typedef DSOUND_CREATE(direct_sound_create);
+typedef DSOUND_CREATE(direct_sound_create_func);
 
 // services
 
-Plat_ReadFileResult plat_debug_readfile(const char *const filename)
+PLAT_DEBUG_FREEFILE(plat_debug_freefile)
+{
+	if (memory) {
+		VirtualFree(memory, 0, MEM_RELEASE);
+	}
+}
+
+PLAT_DEBUG_READFILE(plat_debug_readfile)
 {
 	Plat_ReadFileResult result = {};
 	HANDLE handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
@@ -96,14 +105,7 @@ error_cleanup:
 	return result;
 }
 
-void plat_debug_freefile(void *memory)
-{
-	if (memory) {
-		VirtualFree(memory, 0, MEM_RELEASE);
-	}
-}
-
-bool plat_debug_writefile(const char *const filename, size_t memorysize, void *memory)
+PLAT_DEBUG_WRITEFILE(plat_debug_writefile)
 {
 	bool result = false;
 	HANDLE handle = CreateFileA(filename, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
@@ -128,6 +130,36 @@ error_cleanup:
 	return false;
 }
 
+typedef struct Win_GameCode {
+	HMODULE game_dll;
+	game_update_and_render_func *update_and_render;
+	game_sound_create_samples_func *sound_create_samples;
+
+	bool is_valid;
+} Win_GameCode;
+
+static Win_GameCode win_code_load_game_dll()
+{
+	Win_GameCode result = {};
+	result.game_dll = LoadLibraryA("game.dll");
+
+	if (result.game_dll) {
+		result.update_and_render = (game_update_and_render_func *)GetProcAddress(
+			result.game_dll, "game_update_and_render");
+		result.sound_create_samples = (game_sound_create_samples_func *)GetProcAddress(
+			result.game_dll, "game_sound_create_samples");
+
+		result.is_valid = result.sound_create_samples && result.update_and_render;
+	}
+
+	if (!result.is_valid) {
+		result.sound_create_samples = game_sound_create_samples_stub;
+		result.update_and_render = game_update_and_render_stub;
+	}
+
+	return result;
+}
+
 static void win_xinput_load(void)
 {
 	HMODULE xinput_lib = LoadLibraryA("xinput1_4.dll");
@@ -141,13 +173,15 @@ static void win_xinput_load(void)
 	}
 
 	if (xinput_lib) {
-		XInputGetState = (x_input_get_state *)GetProcAddress(xinput_lib, "XInputGetState");
+		XInputGetState =
+			(xinput_get_state_func *)GetProcAddress(xinput_lib, "XInputGetState");
 		if (!XInputGetState) {
-			XInputGetState = XInputGetStateStub;
+			XInputGetState = xinput_get_state_stub;
 		}
-		XInputSetState = (x_input_set_state *)GetProcAddress(xinput_lib, "XInputSetState");
+		XInputSetState =
+			(xinput_set_state_func *)GetProcAddress(xinput_lib, "XInputSetState");
 		if (!XInputSetState) {
-			XInputSetState = XInputSetStateStub;
+			XInputSetState = xinput_set_state_stub;
 		}
 	}
 }
@@ -160,20 +194,23 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	HMODULE dsound_lib = LoadLibraryA("dsound.dll");
 	if (!dsound_lib) {
 		// TODO(fredy): diagnostic
-		OutputDebugStringA("Error loading dsound.dll");
+		TIX_LOGE("Error loading dsound.dll");
+		return;
 	}
 
-	direct_sound_create *dsound_create =
-		(direct_sound_create *)GetProcAddress(dsound_lib, "DirectSoundCreate");
+	direct_sound_create_func *dsound_create =
+		(direct_sound_create_func *)GetProcAddress(dsound_lib, "DirectSoundCreate");
 	if (!dsound_create) {
 		// TODO(fredy): diagnostic
-		OutputDebugStringA("Error getting DirectSoundCreate function");
+		TIX_LOGE("Error getting DirectSoundCreate function");
+		return;
 	}
 
 	LPDIRECTSOUND direct_sound;
 	if (FAILED(dsound_create(nullptr, &direct_sound, nullptr))) {
 		// TODO(fredy): diagnostic
-		OutputDebugStringA("Error creating the handler for direct sound");
+		TIX_LOGE("Error creating the handler for direct sound");
+		return;
 	}
 
 	// NOTE(fredy): create the buffers
@@ -189,7 +226,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 
 	if (FAILED(IDirectSound_SetCooperativeLevel(direct_sound, winhandle, DSSCL_PRIORITY))) {
 		// TODO(fredy): diagnostic
-		OutputDebugStringA("Error setting the cooperative level for direct sound");
+		TIX_LOGE("Error setting the cooperative level for direct sound");
 	}
 
 	// NOTE(fredy): create the primary buffer
@@ -201,12 +238,12 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &primbufferdesc, &primbuffer,
 	                                          nullptr))) {
 		// TODO(fredy): diagnostic
-		OutputDebugStringA("Error creating the primary buffer (handle for the sound card)");
+		TIX_LOGE("Error creating the primary buffer (handle for the sound card)");
 	}
 
 	if (FAILED(IDirectSoundBuffer_SetFormat(primbuffer, &waveformat))) {
 		// TODO(fredy): diagnostic
-		OutputDebugStringA("Error setting the format for the primary buffer");
+		TIX_LOGE("Error setting the format for the primary buffer");
 	}
 
 	// NOTE(fredy): create the secondary buffer
@@ -218,7 +255,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &secbufferdesc, &secbuffer,
 	                                          nullptr))) {
 		// TODO(fredy): diagnostic
-		OutputDebugStringA("Error creating the secondary buffer");
+		TIX_LOGE("Error creating the secondary buffer");
 	}
 }
 
@@ -648,6 +685,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
                      [[__maybe_unused__]] HINSTANCE hprevinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nCmdShow)
 {
+	Win_GameCode game_code = win_code_load_game_dll();
+
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
 	global_perf_count_frequency = perf_count_frequency_result.QuadPart;
@@ -732,7 +771,11 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	int16_t *samples = (int16_t *)VirtualAlloc(nullptr, winsound.buffsize,
 	                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	Game_Memory game_memory = {};
+	Game_Memory game_memory = {
+		.plat_debug_free_file = plat_debug_freefile,
+		.plat_debug_read_file = plat_debug_readfile,
+		.plat_debug_write_file = plat_debug_writefile,
+	};
 	game_memory.permsize = MB_TO_BYTE(64);
 	game_memory.transize = GB_TO_BYTE(1);
 	size_t total_size = game_memory.permsize + game_memory.transize;
@@ -896,7 +939,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			.height = global_back_buffer.height,
 			.pitch_bytes = global_back_buffer.pitch_bytes,
 		};
-		game_update_and_render(&game_memory, new_input, &screenbuff);
+		game_code.update_and_render(&game_memory, new_input, &screenbuff);
 
 		unsigned bytes_to_write = 0;
 
@@ -941,7 +984,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			bytes_to_write = RING_DIFF(winsound.buffsize, byte_to_lock, target_cursor);
 
 			game_soundbuff.sample_count = bytes_to_write / winsound.bytes_per_sample;
-			game_sound_create_samples(&game_memory, &game_soundbuff);
+			game_code.sound_create_samples(&game_memory, &game_soundbuff);
 #if DEBUG
 			Win_DebugTimeMark *mark =
 				&debug_last_cursor_marks[debug_last_cursor_mark_index];

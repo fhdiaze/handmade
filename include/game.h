@@ -111,16 +111,6 @@ typedef struct Game_State {
 	unsigned green_offset;
 } Game_State;
 
-typedef struct Game_Memory {
-	size_t permsize; // permanent storage in bytes
-	void *permstorage; // This should be zero initialized
-
-	size_t transize; // transient storage in bytes
-	void *transtorage; // This should be zero initialized
-
-	bool is_initialized;
-} Game_Memory;
-
 // Utilities
 
 static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
@@ -142,18 +132,6 @@ static inline uint32_t lltoul(int64_t value)
 	assert(value >= 0);
 	return (uint32_t)value;
 }
-// Game services
-
-/**
- * @brief Updates the game status and renders it
- *
- * @param screenbuff
- * @param soundbuff
- */
-void game_update_and_render(Game_Memory *memory, Game_Input *input,
-                            Game_OffScreenBuffer *screenbuff);
-
-void game_sound_create_samples(Game_Memory *memory, Game_SoundBuffer *soundbuff);
 
 // Platform services
 
@@ -164,10 +142,52 @@ typedef struct Plat_ReadFileResult {
 	void *memory;
 } Plat_ReadFileResult;
 
-Plat_ReadFileResult plat_debug_readfile(const char *const filename);
-void plat_debug_freefile(void *memory);
-bool plat_debug_writefile(const char *const filename, size_t memorysize, void *memory);
+#define PLAT_DEBUG_READFILE(name) Plat_ReadFileResult name(const char *const filename)
+typedef PLAT_DEBUG_READFILE(plat_debug_readfile_func);
+
+#define PLAT_DEBUG_FREEFILE(name) void name(void *memory)
+typedef PLAT_DEBUG_FREEFILE(plat_debug_freefile_func);
+
+#define PLAT_DEBUG_WRITEFILE(name) \
+	bool name(const char *const filename, size_t memorysize, void *memory)
+typedef PLAT_DEBUG_WRITEFILE(plat_debug_writefile_func);
 
 #endif // DEBUG
+
+// Game services
+
+typedef struct Game_Memory {
+	size_t permsize; // permanent storage in bytes
+	void *permstorage; // This should be zero initialized
+
+	size_t transize; // transient storage in bytes
+	void *transtorage; // This should be zero initialized
+
+	plat_debug_freefile_func *plat_debug_free_file;
+	plat_debug_readfile_func *plat_debug_read_file;
+	plat_debug_writefile_func *plat_debug_write_file;
+
+	bool is_initialized;
+} Game_Memory;
+
+/**
+ * @brief Updates the game status and renders it
+ */
+#define GAME_UPDATE_AND_RENDER(name)                        \
+	void name([[__maybe_unused__]] Game_Memory *memory, \
+	          [[__maybe_unused__]] Game_Input *input,   \
+	          [[__maybe_unused__]] Game_OffScreenBuffer *screenbuff)
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
+GAME_UPDATE_AND_RENDER(game_update_and_render_stub)
+{
+}
+
+#define GAME_SOUND_CREATE_SAMPLES(name)                     \
+	void name([[__maybe_unused__]] Game_Memory *memory, \
+	          [[__maybe_unused__]] Game_SoundBuffer *soundbuff)
+typedef GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_func);
+GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_stub)
+{
+}
 
 #endif // GAME_H

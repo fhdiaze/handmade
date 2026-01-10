@@ -6,8 +6,6 @@
             "type": "shell",
             "command": ".\\misc\\build.ps1",
             "args": [
-                "-SourceFile",
-                ".\\src\\win_handmade.c",
                 "-BuildMode",
                 "debug",
                 "-Architecture",
@@ -26,11 +24,9 @@
             "type": "shell",
             "command": ".\\misc\\build.ps1",
             "args": [
-                "-SourceFile",
-                ".\\src\\win_handmade.c",
                 "-BuildMode",
                 "debug",
-                "-Architectur",
+                "-Architecture",
                 "x86"
             ],
             "group": "build",
