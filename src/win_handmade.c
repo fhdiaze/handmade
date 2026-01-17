@@ -5,8 +5,6 @@
 #undef TIX_LOG_LEVEL
 #define TIX_LOG_LEVEL TIX_LOG_LEVEL_DEBUG
 
-#include "game.h"
-
 #include "win_handmade.h"
 
 #include "tix_log.h"
@@ -130,48 +128,100 @@ error_cleanup:
 	return false;
 }
 
-typedef struct Win_GameCode {
-	HMODULE game_dll;
-	game_update_and_render_func *update_and_render;
-	game_sound_create_samples_func *sound_create_samples;
-
-	bool is_valid;
-} Win_GameCode;
-
-static Win_GameCode win_code_load_game()
+static inline bool win_file_get_last_write_time(const char *const filename, FILETIME *result)
 {
-	Win_GameCode result = {};
-
-	CopyFile("game.dll", "game_tmp.dll", false);
-	result.game_dll = LoadLibraryA("game_tmp.dll");
-
-	if (result.game_dll) {
-		result.update_and_render = (game_update_and_render_func *)GetProcAddress(
-			result.game_dll, "game_update_and_render");
-		result.sound_create_samples = (game_sound_create_samples_func *)GetProcAddress(
-			result.game_dll, "game_sound_create_samples");
-
-		result.is_valid = result.sound_create_samples && result.update_and_render;
+	WIN32_FILE_ATTRIBUTE_DATA data;
+	if (!GetFileAttributesExA(filename, GetFileExInfoStandard, &data)) {
+		TIX_LOGE("unable to check the timestamp of the dll");
+		return false;
 	}
 
-	if (!result.is_valid) {
-		result.sound_create_samples = game_sound_create_samples_stub;
-		result.update_and_render = game_update_and_render_stub;
-	}
+	*result = data.ftLastWriteTime;
 
-	return result;
+	return true;
 }
 
-static void win_code_unload_game(Win_GameCode *game_code)
+static void tools_string_concat(const size_t one_count, const char *const restrict one,
+                                const size_t other_count, const char *const restrict other,
+                                const size_t destsize, char *const restrict dest)
+{
+	for (unsigned i = 0; i < one_count; ++i) {
+		dest[i] = one[i];
+	}
+
+	for (unsigned i = 0; i < other_count; ++i) {
+		dest[one_count + i] = other[i];
+	}
+
+	dest[one_count + other_count] = '\0';
+}
+
+static size_t tix_string_append(const size_t onesize, char *const restrict one,
+                                const size_t othersize, const char *const restrict other)
+{
+	unsigned destlen = 0;
+	for (; one[destlen] != '\0' && destlen < onesize; ++destlen) {
+	}
+
+	for (unsigned i = 0; i < othersize && destlen < onesize; ++i) {
+		one[destlen] = other[i];
+		if (other[i] == '\0') {
+			break;
+		}
+		++destlen;
+	}
+
+	return destlen;
+}
+
+static bool win_code_load_game(const char *const gamedll_path, const char *const tmpdll_path,
+                               Win_GameCode *result)
+{
+	FILETIME dll_last_write_time = {};
+	if (!win_file_get_last_write_time(gamedll_path, &dll_last_write_time)) {
+		return false;
+	}
+
+	if (!CopyFileA(gamedll_path, tmpdll_path, false)) {
+		DWORD error = GetLastError();
+		TIX_LOGE("unable to copy the dll: '%s', error: %lu", gamedll_path, error);
+		return false;
+	}
+
+	result->game_dll = LoadLibraryA(tmpdll_path);
+	result->dll_write_time = dll_last_write_time;
+
+	if (result->game_dll) {
+		result->update_and_render = (game_update_and_render_func *)GetProcAddress(
+			result->game_dll, "game_update_and_render");
+		result->sound_create_samples = (game_sound_create_samples_func *)GetProcAddress(
+			result->game_dll, "game_sound_create_samples");
+
+		result->is_valid = result->sound_create_samples && result->update_and_render;
+	}
+
+	if (!result->is_valid) {
+		result->sound_create_samples = game_sound_create_samples_stub;
+		result->update_and_render = game_update_and_render_stub;
+	}
+
+	return result->is_valid;
+}
+
+static bool win_code_unload_game(Win_GameCode *game_code)
 {
 	if (game_code->game_dll) {
-		FreeLibrary(game_code->game_dll);
+		if (!FreeLibrary(game_code->game_dll)) {
+			return false;
+		}
 		game_code->game_dll = nullptr;
 	}
 
 	game_code->is_valid = false;
 	game_code->sound_create_samples = game_sound_create_samples_stub;
 	game_code->update_and_render = game_update_and_render_stub;
+
+	return true;
 }
 
 static void win_xinput_load(void)
@@ -699,6 +749,32 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
                      [[__maybe_unused__]] HINSTANCE hprevinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nCmdShow)
 {
+	// NOTE(): never use MAX_PATH in user-facing code. it is dangerous.
+	char exe_path[MAX_PATH];
+	unsigned long exe_path_length = GetModuleFileNameA(nullptr, exe_path, sizeof(exe_path));
+	if (exe_path_length == 0 || exe_path_length == MAX_PATH) {
+		TIX_LOGE("unable to get the executable path");
+		return false;
+	}
+
+	char *last_slash = exe_path + exe_path_length - 1;
+	for (; last_slash > exe_path; --last_slash) {
+		if (*last_slash == '\\') {
+			break;
+		}
+	}
+
+	const char gamedll_name[] = "game.dll";
+	char gamedll_path[MAX_PATH];
+	char tmpdll_path[MAX_PATH];
+	char tmpdll_name[MAX_PATH];
+
+	sprintf(tmpdll_name, "game_tmp_%lu.dll", GetCurrentTime());
+	tools_string_concat((size_t)(last_slash - exe_path + 1), exe_path, sizeof(gamedll_name) - 1,
+	                    gamedll_name, sizeof(gamedll_path), gamedll_path);
+	tools_string_concat((size_t)(last_slash - exe_path + 1), exe_path, strlen(tmpdll_name),
+	                    tmpdll_name, sizeof(tmpdll_path), tmpdll_path);
+
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
 	global_perf_count_frequency = perf_count_frequency_result.QuadPart;
@@ -819,21 +895,29 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	float audio_latency_secs = 0.0f;
 	bool is_sound_valid = false;
 
-	Win_GameCode game_code = win_code_load_game();
-	unsigned load_counter = 0;
+	Win_GameCode game_code = {};
+	FILETIME gamedll_last_write_time = {};
+	if (!win_code_load_game(gamedll_path, tmpdll_path, &game_code)) {
+		return EXIT_FAILURE;
+	}
 
 	size_t last_cycle_count = __rdtsc();
 	while (is_global_running) {
-		if (load_counter == 120) {
-			win_code_unload_game(&game_code);
-			game_code = win_code_load_game();
-			load_counter = 0;
+		if (win_file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
+		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&
+		    win_code_unload_game(&game_code)) {
+			sprintf(tmpdll_name, "game_tmp_%lu.dll", GetCurrentTime());
+			tools_string_concat((size_t)(last_slash - exe_path + 1), exe_path,
+			                    strlen(tmpdll_name), tmpdll_name, sizeof(tmpdll_path),
+			                    tmpdll_path);
+			if (!win_code_load_game(gamedll_path, tmpdll_path, &game_code)) {
+				return EXIT_FAILURE;
+			}
 		}
-		++load_counter;
 
 		/**
-		 * @brief Gather input
-		 */
+		* @brief Gather input
+		*/
 		Game_ControllerInput *old_keyboard_controller =
 			game_input_get_controller(old_input, 0);
 		Game_ControllerInput *new_keyboard_controller =
@@ -1122,7 +1206,6 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			                                        debug_last_cursor_mark_index, 1);
 		}
 #endif // debug
-
 	}
 
 	return EXIT_SUCCESS;

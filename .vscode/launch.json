@@ -10,7 +10,7 @@
             "name": "LaunchX64",
             "program": "${workspaceFolder}/bin/win_handmade.exe",
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/data",
             "preLaunchTask": "build-x64",
         },
         {
@@ -19,7 +19,7 @@
             "name": "LaunchX86",
             "program": "${workspaceFolder}/bin/win_handmade.exe",
             "args": [],
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/data",
             "preLaunchTask": "build-x86"
         }
     ]

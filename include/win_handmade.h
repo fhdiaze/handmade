@@ -3,6 +3,7 @@
 #ifndef WIN_HANDMADE_H
 #define WIN_HANDMADE_H
 
+#include "game.h"
 #include <windows.h>
 
 typedef struct Win_WindowDimensions {
@@ -39,5 +40,14 @@ typedef struct Win_DebugTimeMark {
 
 	unsigned frame_flip_byte;
 } Win_DebugTimeMark;
+
+typedef struct Win_GameCode {
+	HMODULE game_dll;
+	FILETIME dll_write_time;
+	game_update_and_render_func *update_and_render;
+	game_sound_create_samples_func *sound_create_samples;
+
+	bool is_valid;
+} Win_GameCode;
 
 #endif // WIN_HANDMADE_H

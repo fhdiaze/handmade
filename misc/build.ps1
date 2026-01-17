@@ -10,6 +10,8 @@ param(
     [string]$Architecture = "x64"
 )
 
+# Setup
+
 $PlatformFile = ".\src\win_handmade.c"
 $GameFile = ".\src\game.c"
 
@@ -23,6 +25,13 @@ if (!(Test-Path $Outdir)) {
 }
 $OutPlatform = Join-Path $Outdir "$PlatformFileName.exe"
 $OutGame = Join-Path $Outdir "$GameFileName.dll"
+
+# Clean
+
+Write-Host "Cleaning $Outdir..."
+
+del $Outdir/*.pdb
+del $Outdir/*.txt
 
 # Read flags from file
 $Flags = Get-Content "compile_flags.txt" |
@@ -64,14 +73,16 @@ if ($BuildMode -eq "debug") {
 
 Write-Host "Compiling $GameFile -> $OutGame"
 
+$time = Get-Date -Format "yyyyMMdd_HHmmss"
 $GameFlags = $Flags + @(
-    "-Wl,/MAP:bin/$GameFileName.map,/MAPINFO:EXPORTS",
+    "-Wl,/MAP:$Outdir/$GameFileName.map,/MAPINFO:EXPORTS",
     "-Wl,/EXPORT:game_sound_create_samples",
     "-Wl,/EXPORT:game_update_and_render",
+    "-Wl,/PDB:$Outdir/game_$time.pdb",
     "-shared"
 )
 
-Write-Host "Flags: $($GameFlags -join ' ')"
+Write-Host "GameFlags: $($GameFlags -join ' ')"
 
 clang @GameFlags $GameFile -o $OutGame
 
@@ -89,10 +100,10 @@ $PlatformFlags = $Flags + @(
     "-lgdi32",
     "-lwinmm",
     "-Wl,/subsystem:windows",
-    "-Wl,/MAP:bin/$PlatformFileName.map,/MAPINFO:EXPORTS"
+    "-Wl,/MAP:$Outdir/$PlatformFileName.map,/MAPINFO:EXPORTS"
 )
 
-Write-Host "Flags: $($PlatformFlags -join ' ')"
+Write-Host "PlatformFlags: $($PlatformFlags -join ' ')"
 
 clang @PlatformFlags $PlatformFile -o $OutPlatform
 

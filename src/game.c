@@ -47,7 +47,7 @@ static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, unsigned bl
 			// little endian on a register: 0xXXRRGGBB
 			uint8_t blue = (uint8_t)(x + blue_offset);
 			uint8_t green = (uint8_t)(y + green_offset);
-			*pixel = (uint32_t)(green << CHAR_BIT) | blue;
+			*pixel = (uint32_t)(green << CHAR_BIT*2) | blue;
 			++pixel;
 		}
 		row += buffer->pitch_bytes;
