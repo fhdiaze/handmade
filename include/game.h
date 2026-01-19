@@ -57,6 +57,8 @@ typedef struct Game_OffScreenBuffer {
 	unsigned width;
 	unsigned height;
 	unsigned pitch_bytes; // size of a row in bytes
+
+	unsigned bytes_per_pixel;
 } Game_OffScreenBuffer;
 
 typedef struct Game_SoundBuffer {
@@ -111,6 +113,11 @@ typedef struct Game_State {
 	unsigned green_offset;
 
 	float tsine;
+
+	unsigned player_x;
+	unsigned player_y;
+
+	float tjump;
 } Game_State;
 
 // Utilities

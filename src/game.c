@@ -22,8 +22,12 @@ static void game_sound_output(Game_State *game_state, Game_SoundBuffer *buffer)
 	int16_t *sample_out = buffer->samples;
 	float sample_value = 0;
 	for (size_t i = 0; i < buffer->sample_count; ++i) {
-		float sine_value = sinf(game_state->tsine);
-		sample_value = sine_value * tone_volume;
+#if 0
+float sine_value = sinf(game_state->tsine);
+sample_value = sine_value * tone_volume;
+#else
+		sample_value = 0;
+#endif
 		*sample_out = (int16_t)sample_value; // channel one
 		++sample_out;
 		*sample_out = (int16_t)sample_value; // channel two
@@ -47,10 +51,30 @@ static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, unsigned bl
 			// little endian on a register: 0xXXRRGGBB
 			uint8_t blue = (uint8_t)(x + blue_offset);
 			uint8_t green = (uint8_t)(y + green_offset);
-			*pixel = (uint32_t)(green << CHAR_BIT*2) | blue;
+			*pixel = (uint32_t)(green << CHAR_BIT * 2) | blue;
 			++pixel;
 		}
 		row += buffer->pitch_bytes;
+	}
+}
+
+static void game_render_player(Game_OffScreenBuffer *screen, unsigned player_x, unsigned player_y)
+{
+	assert(player_x <= screen->width - 10 && player_y <= screen->height - 10);
+
+	uint32_t color = 0xFFFFFFFF;
+	uint8_t *pixel_index = (uint8_t *)screen->memory +
+	                       player_x * (size_t)screen->bytes_per_pixel +
+	                       player_y * (size_t)screen->pitch_bytes;
+	uint32_t *pixel;
+	for (unsigned y = player_y; y < player_y + 10; ++y) {
+		for (unsigned x = player_x; x < player_x + 10; ++x) {
+			pixel = (uint32_t *)pixel_index;
+			*pixel = color;
+			pixel_index += screen->bytes_per_pixel;
+		}
+
+		pixel_index += screen->pitch_bytes - 10 * screen->bytes_per_pixel;
 	}
 }
 
@@ -72,6 +96,11 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		game_state->blue_offset = 0;
 		game_state->green_offset = 0;
 		game_state->tsine = 0.0f;
+
+		game_state->player_x = 100;
+		game_state->player_y = 100;
+
+		game_state->tjump = 0.0f;
 
 		memory->is_initialized = true;
 	}
@@ -103,9 +132,31 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		if (controller->actionup.ended_down) {
 			game_state->green_offset -= 1;
 		}
+
+		game_state->player_x += (unsigned)(4.0f * controller->stick_avg_x);
+		game_state->player_y -= (unsigned)(4.0f * controller->stick_avg_y);
+
+		if (game_state->tjump > 0) {
+			int delta = (int)(4.0f * controller->stick_avg_y +
+			                  10.0f * sinf(game_state->tjump));
+			game_state->player_y =
+				delta < 0 ? RING_ADD(screenbuff->height - 10, game_state->player_y,
+			                             (unsigned)(-delta)) :
+					    RING_SUB(screenbuff->height - 10, game_state->player_y,
+			                             (unsigned)delta);
+		}
+
+		if (controller->actiondown.ended_down) {
+			game_state->tjump = 1.0f;
+		}
+		game_state->tjump -= 0.033f;
+
+		game_state->player_x %= screenbuff->width - 10;
+		game_state->player_y %= screenbuff->height - 10;
 	}
 
 	game_render_weird_gradient(screenbuff, game_state->blue_offset, game_state->green_offset);
+	game_render_player(screenbuff, game_state->player_x, game_state->player_y);
 }
 
 GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)

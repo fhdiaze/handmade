@@ -15,7 +15,7 @@ typedef struct Win_OffScreenBuffer {
 	unsigned width;
 	unsigned height;
 	unsigned pitch_bytes; // size of a row in bytes
-	unsigned pixel_size_bytes;
+	unsigned bytes_per_pixel;
 	void *memory;
 	BITMAPINFO bitmap_info;
 } Win_OffScreenBuffer;
@@ -49,5 +49,12 @@ typedef struct Win_GameCode {
 
 	bool is_valid;
 } Win_GameCode;
+
+typedef struct Win_State {
+	HANDLE recording_handle;
+	HANDLE playback_handle;
+	unsigned input_recording_index;
+	unsigned input_playing_index;
+} Win_State;
 
 #endif // WIN_HANDMADE_H

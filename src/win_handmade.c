@@ -156,24 +156,6 @@ static void tools_string_concat(const size_t one_count, const char *const restri
 	dest[one_count + other_count] = '\0';
 }
 
-static size_t tix_string_append(const size_t onesize, char *const restrict one,
-                                const size_t othersize, const char *const restrict other)
-{
-	unsigned destlen = 0;
-	for (; one[destlen] != '\0' && destlen < onesize; ++destlen) {
-	}
-
-	for (unsigned i = 0; i < othersize && destlen < onesize; ++i) {
-		one[destlen] = other[i];
-		if (other[i] == '\0') {
-			break;
-		}
-		++destlen;
-	}
-
-	return destlen;
-}
-
 static bool win_code_load_game(const char *const gamedll_path, const char *const tmpdll_path,
                                Win_GameCode *result)
 {
@@ -442,7 +424,51 @@ static void win_input_process_digital_button(DWORD xinput_button_state, Game_But
 	newstate->half_transition_count = oldstate->ended_down != newstate->ended_down;
 }
 
-static void win_process_messages(Game_ControllerInput *keyboard_controller)
+static void win_input_begin_recording(Win_State *winstate, unsigned input_recording_index)
+{
+	char filename[] = "foo.hmi";
+	winstate->input_recording_index = input_recording_index;
+	winstate->recording_handle =
+		CreateFileA(filename, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+}
+
+static void win_input_end_recording(Win_State *winstate)
+{
+	CloseHandle(winstate->recording_handle);
+	winstate->input_recording_index = 0;
+}
+
+static void win_input_begin_playback(Win_State *winstate, unsigned input_playback_index)
+{
+	char filename[] = "foo.hmi";
+	winstate->input_playing_index = input_playback_index;
+	winstate->playback_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, nullptr,
+	                                        OPEN_EXISTING, 0, nullptr);
+}
+
+static void win_input_end_playback(Win_State *winstate)
+{
+	CloseHandle(winstate->playback_handle);
+	winstate->input_playing_index = 0;
+}
+
+static void win_input_record(Win_State *winstate, Game_Input *input)
+{
+	unsigned long bytes_written;
+	WriteFile(winstate->recording_handle, input, sizeof(*input), &bytes_written, nullptr);
+}
+
+static void win_input_playback(Win_State *winstate, Game_Input *input)
+{
+	unsigned long bytes_read;
+	if (ReadFile(winstate->playback_handle, input, sizeof(*input), &bytes_read, nullptr)) {
+		unsigned playing_index = winstate->input_playing_index;
+		win_input_end_playback(winstate);
+		win_input_begin_playback(winstate, playing_index);
+	}
+}
+
+static void win_process_messages(Win_State *winstate, Game_ControllerInput *keyboard_controller)
 {
 	MSG msg;
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -501,6 +527,15 @@ static void win_process_messages(Game_ControllerInput *keyboard_controller)
 					if (is_down) {
 						is_global_pause = !is_global_pause;
 					}
+				} else if (vk_code == 'L') {
+					if (is_down) {
+						if (!winstate->input_recording_index) {
+							win_input_begin_recording(winstate, 1);
+						} else {
+							win_input_end_recording(winstate);
+							win_input_begin_playback(winstate, 1);
+						}
+					}
 				}
 #endif
 			}
@@ -540,7 +575,7 @@ static void win_resize_dib_section(Win_OffScreenBuffer *buffer, unsigned win_wid
 
 	buffer->width = win_width;
 	buffer->height = win_height;
-	buffer->pixel_size_bytes = 4;
+	buffer->bytes_per_pixel = 4;
 	buffer->bitmap_info.bmiHeader.biSize = sizeof(buffer->bitmap_info.bmiHeader);
 	buffer->bitmap_info.bmiHeader.biWidth = (long)buffer->width;
 	// NOTE(fredy): top-down layout (opposite to bottom-up).
@@ -550,11 +585,11 @@ static void win_resize_dib_section(Win_OffScreenBuffer *buffer, unsigned win_wid
 	buffer->bitmap_info.bmiHeader.biBitCount = 32;
 	buffer->bitmap_info.bmiHeader.biCompression = BI_RGB;
 
-	long bitmap_memory_size = (long)(buffer->width * buffer->height * buffer->pixel_size_bytes);
+	long bitmap_memory_size = (long)(buffer->width * buffer->height * buffer->bytes_per_pixel);
 
 	buffer->memory = VirtualAlloc(nullptr, (size_t)bitmap_memory_size, MEM_RESERVE | MEM_COMMIT,
 	                              PAGE_READWRITE);
-	buffer->pitch_bytes = buffer->width * buffer->pixel_size_bytes;
+	buffer->pitch_bytes = buffer->width * buffer->bytes_per_pixel;
 }
 
 static void win_buffer_display_in_window(Win_OffScreenBuffer *buffer, HDC dchandle, long win_width,
@@ -635,7 +670,7 @@ static void win_debug_draw_vertical(Win_OffScreenBuffer *screen_buffer, unsigned
 	assert(top <= bottom);
 
 	uint8_t *pixel_start = (uint8_t *)screen_buffer->memory +
-	                       x * (size_t)screen_buffer->pixel_size_bytes +
+	                       x * (size_t)screen_buffer->bytes_per_pixel +
 	                       top * (size_t)screen_buffer->pitch_bytes;
 	uint32_t *pixel;
 	for (size_t y = top; y < bottom; ++y) {
@@ -829,6 +864,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		return EXIT_FAILURE;
 	}
 
+	Win_State winstate = {
+		.input_playing_index = 0,
+		.input_recording_index = 0,
+	};
 	is_global_running = true;
 
 #if 0
@@ -931,7 +970,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				old_keyboard_controller->buttons[i].ended_down;
 		}
 
-		win_process_messages(new_keyboard_controller);
+		win_process_messages(&winstate, new_keyboard_controller);
 
 		if (is_global_pause) {
 			continue;
@@ -1044,7 +1083,16 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			.width = global_back_buffer.width,
 			.height = global_back_buffer.height,
 			.pitch_bytes = global_back_buffer.pitch_bytes,
+			.bytes_per_pixel = global_back_buffer.bytes_per_pixel,
 		};
+
+		if (winstate.input_recording_index) {
+			win_input_record(&winstate, new_input);
+		}
+
+		if (winstate.input_playing_index) {
+			win_input_playback(&winstate, new_input);
+		}
 		game_code.update_and_render(&game_memory, new_input, &screenbuff);
 
 		unsigned bytes_to_write = 0;

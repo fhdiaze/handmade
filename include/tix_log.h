@@ -30,7 +30,7 @@
 #ifdef DEBUG
 #define TIX_LOG_WRITE(fmt, ...)                                        \
 	do {                                                           \
-		FILE *_pr_log_file = fopen("log.txt", "a+");     \
+		FILE *_pr_log_file = fopen("log.txt", "a+");           \
 		if (_pr_log_file == nullptr) {                         \
 			break;                                         \
 		}                                                      \
