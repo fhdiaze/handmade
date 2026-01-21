@@ -430,6 +430,12 @@ static void win_input_begin_recording(Win_State *winstate, unsigned input_record
 	winstate->input_recording_index = input_recording_index;
 	winstate->recording_handle =
 		CreateFileA(filename, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
+
+	assert(winstate->gamemem_size <= UINT32_MAX);
+
+	unsigned long bytes_written;
+	WriteFile(winstate->recording_handle, winstate->gamemem, (uint32_t)winstate->gamemem_size,
+	          &bytes_written, nullptr);
 }
 
 static void win_input_end_recording(Win_State *winstate)
@@ -444,6 +450,12 @@ static void win_input_begin_playback(Win_State *winstate, unsigned input_playbac
 	winstate->input_playing_index = input_playback_index;
 	winstate->playback_handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, nullptr,
 	                                        OPEN_EXISTING, 0, nullptr);
+
+	assert(winstate->gamemem_size <= UINT32_MAX);
+
+	unsigned long bytes_read;
+	ReadFile(winstate->playback_handle, winstate->gamemem, (uint32_t)winstate->gamemem_size,
+	         &bytes_read, nullptr);
 }
 
 static void win_input_end_playback(Win_State *winstate)
@@ -461,14 +473,22 @@ static void win_input_record(Win_State *winstate, Game_Input *input)
 static void win_input_playback(Win_State *winstate, Game_Input *input)
 {
 	unsigned long bytes_read;
-	if (ReadFile(winstate->playback_handle, input, sizeof(*input), &bytes_read, nullptr)) {
+	if (!ReadFile(winstate->playback_handle, input, sizeof(*input), &bytes_read, nullptr)) {
+		// Failed to read
+		return;
+	}
+
+	if (!bytes_read) {
 		unsigned playing_index = winstate->input_playing_index;
+
 		win_input_end_playback(winstate);
 		win_input_begin_playback(winstate, playing_index);
+
+		ReadFile(winstate->playback_handle, input, sizeof(*input), &bytes_read, nullptr);
 	}
 }
 
-static void win_process_messages(Win_State *winstate, Game_ControllerInput *keyboard_controller)
+static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *keyboard_controller)
 {
 	MSG msg;
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -529,9 +549,11 @@ static void win_process_messages(Win_State *winstate, Game_ControllerInput *keyb
 					}
 				} else if (vk_code == 'L') {
 					if (is_down) {
-						if (!winstate->input_recording_index) {
+						if (winstate->input_playing_index) {
+							win_input_end_playback(winstate);
+						} else if (!winstate->input_recording_index) {
 							win_input_begin_recording(winstate, 1);
-						} else {
+						} else { // it was in recording mode
 							win_input_end_recording(winstate);
 							win_input_begin_playback(winstate, 1);
 						}
@@ -905,9 +927,12 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	};
 	game_memory.permsize = MB_TO_BYTE(64);
 	game_memory.transize = GB_TO_BYTE(1);
-	size_t total_size = game_memory.permsize + game_memory.transize;
-	game_memory.permstorage =
-		VirtualAlloc(BASE_ADDRESS, total_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+	winstate.gamemem_size = game_memory.permsize + game_memory.transize;
+	winstate.gamemem = VirtualAlloc(BASE_ADDRESS, winstate.gamemem_size,
+	                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+
+	game_memory.permstorage = winstate.gamemem;
 	game_memory.transtorage = (uint8_t *)game_memory.permstorage + game_memory.permsize;
 
 	if (!samples || !game_memory.permstorage || !game_memory.transtorage) {
@@ -970,7 +995,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				old_keyboard_controller->buttons[i].ended_down;
 		}
 
-		win_process_messages(&winstate, new_keyboard_controller);
+		win_window_pump_messages(&winstate, new_keyboard_controller);
 
 		if (is_global_pause) {
 			continue;

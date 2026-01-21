@@ -44,6 +44,7 @@ typedef struct Win_DebugTimeMark {
 typedef struct Win_GameCode {
 	HMODULE game_dll;
 	FILETIME dll_write_time;
+
 	game_update_and_render_func *update_and_render;
 	game_sound_create_samples_func *sound_create_samples;
 
@@ -51,8 +52,12 @@ typedef struct Win_GameCode {
 } Win_GameCode;
 
 typedef struct Win_State {
+	size_t gamemem_size;
+	void *gamemem;
+
 	HANDLE recording_handle;
 	HANDLE playback_handle;
+
 	unsigned input_recording_index;
 	unsigned input_playing_index;
 } Win_State;

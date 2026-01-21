@@ -138,18 +138,18 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		if (game_state->tjump > 0) {
 			int delta = (int)(4.0f * controller->stick_avg_y +
-			                  10.0f * sinf(game_state->tjump));
+			                  10.0f * sinf(2.0f * PIE * game_state->tjump));
 			game_state->player_y =
-				delta < 0 ? RING_ADD(screenbuff->height - 10, game_state->player_y,
+				delta < 0 ? RING_SUB(screenbuff->height - 10, game_state->player_y,
 			                             (unsigned)(-delta)) :
-					    RING_SUB(screenbuff->height - 10, game_state->player_y,
+					    RING_ADD(screenbuff->height - 10, game_state->player_y,
 			                             (unsigned)delta);
 		}
 
 		if (controller->actiondown.ended_down) {
 			game_state->tjump = 1.0f;
 		}
-		game_state->tjump -= 0.033f;
+		game_state->tjump -= 0.013f;
 
 		game_state->player_x %= screenbuff->width - 10;
 		game_state->player_y %= screenbuff->height - 10;
