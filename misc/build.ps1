@@ -77,7 +77,7 @@ $time = Get-Date -Format "yyyyMMdd_HHmmss"
 $GameFlags = $Flags + @(
     "-Wl,/MAP:$Outdir/$GameFileName.map,/MAPINFO:EXPORTS",
     "-Wl,/EXPORT:game_sound_create_samples",
-    "-Wl,/EXPORT:game_update_and_render",
+    "-Wl,/EXPORT:game_screen_update_and_render",
     "-Wl,/PDB:$Outdir/game_$time.pdb",
     "-shared"
 )

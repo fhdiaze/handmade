@@ -78,7 +78,7 @@ static void game_render_player(Game_OffScreenBuffer *screen, unsigned player_x, 
 	}
 }
 
-GAME_UPDATE_AND_RENDER(game_update_and_render)
+GAME_SCREEN_UPDATE_AND_RENDER(game_screen_update_and_render)
 {
 	assert(sizeof(Game_State) <= game_memory->permamem_size);
 

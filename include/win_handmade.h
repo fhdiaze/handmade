@@ -45,7 +45,7 @@ typedef struct Win_GameCode {
 	HMODULE game_dll;
 	FILETIME dll_write_time;
 
-	game_update_and_render_func *update_and_render;
+	game_screen_update_and_render_func *update_and_render;
 	game_sound_create_samples_func *sound_create_samples;
 
 	bool is_valid;

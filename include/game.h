@@ -182,12 +182,12 @@ typedef struct Game_Memory {
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_UPDATE_AND_RENDER(name)                             \
+#define GAME_SCREEN_UPDATE_AND_RENDER(name)                             \
 	void name([[__maybe_unused__]] Game_Memory *game_memory, \
 	          [[__maybe_unused__]] Game_Input *input,        \
 	          [[__maybe_unused__]] Game_OffScreenBuffer *screenbuff)
-typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
-GAME_UPDATE_AND_RENDER(game_update_and_render_stub)
+typedef GAME_SCREEN_UPDATE_AND_RENDER(game_screen_update_and_render_func);
+GAME_SCREEN_UPDATE_AND_RENDER(game_screen_update_and_render_stub)
 {
 }
 

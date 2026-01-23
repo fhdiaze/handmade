@@ -174,8 +174,8 @@ static bool win_code_load_game(const char *const gamedll_path, const char *const
 	game_code->dll_write_time = dll_last_write_time;
 
 	if (game_code->game_dll) {
-		game_code->update_and_render = (game_update_and_render_func *)GetProcAddress(
-			game_code->game_dll, "game_update_and_render");
+		game_code->update_and_render = (game_screen_update_and_render_func *)GetProcAddress(
+			game_code->game_dll, "game_screen_update_and_render");
 		game_code->sound_create_samples = (game_sound_create_samples_func *)GetProcAddress(
 			game_code->game_dll, "game_sound_create_samples");
 
@@ -185,7 +185,7 @@ static bool win_code_load_game(const char *const gamedll_path, const char *const
 
 	if (!game_code->is_valid) {
 		game_code->sound_create_samples = game_sound_create_samples_stub;
-		game_code->update_and_render = game_update_and_render_stub;
+		game_code->update_and_render = game_screen_update_and_render_stub;
 	}
 
 	return game_code->is_valid;
@@ -202,7 +202,7 @@ static bool win_code_unload_game(Win_GameCode *game_code)
 
 	game_code->is_valid = false;
 	game_code->sound_create_samples = game_sound_create_samples_stub;
-	game_code->update_and_render = game_update_and_render_stub;
+	game_code->update_and_render = game_screen_update_and_render_stub;
 
 	return true;
 }
