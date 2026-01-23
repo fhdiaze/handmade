@@ -166,11 +166,11 @@ typedef PLAT_DEBUG_WRITEFILE(plat_debug_writefile_func);
 // Game services
 
 typedef struct Game_Memory {
-	size_t permsize; // permanent storage in bytes
-	void *permstorage; // This should be zero initialized
+	size_t permamem_size; // permanent storage in bytes
+	void *permamem; // This should be zero initialized
 
-	size_t transize; // transient storage in bytes
-	void *transtorage; // This should be zero initialized
+	size_t transmem_size; // transient storage in bytes
+	void *transmem; // This should be zero initialized
 
 	plat_debug_freefile_func *plat_debug_free_file;
 	plat_debug_readfile_func *plat_debug_read_file;
@@ -182,9 +182,9 @@ typedef struct Game_Memory {
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_UPDATE_AND_RENDER(name)                        \
-	void name([[__maybe_unused__]] Game_Memory *memory, \
-	          [[__maybe_unused__]] Game_Input *input,   \
+#define GAME_UPDATE_AND_RENDER(name)                             \
+	void name([[__maybe_unused__]] Game_Memory *game_memory, \
+	          [[__maybe_unused__]] Game_Input *input,        \
 	          [[__maybe_unused__]] Game_OffScreenBuffer *screenbuff)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 GAME_UPDATE_AND_RENDER(game_update_and_render_stub)

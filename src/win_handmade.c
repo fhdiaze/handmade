@@ -157,7 +157,7 @@ static void tools_string_concat(const size_t one_count, const char *const restri
 }
 
 static bool win_code_load_game(const char *const gamedll_path, const char *const tmpdll_path,
-                               Win_GameCode *result)
+                               Win_GameCode *game_code)
 {
 	FILETIME dll_last_write_time = {};
 	if (!win_file_get_last_write_time(gamedll_path, &dll_last_write_time)) {
@@ -170,24 +170,25 @@ static bool win_code_load_game(const char *const gamedll_path, const char *const
 		return false;
 	}
 
-	result->game_dll = LoadLibraryA(tmpdll_path);
-	result->dll_write_time = dll_last_write_time;
+	game_code->game_dll = LoadLibraryA(tmpdll_path);
+	game_code->dll_write_time = dll_last_write_time;
 
-	if (result->game_dll) {
-		result->update_and_render = (game_update_and_render_func *)GetProcAddress(
-			result->game_dll, "game_update_and_render");
-		result->sound_create_samples = (game_sound_create_samples_func *)GetProcAddress(
-			result->game_dll, "game_sound_create_samples");
+	if (game_code->game_dll) {
+		game_code->update_and_render = (game_update_and_render_func *)GetProcAddress(
+			game_code->game_dll, "game_update_and_render");
+		game_code->sound_create_samples = (game_sound_create_samples_func *)GetProcAddress(
+			game_code->game_dll, "game_sound_create_samples");
 
-		result->is_valid = result->sound_create_samples && result->update_and_render;
+		game_code->is_valid = game_code->sound_create_samples &&
+		                      game_code->update_and_render;
 	}
 
-	if (!result->is_valid) {
-		result->sound_create_samples = game_sound_create_samples_stub;
-		result->update_and_render = game_update_and_render_stub;
+	if (!game_code->is_valid) {
+		game_code->sound_create_samples = game_sound_create_samples_stub;
+		game_code->update_and_render = game_update_and_render_stub;
 	}
 
-	return result->is_valid;
+	return game_code->is_valid;
 }
 
 static bool win_code_unload_game(Win_GameCode *game_code)
@@ -488,7 +489,7 @@ static void win_input_playback(Win_State *winstate, Game_Input *input)
 	}
 }
 
-static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *keyboard_controller)
+static void win_screen_pump_messages(Win_State *winstate, Game_ControllerInput *keyboard_controller)
 {
 	MSG msg;
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -588,8 +589,8 @@ static Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 /*
  * dib: device independent bitmap
  */
-static void win_resize_dib_section(Win_OffScreenBuffer *buffer, unsigned win_width,
-                                   unsigned win_height)
+static void win_screen_resize_dib_section(Win_OffScreenBuffer *buffer, unsigned win_width,
+                                          unsigned win_height)
 {
 	if (buffer->memory) {
 		VirtualFree(buffer->memory, 0, MEM_RELEASE);
@@ -614,7 +615,7 @@ static void win_resize_dib_section(Win_OffScreenBuffer *buffer, unsigned win_wid
 	buffer->pitch_bytes = buffer->width * buffer->bytes_per_pixel;
 }
 
-static void win_buffer_display_in_window(Win_OffScreenBuffer *buffer, HDC dchandle, long win_width,
+static void win_screen_display_in_window(Win_OffScreenBuffer *buffer, HDC dchandle, long win_width,
                                          long win_height)
 {
 	StretchDIBits(dchandle, 0, 0, win_width, win_height, 0, 0, (int)buffer->width,
@@ -622,10 +623,10 @@ static void win_buffer_display_in_window(Win_OffScreenBuffer *buffer, HDC dchand
 	              SRCCOPY);
 }
 
-static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle,
-                                             [[__maybe_unused__]] UINT msg,
-                                             [[__maybe_unused__]] WPARAM wparam,
-                                             [[__maybe_unused__]] LPARAM lparam)
+static LRESULT CALLBACK win_screen_handle_callback_main_window([[__maybe_unused__]] HWND winhandle,
+                                                               [[__maybe_unused__]] UINT msg,
+                                                               [[__maybe_unused__]] WPARAM wparam,
+                                                               [[__maybe_unused__]] LPARAM lparam)
 {
 	LRESULT result = 0;
 
@@ -649,7 +650,7 @@ static LRESULT CALLBACK win_main_window_proc([[__maybe_unused__]] HWND winhandle
 		PAINTSTRUCT paint;
 		HDC dchandle = BeginPaint(winhandle, &paint);
 		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
-		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
+		win_screen_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
 		EndPaint(winhandle, &paint);
 	} break;
@@ -683,8 +684,8 @@ static inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER en
  * @param top pixel index
  * @param bottom pixel index
  */
-static void win_debug_draw_vertical(Win_OffScreenBuffer *screen_buffer, unsigned x, unsigned top,
-                                    unsigned bottom, unsigned color)
+static void win_screen_draw_vertical_debug(Win_OffScreenBuffer *screen_buffer, unsigned x,
+                                           unsigned top, unsigned bottom, unsigned color)
 {
 	assert(x >= 0 && x < screen_buffer->width);
 	assert(bottom >= 0 && bottom < screen_buffer->height);
@@ -702,15 +703,15 @@ static void win_debug_draw_vertical(Win_OffScreenBuffer *screen_buffer, unsigned
 	}
 }
 
-static inline void win_debug_draw_sound_buffer_mark(Win_OffScreenBuffer *screen_buffer,
-                                                    Win_SoundOutput *soundout,
-                                                    float pixels_per_byte, unsigned padx,
-                                                    unsigned top, unsigned bottom, unsigned value,
-                                                    uint32_t color)
+static inline void win_screen_draw_sound_buffer_mark_debug(Win_OffScreenBuffer *screen_buffer,
+                                                           Win_SoundOutput *soundout,
+                                                           float pixels_per_byte, unsigned padx,
+                                                           unsigned top, unsigned bottom,
+                                                           unsigned value, uint32_t color)
 {
 	assert(value < soundout->buffsize);
 	unsigned x = padx + (unsigned)(pixels_per_byte * (float)value);
-	win_debug_draw_vertical(screen_buffer, x, top, bottom, color);
+	win_screen_draw_vertical_debug(screen_buffer, x, top, bottom, color);
 }
 
 /**
@@ -722,10 +723,10 @@ static inline void win_debug_draw_sound_buffer_mark(Win_OffScreenBuffer *screen_
  * @param soundout
  * @param target_secs_per_frame
  */
-static void win_debug_sync_display(Win_OffScreenBuffer *screen_buffer,
-                                   unsigned last_cursors_marks_size,
-                                   Win_DebugTimeMark *last_cursors_marks,
-                                   unsigned current_mark_index, Win_SoundOutput *winsound)
+static void win_screen_draw_sound_sync_debug(Win_OffScreenBuffer *screen_buffer,
+                                             unsigned last_cursors_marks_size,
+                                             Win_DebugTimeMark *last_cursors_marks,
+                                             unsigned current_mark_index, Win_SoundOutput *winsound)
 {
 	unsigned padx = 16;
 	unsigned pady = 16;
@@ -751,22 +752,23 @@ static void win_debug_sync_display(Win_OffScreenBuffer *screen_buffer,
 
 			first_top = top;
 
-			win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte,
-			                                 padx, top, bottom,
-			                                 current_mark.output_play_cursor,
-			                                 play_color);
-			win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte,
-			                                 padx, top, bottom,
-			                                 current_mark.output_write_cursor,
-			                                 write_color);
+			win_screen_draw_sound_buffer_mark_debug(screen_buffer, winsound,
+			                                        pixels_per_byte, padx, top, bottom,
+			                                        current_mark.output_play_cursor,
+			                                        play_color);
+			win_screen_draw_sound_buffer_mark_debug(screen_buffer, winsound,
+			                                        pixels_per_byte, padx, top, bottom,
+			                                        current_mark.output_write_cursor,
+			                                        write_color);
 
 			top += pady + line_height;
 			bottom += pady + line_height;
 
-			win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte,
-			                                 padx, top, bottom,
-			                                 current_mark.output_location, play_color);
-			win_debug_draw_sound_buffer_mark(
+			win_screen_draw_sound_buffer_mark_debug(screen_buffer, winsound,
+			                                        pixels_per_byte, padx, top, bottom,
+			                                        current_mark.output_location,
+			                                        play_color);
+			win_screen_draw_sound_buffer_mark_debug(
 				screen_buffer, winsound, pixels_per_byte, padx, top, bottom,
 				RING_ADD(winsound->buffsize, current_mark.output_location,
 			                 current_mark.output_byte_count),
@@ -775,30 +777,30 @@ static void win_debug_sync_display(Win_OffScreenBuffer *screen_buffer,
 			top += pady + line_height;
 			bottom += pady + line_height;
 
-			win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte,
-			                                 padx, first_top, bottom,
-			                                 current_mark.frame_flip_byte,
-			                                 frame_flip_byte_color);
+			win_screen_draw_sound_buffer_mark_debug(
+				screen_buffer, winsound, pixels_per_byte, padx, first_top, bottom,
+				current_mark.frame_flip_byte, frame_flip_byte_color);
 		}
 
-		win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte, padx,
-		                                 top, bottom, current_mark.flip_play_cursor,
-		                                 play_color);
+		win_screen_draw_sound_buffer_mark_debug(screen_buffer, winsound, pixels_per_byte,
+		                                        padx, top, bottom,
+		                                        current_mark.flip_play_cursor, play_color);
 
-		win_debug_draw_sound_buffer_mark(
+		win_screen_draw_sound_buffer_mark_debug(
 			screen_buffer, winsound, pixels_per_byte, padx, top, bottom,
 			RING_SUB(winsound->buffsize, current_mark.flip_play_cursor,
 		                 480 * winsound->bytes_per_sample),
 			play_window_color);
-		win_debug_draw_sound_buffer_mark(
+		win_screen_draw_sound_buffer_mark_debug(
 			screen_buffer, winsound, pixels_per_byte, padx, top, bottom,
 			RING_ADD(winsound->buffsize, current_mark.flip_play_cursor,
 		                 480 * winsound->bytes_per_sample),
 			play_window_color);
 
-		win_debug_draw_sound_buffer_mark(screen_buffer, winsound, pixels_per_byte, padx,
-		                                 top, bottom, current_mark.flip_write_cursor,
-		                                 write_color);
+		win_screen_draw_sound_buffer_mark_debug(screen_buffer, winsound, pixels_per_byte,
+		                                        padx, top, bottom,
+		                                        current_mark.flip_write_cursor,
+		                                        write_color);
 	}
 }
 
@@ -844,12 +846,12 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	WNDCLASSA winclass = {
 		.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-		.lpfnWndProc = win_main_window_proc,
+		.lpfnWndProc = win_screen_handle_callback_main_window,
 		.hInstance = hinstance,
 		.lpszClassName = "HandmadeHeroWindowClass",
 	};
 
-	win_resize_dib_section(&global_back_buffer, 1200, 700);
+	win_screen_resize_dib_section(&global_back_buffer, 1200, 700);
 
 	constexpr unsigned monitorhz = 60;
 	constexpr unsigned gamehz = monitorhz / 2;
@@ -925,17 +927,17 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.plat_debug_read_file = plat_debug_readfile,
 		.plat_debug_write_file = plat_debug_writefile,
 	};
-	game_memory.permsize = MB_TO_BYTE(64);
-	game_memory.transize = GB_TO_BYTE(1);
+	game_memory.permamem_size = MB_TO_BYTE(64);
+	game_memory.transmem_size = GB_TO_BYTE(1);
 
-	winstate.gamemem_size = game_memory.permsize + game_memory.transize;
+	winstate.gamemem_size = game_memory.permamem_size + game_memory.transmem_size;
 	winstate.gamemem = VirtualAlloc(BASE_ADDRESS, winstate.gamemem_size,
 	                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	game_memory.permstorage = winstate.gamemem;
-	game_memory.transtorage = (uint8_t *)game_memory.permstorage + game_memory.permsize;
+	game_memory.permamem = winstate.gamemem;
+	game_memory.transmem = (uint8_t *)game_memory.permamem + game_memory.permamem_size;
 
-	if (!samples || !game_memory.permstorage || !game_memory.transtorage) {
+	if (!samples || !game_memory.permamem || !game_memory.transmem) {
 		return EXIT_FAILURE;
 	}
 
@@ -943,6 +945,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.samples_per_sec = winsound.samples_per_sec,
 		.samples = samples,
 	};
+
+	Game_OffScreenBuffer screenbuff = {};
 
 	Game_Input inputs[2] = {};
 	Game_Input *new_input = &inputs[0];
@@ -995,7 +999,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				old_keyboard_controller->buttons[i].ended_down;
 		}
 
-		win_window_pump_messages(&winstate, new_keyboard_controller);
+		win_screen_pump_messages(&winstate, new_keyboard_controller);
 
 		if (is_global_pause) {
 			continue;
@@ -1103,13 +1107,11 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		 * @brief Update and rendering
 		 */
 
-		Game_OffScreenBuffer screenbuff = {
-			.memory = global_back_buffer.memory,
-			.width = global_back_buffer.width,
-			.height = global_back_buffer.height,
-			.pitch_bytes = global_back_buffer.pitch_bytes,
-			.bytes_per_pixel = global_back_buffer.bytes_per_pixel,
-		};
+		screenbuff.memory = global_back_buffer.memory;
+		screenbuff.width = global_back_buffer.width;
+		screenbuff.height = global_back_buffer.height;
+		screenbuff.pitch_bytes = global_back_buffer.pitch_bytes;
+		screenbuff.bytes_per_pixel = global_back_buffer.bytes_per_pixel;
 
 		if (winstate.input_recording_index) {
 			win_input_record(&winstate, new_input);
@@ -1229,13 +1231,13 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 
 #ifdef DEBUG
-		win_debug_sync_display(&global_back_buffer, debug_last_cursor_marks_size,
-		                       debug_last_cursor_marks, debug_last_cursor_mark_index - 1,
-		                       &winsound);
+		win_screen_draw_sound_sync_debug(&global_back_buffer, debug_last_cursor_marks_size,
+		                                 debug_last_cursor_marks,
+		                                 debug_last_cursor_mark_index - 1, &winsound);
 #endif
 
 		// Flip the frame
-		win_buffer_display_in_window(&global_back_buffer, dchandle, windim.width,
+		win_screen_display_in_window(&global_back_buffer, dchandle, windim.width,
 		                             windim.height);
 
 		flip_wall_clock = win_clock_get_wall();

@@ -80,15 +80,15 @@ static void game_render_player(Game_OffScreenBuffer *screen, unsigned player_x, 
 
 GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
-	assert(sizeof(Game_State) <= memory->permsize);
+	assert(sizeof(Game_State) <= game_memory->permamem_size);
 
-	Game_State *game_state = memory->permstorage;
-	if (!memory->is_initialized) {
+	Game_State *game_state = game_memory->permamem;
+	if (!game_memory->is_initialized) {
 		const char *const filename = __FILE__;
-		Plat_ReadFileResult read = memory->plat_debug_read_file(filename);
+		Plat_ReadFileResult read = game_memory->plat_debug_read_file(filename);
 		if (read.memory) {
-			memory->plat_debug_write_file("test.out", read.size, read.memory);
-			memory->plat_debug_free_file(read.memory);
+			game_memory->plat_debug_write_file("test.out", read.size, read.memory);
+			game_memory->plat_debug_free_file(read.memory);
 			read.size = 0;
 		}
 
@@ -102,7 +102,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		game_state->tjump = 0.0f;
 
-		memory->is_initialized = true;
+		game_memory->is_initialized = true;
 	}
 
 	for (size_t i = 0; i < GAME_MAX_CONTROLLERS; ++i) {
@@ -161,8 +161,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
 {
-	assert(sizeof(Game_State) <= memory->permsize);
+	assert(sizeof(Game_State) <= memory->permamem_size);
 
-	Game_State *game_state = memory->permstorage;
+	Game_State *game_state = memory->permamem;
 	game_sound_output(game_state, soundbuff);
 }
