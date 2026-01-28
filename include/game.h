@@ -52,14 +52,14 @@ static constexpr float PIE = 3.14159265359f;
 static constexpr unsigned GAME_MAX_CONTROLLERS = 5;
 static constexpr unsigned GAME_MAX_BUTTONS = 12;
 
-typedef struct Game_OffScreenBuffer {
+typedef struct Game_Bitmap {
 	void *memory;
 	unsigned width;
 	unsigned height;
 	unsigned pitch_bytes; // size of a row in bytes
 
 	unsigned bytes_per_pixel;
-} Game_OffScreenBuffer;
+} Game_Bitmap;
 
 typedef struct Game_SoundBuffer {
 	unsigned samples_per_sec;
@@ -182,21 +182,15 @@ typedef struct Game_Memory {
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_SCREEN_UPDATE_AND_RENDER(name)                             \
+#define GAME_BITMAP_UPDATE_AND_RENDER(name)                      \
 	void name([[__maybe_unused__]] Game_Memory *game_memory, \
 	          [[__maybe_unused__]] Game_Input *input,        \
-	          [[__maybe_unused__]] Game_OffScreenBuffer *screenbuff)
-typedef GAME_SCREEN_UPDATE_AND_RENDER(game_screen_update_and_render_func);
-GAME_SCREEN_UPDATE_AND_RENDER(game_screen_update_and_render_stub)
-{
-}
+	          [[__maybe_unused__]] Game_Bitmap *bitmap)
+typedef GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render_func);
 
 #define GAME_SOUND_CREATE_SAMPLES(name)                     \
 	void name([[__maybe_unused__]] Game_Memory *memory, \
 	          [[__maybe_unused__]] Game_SoundBuffer *soundbuff)
 typedef GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_func);
-GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_stub)
-{
-}
 
 #endif // GAME_H

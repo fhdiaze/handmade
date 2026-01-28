@@ -22,9 +22,9 @@ static void game_sound_output(Game_State *game_state, Game_SoundBuffer *buffer)
 	int16_t *sample_out = buffer->samples;
 	float sample_value = 0;
 	for (size_t i = 0; i < buffer->sample_count; ++i) {
-#if 0
-float sine_value = sinf(game_state->tsine);
-sample_value = sine_value * tone_volume;
+#if 1
+		float sine_value = sinf(game_state->tsine);
+		sample_value = sine_value * tone_volume;
 #else
 		sample_value = 0;
 #endif
@@ -40,7 +40,7 @@ sample_value = sine_value * tone_volume;
 	}
 }
 
-static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, unsigned blue_offset,
+static void game_render_weird_gradient(Game_Bitmap *buffer, unsigned blue_offset,
                                        unsigned green_offset)
 {
 	uint8_t *row = (uint8_t *)buffer->memory;
@@ -58,27 +58,27 @@ static void game_render_weird_gradient(Game_OffScreenBuffer *buffer, unsigned bl
 	}
 }
 
-static void game_render_player(Game_OffScreenBuffer *screen, unsigned player_x, unsigned player_y)
+static void game_render_player(Game_Bitmap *bitmap, unsigned player_x, unsigned player_y)
 {
-	assert(player_x <= screen->width - 10 && player_y <= screen->height - 10);
+	assert(player_x <= bitmap->width - 10 && player_y <= bitmap->height - 10);
 
 	uint32_t color = 0xFFFFFFFF;
-	uint8_t *pixel_index = (uint8_t *)screen->memory +
-	                       player_x * (size_t)screen->bytes_per_pixel +
-	                       player_y * (size_t)screen->pitch_bytes;
+	uint8_t *pixel_index = (uint8_t *)bitmap->memory +
+	                       player_x * (size_t)bitmap->bytes_per_pixel +
+	                       player_y * (size_t)bitmap->pitch_bytes;
 	uint32_t *pixel;
 	for (unsigned y = player_y; y < player_y + 10; ++y) {
 		for (unsigned x = player_x; x < player_x + 10; ++x) {
 			pixel = (uint32_t *)pixel_index;
 			*pixel = color;
-			pixel_index += screen->bytes_per_pixel;
+			pixel_index += bitmap->bytes_per_pixel;
 		}
 
-		pixel_index += screen->pitch_bytes - 10 * screen->bytes_per_pixel;
+		pixel_index += bitmap->pitch_bytes - 10 * bitmap->bytes_per_pixel;
 	}
 }
 
-GAME_SCREEN_UPDATE_AND_RENDER(game_screen_update_and_render)
+GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
 	assert(sizeof(Game_State) <= game_memory->permamem_size);
 
@@ -140,9 +140,9 @@ GAME_SCREEN_UPDATE_AND_RENDER(game_screen_update_and_render)
 			int delta = (int)(4.0f * controller->stick_avg_y +
 			                  10.0f * sinf(2.0f * PIE * game_state->tjump));
 			game_state->player_y =
-				delta < 0 ? RING_SUB(screenbuff->height - 10, game_state->player_y,
+				delta < 0 ? RING_SUB(bitmap->height - 10, game_state->player_y,
 			                             (unsigned)(-delta)) :
-					    RING_ADD(screenbuff->height - 10, game_state->player_y,
+					    RING_ADD(bitmap->height - 10, game_state->player_y,
 			                             (unsigned)delta);
 		}
 
@@ -151,12 +151,12 @@ GAME_SCREEN_UPDATE_AND_RENDER(game_screen_update_and_render)
 		}
 		game_state->tjump -= 0.013f;
 
-		game_state->player_x %= screenbuff->width - 10;
-		game_state->player_y %= screenbuff->height - 10;
+		game_state->player_x %= bitmap->width - 10;
+		game_state->player_y %= bitmap->height - 10;
 	}
 
-	game_render_weird_gradient(screenbuff, game_state->blue_offset, game_state->green_offset);
-	game_render_player(screenbuff, game_state->player_x, game_state->player_y);
+	game_render_weird_gradient(bitmap, game_state->blue_offset, game_state->green_offset);
+	game_render_player(bitmap, game_state->player_x, game_state->player_y);
 }
 
 GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)

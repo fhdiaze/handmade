@@ -6,19 +6,21 @@
 #include "game.h"
 #include <windows.h>
 
+#define WIN_STATE_MAX_FILE_PATH MAX_PATH
+
 typedef struct Win_WindowDimensions {
 	long width;
 	long height;
 } Win_WindowDimensions;
 
-typedef struct Win_OffScreenBuffer {
+typedef struct Win_Bitmap {
 	unsigned width;
 	unsigned height;
 	unsigned pitch_bytes; // size of a row in bytes
 	unsigned bytes_per_pixel;
 	void *memory;
-	BITMAPINFO bitmap_info;
-} Win_OffScreenBuffer;
+	BITMAPINFO info;
+} Win_Bitmap;
 
 typedef struct Win_SoundOutput {
 	size_t running_sample_index;
@@ -45,7 +47,14 @@ typedef struct Win_GameCode {
 	HMODULE game_dll;
 	FILETIME dll_write_time;
 
-	game_screen_update_and_render_func *update_and_render;
+	/**
+	 * @brief could be null, check before call it
+	 */
+	game_bitmap_update_and_render_func *update_and_render;
+
+	/**
+	 * @brief could be null, check before call it
+	 */
 	game_sound_create_samples_func *sound_create_samples;
 
 	bool is_valid;
@@ -60,6 +69,9 @@ typedef struct Win_State {
 
 	unsigned input_recording_index;
 	unsigned input_playing_index;
+
+	char exe_path[WIN_STATE_MAX_FILE_PATH];
+	char *exe_path_last_slash;
 } Win_State;
 
 #endif // WIN_HANDMADE_H
