@@ -10,10 +10,10 @@
 #include <assert.h>
 #include <stdint.h>
 
-#define KB_TO_BYTE(_pr_v) (_pr_v * 1024ull)
-#define MB_TO_BYTE(_pr_v) (KB_TO_BYTE(_pr_v) * 1024ull)
-#define GB_TO_BYTE(_pr_v) (MB_TO_BYTE(_pr_v) * 1024ull)
-#define TB_TO_BYTE(_pr_v) (GB_TO_BYTE(_pr_v) * 1024ull)
+#define KB_TO_BYTE(_pr_v) (_pr_v * 1024)
+#define MB_TO_BYTE(_pr_v) (KB_TO_BYTE(_pr_v) * 1024)
+#define GB_TO_BYTE(_pr_v) (MB_TO_BYTE(_pr_v) * 1024)
+#define TB_TO_BYTE(_pr_v) (GB_TO_BYTE(_pr_v) * 1024)
 
 /**
  * @brief Calculates the distance between two indexes in a ring buffer

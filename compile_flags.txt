@@ -12,6 +12,8 @@
 -Wnull-dereference
 -Wdouble-promotion
 -Wimplicit-fallthrough
+-Wint-to-pointer-cast
+-Wint-to-void-pointer-cast
 -Wswitch-enum
 -Wunused
 -Wuninitialized
@@ -19,10 +21,10 @@
 -Wundef
 -Wvla
 -Wfloat-equal
+-Wpedantic
 -Wstrict-overflow=2
 -Wredundant-decls
 -fuse-ld=lld
--pedantic
 -I./include
 -D_CRT_SECURE_NO_WARNINGS
 -Wl,/INCREMENTAL:NO

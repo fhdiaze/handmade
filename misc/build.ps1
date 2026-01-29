@@ -60,7 +60,7 @@ if ($BuildMode -eq "debug") {
         "-O0",             # No optimization
         "-DDEBUG",         # Define DEBUG macro
         "-Wl,/DEBUG:FULL",
-        "-MTd"             # Build statically with C runtime lib
+        "-fms-runtime-lib=static_dbg"             # Build statically with C runtime lib
     )
     #$Flags += "-fsanitize=address"
     #$Flags += "-fno-omit-frame-pointer"
@@ -72,7 +72,7 @@ if ($BuildMode -eq "debug") {
         "-flto",           # Link-time optimization
         "-Wl,/opt:ref",
         "-Wl,/opt:icf",
-        "-MT"
+        "-fms-runtime-lib=static"
     )
     Write-Host "Building in RELEASE mode..."
 }

@@ -960,8 +960,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.plat_debug_read_file = plat_debug_readfile,
 		.plat_debug_write_file = plat_debug_writefile,
 	};
-	game_memory.permamem_size = MB_TO_BYTE(64);
-	game_memory.transmem_size = GB_TO_BYTE(1);
+	game_memory.permamem_size = MB_TO_BYTE(64ull);
+	game_memory.transmem_size = GB_TO_BYTE(1ull);
 
 	winstate.gamemem_size = game_memory.permamem_size + game_memory.transmem_size;
 	winstate.gamemem = VirtualAlloc(BASE_ADDRESS, winstate.gamemem_size,
