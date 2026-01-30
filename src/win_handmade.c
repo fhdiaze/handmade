@@ -890,10 +890,6 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	win_bitmap_resize_section(&global_bitmap, 1200, 700);
 
-	constexpr unsigned monitorhz = 60;
-	constexpr unsigned gamehz = monitorhz / 2;
-	float target_secs_per_frame = 1.0f / (float)gamehz;
-
 	if (!RegisterClassA(&winclass)) {
 		TIX_LOGE("error registering the window class");
 		return EXIT_FAILURE;
@@ -914,8 +910,20 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.samples_per_sec = 48000,
 		.bytes_per_sample = sizeof(uint16_t) * 2,
 	};
-	winsound.buffsize = winsound.samples_per_sec * winsound.bytes_per_sample;
-	winsound.safety_bytes = winsound.samples_per_sec * winsound.bytes_per_sample / gamehz / 3;
+
+	unsigned monitorhz = 60;
+	unsigned win_monitorhz = (unsigned)GetDeviceCaps(dchandle, VREFRESH);
+	if (win_monitorhz > 1) {
+		monitorhz = win_monitorhz;
+	}
+
+	float gamehz = (float)monitorhz / 2.0f;
+	float target_secs_per_frame = 1.0f / gamehz;
+	unsigned bytes_per_sec = winsound.samples_per_sec * winsound.bytes_per_sample;
+	unsigned bytes_per_frame = (unsigned)((float)bytes_per_sec * target_secs_per_frame);
+
+	winsound.safety_bytes = bytes_per_frame / 3; // 1/3 of the samples per frame
+	winsound.buffsize = bytes_per_sec; // 1 second of sound
 
 	win_sound_init(winhandle, winsound.samples_per_sec, winsound.buffsize);
 	win_sound_clear_buffer(&winsound);
@@ -988,7 +996,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	LARGE_INTEGER last_counter = win_clock_get_wall();
 	LARGE_INTEGER flip_wall_clock = win_clock_get_wall();
 
-	constexpr size_t debug_last_cursor_marks_size = gamehz / 2;
+	constexpr unsigned debug_last_cursor_marks_size = 30;
 	unsigned debug_last_cursor_mark_index = 0;
 	Win_DebugTimeMark debug_last_cursor_marks[debug_last_cursor_marks_size] = {};
 
@@ -1169,11 +1177,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			float secs_from_flip =
 				win_clock_elapsed_secs(flip_wall_clock, win_clock_get_wall());
 			float secs_to_flip = target_secs_per_frame - secs_from_flip;
-			unsigned bytes_per_sec =
-				winsound.samples_per_sec * winsound.bytes_per_sample;
 			unsigned bytes_to_flip = (unsigned)(secs_to_flip * (float)bytes_per_sec);
-			unsigned bytes_per_frame =
-				winsound.bytes_per_sample * winsound.samples_per_sec / gamehz;
 			unsigned frame_flip_byte =
 				RING_ADD(winsound.buffsize, play_cursor, bytes_to_flip);
 			unsigned sound_flip_byte =
