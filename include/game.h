@@ -49,8 +49,9 @@
 #endif // DEBUG
 
 static constexpr float PIE = 3.14159265359f;
+static constexpr unsigned GAME_MAX_MOUSE_BUTTONS = 5;
 static constexpr unsigned GAME_MAX_CONTROLLERS = 5;
-static constexpr unsigned GAME_MAX_BUTTONS = 12;
+static constexpr unsigned GAME_MAX_CONTROLLER_BUTTONS = 12;
 
 typedef struct Game_Bitmap {
 	void *memory;
@@ -78,7 +79,7 @@ typedef struct Game_ControllerInput {
 	float stick_avg_y;
 
 	union {
-		Game_ButtonState buttons[GAME_MAX_BUTTONS];
+		Game_ButtonState buttons[GAME_MAX_CONTROLLER_BUTTONS];
 		struct {
 			Game_ButtonState moveup;
 			Game_ButtonState movedown;
@@ -104,6 +105,21 @@ typedef struct Game_ControllerInput {
 } Game_ControllerInput;
 
 typedef struct Game_Input {
+	unsigned mouse_x;
+	unsigned mouse_y;
+	unsigned mouse_z; // mouse wheel
+	union {
+		Game_ButtonState mouse_buttons[GAME_MAX_MOUSE_BUTTONS];
+
+		struct {
+			Game_ButtonState mouse_main;
+			Game_ButtonState mouse_middle;
+			Game_ButtonState mouse_secondary;
+			Game_ButtonState mouse_back;
+			Game_ButtonState mouse_forward;
+		};
+	};
+
 	Game_ControllerInput controllers[GAME_MAX_CONTROLLERS];
 } Game_Input;
 
@@ -119,6 +135,10 @@ typedef struct Game_State {
 
 	float tjump;
 } Game_State;
+
+typedef struct Game_Thread {
+	unsigned placeholder;
+} Game_Thread;
 
 // Utilities
 
@@ -151,14 +171,15 @@ typedef struct Plat_ReadFileResult {
 	void *memory;
 } Plat_ReadFileResult;
 
-#define PLAT_DEBUG_READFILE(name) Plat_ReadFileResult name(const char *const filename)
+#define PLAT_DEBUG_READFILE(name) \
+	Plat_ReadFileResult name(Game_Thread *thread, const char *const filename)
 typedef PLAT_DEBUG_READFILE(plat_debug_readfile_func);
 
-#define PLAT_DEBUG_FREEFILE(name) void name(void *memory)
+#define PLAT_DEBUG_FREEFILE(name) void name(Game_Thread *thread, void *memory)
 typedef PLAT_DEBUG_FREEFILE(plat_debug_freefile_func);
 
 #define PLAT_DEBUG_WRITEFILE(name) \
-	bool name(const char *const filename, size_t memorysize, void *memory)
+	bool name(Game_Thread *thread, const char *const filename, size_t memorysize, void *memory)
 typedef PLAT_DEBUG_WRITEFILE(plat_debug_writefile_func);
 
 #endif // DEBUG
@@ -182,15 +203,13 @@ typedef struct Game_Memory {
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_BITMAP_UPDATE_AND_RENDER(name)                      \
-	void name([[__maybe_unused__]] Game_Memory *game_memory, \
-	          [[__maybe_unused__]] Game_Input *input,        \
-	          [[__maybe_unused__]] Game_Bitmap *bitmap)
+#define GAME_BITMAP_UPDATE_AND_RENDER(name)                                         \
+	void name(Game_Thread *thread, Game_Memory *game_memory, Game_Input *input, \
+	          Game_Bitmap *bitmap)
 typedef GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render_func);
 
-#define GAME_SOUND_CREATE_SAMPLES(name)                     \
-	void name([[__maybe_unused__]] Game_Memory *memory, \
-	          [[__maybe_unused__]] Game_SoundBuffer *soundbuff)
+#define GAME_SOUND_CREATE_SAMPLES(name) \
+	void name(Game_Thread *thread, Game_Memory *memory, Game_SoundBuffer *soundbuff)
 typedef GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_func);
 
 #endif // GAME_H

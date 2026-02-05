@@ -7,6 +7,11 @@
 #include <windows.h>
 
 #define WIN_STATE_MAX_FILE_PATH MAX_PATH
+#define WIN_REPLAY_MAX_SLOTS 4
+#define WIN_REPLAY_NO_SLOT UINT8_MAX
+
+#define LODWORD(l) ((unsigned long)(((size_t)(l)) & 0xFFFFFFFF))
+#define HIDWORD(l) ((unsigned long)((((size_t)(l)) >> (sizeof(unsigned) * CHAR_BIT)) & 0xFFFFFFFF))
 
 typedef struct Win_WindowDimensions {
 	long width;
@@ -60,18 +65,30 @@ typedef struct Win_GameCode {
 	bool is_valid;
 } Win_GameCode;
 
+typedef struct Win_ReplaySlot {
+	HANDLE file_handle;
+	HANDLE file_map;
+	void *memory;
+	char filepath[WIN_STATE_MAX_FILE_PATH];
+} Win_ReplaySlot;
+
+typedef enum Win_ReplayStatus : uint8_t {
+	WIN_REPLAY_NORMAL,
+	WIN_REPLAY_RECORD,
+	WIN_REPLAY_RECORDED,
+	WIN_REPLAY_PLAYBACK,
+} Win_ReplayStatus;
+
 typedef struct Win_State {
 	size_t gamemem_size;
 	void *gamemem;
 
-	HANDLE recording_handle;
-	HANDLE playback_handle;
+	Win_ReplaySlot replay_slots[WIN_REPLAY_MAX_SLOTS];
+	uint8_t replay_slot_index;
+	Win_ReplayStatus replay_status;
 
-	unsigned input_recording_index;
-	unsigned input_playing_index;
-
-	char exe_path[WIN_STATE_MAX_FILE_PATH];
 	char *exe_path_last_slash;
+	char exe_path[WIN_STATE_MAX_FILE_PATH];
 } Win_State;
 
 #endif // WIN_HANDMADE_H

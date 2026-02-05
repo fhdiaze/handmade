@@ -85,10 +85,11 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	Game_State *game_state = game_memory->permamem;
 	if (!game_memory->is_initialized) {
 		const char *const filename = __FILE__;
-		Plat_ReadFileResult read = game_memory->plat_debug_read_file(filename);
+		Plat_ReadFileResult read = game_memory->plat_debug_read_file(thread, filename);
 		if (read.memory) {
-			game_memory->plat_debug_write_file("test.out", read.size, read.memory);
-			game_memory->plat_debug_free_file(read.memory);
+			game_memory->plat_debug_write_file(thread, "test.out", read.size,
+			                                   read.memory);
+			game_memory->plat_debug_free_file(thread, read.memory);
 			read.size = 0;
 		}
 
@@ -157,6 +158,16 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 	game_render_weird_gradient(bitmap, game_state->blue_offset, game_state->green_offset);
 	game_render_player(bitmap, game_state->player_x, game_state->player_y);
+
+	if (input->mouse_x < bitmap->width - 10 && input->mouse_y < bitmap->height - 10) {
+		game_render_player(bitmap, input->mouse_x, input->mouse_y);
+	}
+
+	for (unsigned i = 0; i < GAME_MAX_MOUSE_BUTTONS; ++i) {
+		if (input->mouse_buttons[i].ended_down) {
+			game_render_player(bitmap, 15 * i, 10);
+		}
+	}
 }
 
 GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
