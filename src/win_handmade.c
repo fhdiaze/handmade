@@ -560,9 +560,10 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 		case WM_SYSKEYUP:
 		case WM_KEYDOWN:
 		case WM_KEYUP: {
-			DWORD vk_code = (DWORD)msg.wParam;
-			bool was_down = (msg.lParam & (1 << 30)) != 0;
-			bool is_down = (msg.lParam & (1 << 31)) == 0;
+			size_t vk_code = (size_t)msg.wParam;
+			size_t key_stroke_info = (size_t)msg.lParam;
+			bool was_down = (key_stroke_info & (1UL << 30UL)) != 0;
+			bool is_down = (key_stroke_info & (1UL << 31UL)) == 0;
 
 			if (was_down != is_down) {
 				if (vk_code == 'W') {
@@ -624,7 +625,7 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 					}
 #endif
 				}
-				bool was_alt_key_down = (msg.lParam & (1UL << 29UL)) != 0;
+				bool was_alt_key_down = (key_stroke_info & (1UL << 29UL)) != 0;
 				if ((vk_code == VK_F4) && was_alt_key_down) {
 					is_global_running = false;
 				}
@@ -930,8 +931,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		monitorhz = win_monitorhz;
 	}
 
-	float gamehz = (float)monitorhz / 2.0f;
-	float target_secs_per_frame = 1.0f / gamehz;
+	float gamehz = (float)monitorhz / 2.0F;
+	float target_secs_per_frame = 1.0F / gamehz;
 	unsigned bytes_per_sec = winsound.samples_per_sec * winsound.bytes_per_sample;
 	unsigned bytes_per_frame = (unsigned)((float)bytes_per_sec * target_secs_per_frame);
 
@@ -1023,6 +1024,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	Game_Input inputs[2] = {};
 	Game_Input *new_input = &inputs[0];
 	Game_Input *old_input = &inputs[1];
+
+	new_input->secs_to_advance_over_update = target_secs_per_frame;
 
 	LARGE_INTEGER last_counter = win_clock_get_wall();
 	LARGE_INTEGER flip_wall_clock = win_clock_get_wall();

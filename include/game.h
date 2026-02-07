@@ -108,6 +108,9 @@ typedef struct Game_Input {
 	unsigned mouse_x;
 	unsigned mouse_y;
 	unsigned mouse_z; // mouse wheel
+
+	float secs_to_advance_over_update;
+
 	union {
 		Game_ButtonState mouse_buttons[GAME_MAX_MOUSE_BUTTONS];
 

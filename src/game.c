@@ -66,7 +66,7 @@ static void game_render_player(Game_Bitmap *bitmap, unsigned player_x, unsigned 
 	uint8_t *pixel_index = (uint8_t *)bitmap->memory +
 	                       player_x * (size_t)bitmap->bytes_per_pixel +
 	                       player_y * (size_t)bitmap->pitch_bytes;
-	uint32_t *pixel;
+	uint32_t *pixel = nullptr;
 	for (unsigned y = player_y; y < player_y + 10; ++y) {
 		for (unsigned x = player_x; x < player_x + 10; ++x) {
 			pixel = (uint32_t *)pixel_index;
@@ -96,12 +96,12 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		game_state->tonehz = 512;
 		game_state->blue_offset = 0;
 		game_state->green_offset = 0;
-		game_state->tsine = 0.0f;
+		game_state->tsine = 0.0F;
 
 		game_state->player_x = 100;
 		game_state->player_y = 100;
 
-		game_state->tjump = 0.0f;
+		game_state->tjump = 0.0F;
 
 		game_memory->is_initialized = true;
 	}
@@ -114,8 +114,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		}
 
 		if (controller->is_analog) {
-			game_state->blue_offset += (unsigned)(4.0f * controller->stick_avg_x);
-			game_state->tonehz = 512 + (unsigned)(128.0f * controller->stick_avg_y);
+			game_state->blue_offset += (unsigned)(4.0F * controller->stick_avg_x);
+			game_state->tonehz = 512 + (unsigned)(128.0F * controller->stick_avg_y);
 		} else {
 			if (controller->moveleft.ended_down) {
 				game_state->blue_offset -= 1;
@@ -134,12 +134,12 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			game_state->green_offset -= 1;
 		}
 
-		game_state->player_x += (unsigned)(4.0f * controller->stick_avg_x);
-		game_state->player_y -= (unsigned)(4.0f * controller->stick_avg_y);
+		game_state->player_x += (unsigned)(4.0F * controller->stick_avg_x);
+		game_state->player_y -= (unsigned)(4.0F * controller->stick_avg_y);
 
 		if (game_state->tjump > 0) {
-			int delta = (int)(4.0f * controller->stick_avg_y +
-			                  10.0f * sinf(2.0f * PIE * game_state->tjump));
+			int delta = (int)(4.0F * controller->stick_avg_y +
+			                  10.0F * sinf(2.0F * PIE * game_state->tjump));
 			game_state->player_y =
 				delta < 0 ? RING_SUB(bitmap->height - 10, game_state->player_y,
 			                             (unsigned)(-delta)) :
@@ -150,23 +150,10 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		if (controller->actiondown.ended_down) {
 			game_state->tjump = 1.0f;
 		}
-		game_state->tjump -= 0.013f;
+		game_state->tjump -= 0.013F;
 
 		game_state->player_x %= bitmap->width - 10;
 		game_state->player_y %= bitmap->height - 10;
-	}
-
-	game_render_weird_gradient(bitmap, game_state->blue_offset, game_state->green_offset);
-	game_render_player(bitmap, game_state->player_x, game_state->player_y);
-
-	if (input->mouse_x < bitmap->width - 10 && input->mouse_y < bitmap->height - 10) {
-		game_render_player(bitmap, input->mouse_x, input->mouse_y);
-	}
-
-	for (unsigned i = 0; i < GAME_MAX_MOUSE_BUTTONS; ++i) {
-		if (input->mouse_buttons[i].ended_down) {
-			game_render_player(bitmap, 15 * i, 10);
-		}
 	}
 }
 
