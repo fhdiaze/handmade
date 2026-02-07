@@ -1027,12 +1027,12 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	LARGE_INTEGER last_counter = win_clock_get_wall();
 	LARGE_INTEGER flip_wall_clock = win_clock_get_wall();
 
-	constexpr unsigned debug_last_cursor_marks_size = 30;
-	unsigned debug_last_cursor_mark_index = 0;
-	Win_DebugTimeMark debug_last_cursor_marks[debug_last_cursor_marks_size] = {};
+	// constexpr unsigned debug_last_cursor_marks_size = 30;
+	// unsigned debug_last_cursor_mark_index = 0;
+	// Win_DebugTimeMark debug_last_cursor_marks[debug_last_cursor_marks_size] = {};
 
-	size_t sound_latency_bytes = 0;
-	float sound_latency_secs = 0.0f;
+	// size_t sound_latency_bytes = 0;
+	// float sound_latency_secs = 0.0F;
 	bool is_sound_valid = false;
 
 	Win_GameCode game_code = {};
@@ -1041,7 +1041,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		return EXIT_FAILURE;
 	}
 
-	size_t last_cycle_count = __rdtsc();
+	// size_t last_cycle_count = __rdtsc();
 	while (is_global_running) {
 		if (win_file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
 		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&

@@ -2,4 +2,9 @@ Checks: "*,
     -android*,
     -bugprone-easily-swappable-parameters,
     -altera-unroll-loops,
-    -readability-identifier-length"
+    -readability-identifier-length,
+    -altera-struct-pack-align,
+    -llvmlibc-restrict-system-libc-headers,
+    -readability-magic-numbers,
+    -cppcoreguidelines-avoid-magic-numbers,
+    -readability-math-missing-parentheses"

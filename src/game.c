@@ -33,8 +33,8 @@ static void game_sound_output(Game_State *game_state, Game_SoundBuffer *buffer)
 		*sample_out = (int16_t)sample_value; // channel two
 		++sample_out;
 
-		game_state->tsine += 2.0f * PIE / (float_t)wave_period;
-		if (game_state->tsine > 2.0f * PIE) {
+		game_state->tsine += 2.0F * PIE / (float_t)wave_period;
+		if (game_state->tsine > 2.0F * PIE) {
 			game_state->tsine -= 2.0f * PIE;
 		}
 	}
