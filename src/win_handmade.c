@@ -473,75 +473,44 @@ static void win_xinput_process_button(DWORD xinput_button_state, Game_ButtonStat
 	newstate->half_transition_count = oldstate->ended_down != newstate->ended_down;
 }
 
-static void win_input_activate_replay_slot(Win_State *winstate, uint8_t slot_index)
-{
-	assert(slot_index < WIN_REPLAY_MAX_SLOTS);
-
-	winstate->replay_slot_index = slot_index;
-}
-
-static Win_ReplaySlot *win_input_get_replay_slot(Win_State *winstate, uint8_t slot_index)
-{
-	assert(slot_index < WIN_REPLAY_MAX_SLOTS);
-
-	Win_ReplaySlot *replay_slot = &winstate->replay_slots[slot_index];
-
-	return replay_slot;
-}
-
-static Win_ReplaySlot *win_input_get_active_replay_slot(Win_State *winstate)
-{
-	assert(winstate->replay_slot_index < WIN_REPLAY_MAX_SLOTS);
-
-	Win_ReplaySlot *replay_slot = &winstate->replay_slots[winstate->replay_slot_index];
-
-	return replay_slot;
-}
-
 static void win_input_begin_recording(Win_State *winstate)
 {
-	Win_ReplaySlot *replay_slot = win_input_get_active_replay_slot(winstate);
-	if (replay_slot->memory) {
-		TIX_LOGE("Failed to playback");
+	Win_ReplaySlot *replay_slot = &winstate->replay_slots[winstate->replay_slot_index];
 
-		return;
-	}
+	assert(replay_slot->memory);
 
-	winstate->replay_status = WIN_REPLAY_RECORD;
+	winstate->replay_file_handle = replay_slot->file_handle;
 
-	replay_slot->file_handle = CreateFileA(replay_slot->filepath, GENERIC_WRITE, 0, nullptr,
-	                                       CREATE_ALWAYS, 0, nullptr);
+	assert(winstate->replay_file_handle);
 
 	LARGE_INTEGER filepos;
 	filepos.QuadPart = (long long)winstate->gamemem_size;
-	SetFilePointerEx(replay_slot->file_handle, filepos, nullptr, FILE_BEGIN);
+	SetFilePointerEx(winstate->replay_file_handle, filepos, nullptr, FILE_BEGIN);
 
 	CopyMemory(replay_slot->memory, winstate->gamemem, winstate->gamemem_size);
+
+	winstate->replay_status = WIN_REPLAY_RECORD;
 }
 
 static void win_input_end_recording(Win_State *winstate)
 {
-	Win_ReplaySlot *active_slot = win_input_get_active_replay_slot(winstate);
-	CloseHandle(active_slot->file_handle);
-
+	assert(winstate->replay_file_handle);
 	winstate->replay_status = WIN_REPLAY_RECORDED;
 }
 
 static void win_input_begin_playback(Win_State *winstate)
 {
-	Win_ReplaySlot *replay_slot = win_input_get_active_replay_slot(winstate);
-	if (replay_slot->memory) {
-		TIX_LOGE("Failed to playback");
+	Win_ReplaySlot *replay_slot = &winstate->replay_slots[winstate->replay_slot_index];
 
-		return;
-	}
+	assert(replay_slot->memory);
 
-	replay_slot->file_handle = CreateFileA(replay_slot->filepath, GENERIC_READ, 0, nullptr,
-	                                       OPEN_EXISTING, 0, nullptr);
+	winstate->replay_file_handle = replay_slot->file_handle;
+
+	assert(winstate->replay_file_handle);
 
 	LARGE_INTEGER filepos;
 	filepos.QuadPart = (long long)winstate->gamemem_size;
-	SetFilePointerEx(replay_slot->file_handle, filepos, nullptr, FILE_BEGIN);
+	SetFilePointerEx(winstate->replay_file_handle, filepos, nullptr, FILE_BEGIN);
 
 	CopyMemory(winstate->gamemem, replay_slot->memory, winstate->gamemem_size);
 
@@ -550,35 +519,33 @@ static void win_input_begin_playback(Win_State *winstate)
 
 static void win_input_end_playback(Win_State *winstate)
 {
-	Win_ReplaySlot *replay_slot = win_input_get_active_replay_slot(winstate);
-
-	CloseHandle(replay_slot->file_handle);
-
+	assert(winstate->replay_file_handle);
 	winstate->replay_status = WIN_REPLAY_NORMAL;
 }
 
 static void win_input_record(Win_State *winstate, Game_Input *input)
 {
-	Win_ReplaySlot *replay_slot = win_input_get_active_replay_slot(winstate);
-	unsigned long bytes_written;
-	WriteFile(replay_slot->file_handle, input, sizeof(*input), &bytes_written, nullptr);
+	assert(winstate->replay_file_handle);
+	unsigned long bytes_written = 0;
+	WriteFile(winstate->replay_file_handle, input, sizeof(*input), &bytes_written, nullptr);
 }
 
 static void win_input_playback(Win_State *winstate, Game_Input *input)
 {
-	Win_ReplaySlot *replay_slot = win_input_get_active_replay_slot(winstate);
-	unsigned long bytes_read;
-	if (!ReadFile(replay_slot->file_handle, input, sizeof(*input), &bytes_read, nullptr)) {
-		// Failed to read
-		return;
-	}
+	assert(winstate->replay_file_handle);
+
+	unsigned long bytes_read = 0;
+
+	assert(ReadFile(winstate->replay_file_handle, input, sizeof(*input), &bytes_read, nullptr));
 
 	if (!bytes_read) {
 		win_input_end_playback(winstate);
 		win_input_begin_playback(winstate);
 
-		ReadFile(replay_slot->file_handle, input, sizeof(*input), &bytes_read, nullptr);
+		ReadFile(winstate->replay_file_handle, input, sizeof(*input), &bytes_read, nullptr);
 	}
+
+	assert(bytes_read == sizeof(*input));
 }
 
 static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *keyboard_controller)
@@ -643,7 +610,7 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 				} else if (vk_code == 'L') {
 					if (is_down) {
 						if (winstate->replay_status == WIN_REPLAY_NORMAL) {
-							win_input_activate_replay_slot(winstate, 1);
+							winstate->replay_slot_index = 0;
 							win_input_begin_recording(winstate);
 						} else if (winstate->replay_status ==
 						           WIN_REPLAY_RECORD) {
@@ -657,7 +624,7 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 					}
 #endif
 				}
-				bool was_alt_key_down = (msg.lParam & (1 << 29)) != 0;
+				bool was_alt_key_down = (msg.lParam & (1UL << 29UL)) != 0;
 				if ((vk_code == VK_F4) && was_alt_key_down) {
 					is_global_running = false;
 				}
@@ -1025,19 +992,20 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	game_memory.transmem = (uint8_t *)game_memory.permamem + game_memory.permamem_size;
 
 	for (uint8_t slot_index = 0; slot_index < WIN_REPLAY_MAX_SLOTS; ++slot_index) {
-		Win_ReplaySlot *replay_slot = win_input_get_replay_slot(&winstate, slot_index);
+		Win_ReplaySlot *replay_slot = &winstate.replay_slots[slot_index];
 
 		win_file_build_input_path(&winstate, slot_index, sizeof(replay_slot->filepath),
 		                          replay_slot->filepath);
 
-		replay_slot->file_handle = CreateFileA(replay_slot->filepath, GENERIC_WRITE, 0,
-		                                       nullptr, CREATE_ALWAYS, 0, nullptr);
-		replay_slot->file_map = CreateFileMapping(replay_slot->file_handle, nullptr,
-		                                          PAGE_READWRITE,
-		                                          HIDWORD(winstate.gamemem_size),
-		                                          LODWORD(winstate.gamemem_size), nullptr);
-		replay_slot->memory = MapViewOfFile(replay_slot->file_map, FILE_MAP_ALL_ACCESS, 0,
-		                                    0, winstate.gamemem_size);
+		replay_slot->file_handle = CreateFileA(replay_slot->filepath,
+		                                             GENERIC_WRITE | GENERIC_READ, 0,
+		                                             nullptr, CREATE_ALWAYS, 0, nullptr);
+		replay_slot->file_map = CreateFileMapping(
+			replay_slot->file_handle, nullptr, PAGE_READWRITE,
+			HIDWORD(winstate.gamemem_size), LODWORD(winstate.gamemem_size), nullptr);
+		replay_slot->memory = MapViewOfFile(replay_slot->file_map,
+		                                          FILE_MAP_ALL_ACCESS, 0, 0,
+		                                          winstate.gamemem_size);
 	}
 
 	if (!samples || !game_memory.permamem || !game_memory.transmem) {

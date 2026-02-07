@@ -50,7 +50,6 @@ typedef struct Win_DebugTimeMark {
 
 typedef struct Win_GameCode {
 	HMODULE game_dll;
-	FILETIME dll_write_time;
 
 	/**
 	 * @brief could be null, check before call it
@@ -61,6 +60,8 @@ typedef struct Win_GameCode {
 	 * @brief could be null, check before call it
 	 */
 	game_sound_create_samples_func *sound_create_samples;
+
+	FILETIME dll_write_time;
 
 	bool is_valid;
 } Win_GameCode;
@@ -84,11 +85,13 @@ typedef struct Win_State {
 	void *gamemem;
 
 	Win_ReplaySlot replay_slots[WIN_REPLAY_MAX_SLOTS];
-	uint8_t replay_slot_index;
-	Win_ReplayStatus replay_status;
+	HANDLE replay_file_handle;
 
 	char *exe_path_last_slash;
 	char exe_path[WIN_STATE_MAX_FILE_PATH];
+
+	uint8_t replay_slot_index;
+	Win_ReplayStatus replay_status;
 } Win_State;
 
 #endif // WIN_HANDMADE_H

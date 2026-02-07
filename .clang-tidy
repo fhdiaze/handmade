@@ -1,7 +1,1 @@
-Checks: "abseil*,
-        clang-analyzer*,
-        modernize*,
-        bugprone*,
-        misc*,
-        performance*
-"
+Checks: "*"

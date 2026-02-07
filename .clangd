@@ -10,6 +10,9 @@ InlayHints:
 CompileFlags:
   Add: [-DDEBUG]
 
+Diagnostics:
+  UnusedIncludes: Strict
+
 ---
 
 # Flags for .h files
