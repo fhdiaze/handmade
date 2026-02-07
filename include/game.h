@@ -10,10 +10,10 @@
 #include <assert.h>
 #include <stdint.h>
 
-#define KB_TO_BYTE(_pr_v) (_pr_v * 1024)
-#define MB_TO_BYTE(_pr_v) (KB_TO_BYTE(_pr_v) * 1024)
-#define GB_TO_BYTE(_pr_v) (MB_TO_BYTE(_pr_v) * 1024)
-#define TB_TO_BYTE(_pr_v) (GB_TO_BYTE(_pr_v) * 1024)
+#define KB_TO_BYTES(_pr_v) (_pr_v * 1024)
+#define MB_TO_BYTES(_pr_v) (KB_TO_BYTES(_pr_v) * 1024)
+#define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
+#define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
 
 /**
  * @brief Calculates the distance between two indexes in a ring buffer
@@ -43,12 +43,12 @@
 	                    ((test) >= (start) || (test) <= (end)))
 
 #ifdef DEBUG
-#define BASE_ADDRESS ((void *)TB_TO_BYTE(2))
+#define BASE_ADDRESS ((void *)TB_TO_BYTES(2))
 #else
 #define BASE_ADDRESS (nullptr)
 #endif // DEBUG
 
-static constexpr float PIE = 3.14159265359f;
+static constexpr float PIE = 3.14159265359F;
 static constexpr unsigned GAME_MAX_MOUSE_BUTTONS = 5;
 static constexpr unsigned GAME_MAX_CONTROLLERS = 5;
 static constexpr unsigned GAME_MAX_CONTROLLER_BUTTONS = 12;

@@ -756,7 +756,7 @@ static void win_bitmap_draw_vertical_debug(Win_Bitmap *bitmap, unsigned x, unsig
 
 	uint8_t *pixel_start = (uint8_t *)bitmap->memory + x * (size_t)bitmap->bytes_per_pixel +
 	                       top * (size_t)bitmap->pitch_bytes;
-	uint32_t *pixel;
+	uint32_t *pixel = nullptr;
 	for (size_t y = top; y < bottom; ++y) {
 		pixel = (uint32_t *)pixel_start;
 		*pixel = color;
@@ -981,8 +981,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.plat_debug_read_file = plat_debug_readfile,
 		.plat_debug_write_file = plat_debug_writefile,
 	};
-	game_memory.permamem_size = MB_TO_BYTE(64ull);
-	game_memory.transmem_size = GB_TO_BYTE(1ull);
+	game_memory.permamem_size = MB_TO_BYTES(64ULL);
+	game_memory.transmem_size = GB_TO_BYTES(1ULL);
 
 	winstate.gamemem_size = game_memory.permamem_size + game_memory.transmem_size;
 	winstate.gamemem = VirtualAlloc(BASE_ADDRESS, winstate.gamemem_size,

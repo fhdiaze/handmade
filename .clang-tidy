@@ -1,1 +1,5 @@
-Checks: "*"
+Checks: "*,
+    -android*,
+    -bugprone-easily-swappable-parameters,
+    -altera-unroll-loops,
+    -readability-identifier-length"
