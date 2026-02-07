@@ -998,14 +998,14 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		                          replay_slot->filepath);
 
 		replay_slot->file_handle = CreateFileA(replay_slot->filepath,
-		                                             GENERIC_WRITE | GENERIC_READ, 0,
-		                                             nullptr, CREATE_ALWAYS, 0, nullptr);
-		replay_slot->file_map = CreateFileMapping(
-			replay_slot->file_handle, nullptr, PAGE_READWRITE,
-			HIDWORD(winstate.gamemem_size), LODWORD(winstate.gamemem_size), nullptr);
-		replay_slot->memory = MapViewOfFile(replay_slot->file_map,
-		                                          FILE_MAP_ALL_ACCESS, 0, 0,
-		                                          winstate.gamemem_size);
+		                                       GENERIC_WRITE | GENERIC_READ, 0, nullptr,
+		                                       CREATE_ALWAYS, 0, nullptr);
+		replay_slot->file_map = CreateFileMapping(replay_slot->file_handle, nullptr,
+		                                          PAGE_READWRITE,
+		                                          HIDWORD(winstate.gamemem_size),
+		                                          LODWORD(winstate.gamemem_size), nullptr);
+		replay_slot->memory = MapViewOfFile(replay_slot->file_map, FILE_MAP_ALL_ACCESS, 0,
+		                                    0, winstate.gamemem_size);
 	}
 
 	if (!samples || !game_memory.permamem || !game_memory.transmem) {
@@ -1234,9 +1234,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 					// Sound has high latency
 					write_cursor;
 
-			TIX_LOGD("ET: %f secs, TTF: %f secs, BPF: %u, BTF: %u, FFB: %u, SFB: %u",
-			         (double)secs_from_flip, (double)secs_to_flip, bytes_per_frame,
-			         bytes_to_flip, frame_flip_byte, sound_flip_byte);
+			// TIX_LOGD("ET: %f secs, TTF: %f secs, BPF: %u, BTF: %u, FFB: %u, SFB: %u",
+			//          (double)secs_from_flip, (double)secs_to_flip, bytes_per_frame,
+			//          bytes_to_flip, frame_flip_byte, sound_flip_byte);
+
 			unsigned target_cursor = RING_ADD(winsound.buffsize, sound_flip_byte,
 			                                  bytes_per_frame + winsound.safety_bytes);
 
@@ -1247,7 +1248,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				game_code.sound_create_samples(&thread, &game_memory,
 				                               &game_soundbuff);
 			}
-#if DEBUG
+#if 0
 			Win_DebugTimeMark *mark =
 				&debug_last_cursor_marks[debug_last_cursor_mark_index];
 
@@ -1311,8 +1312,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 
-#ifdef DEBUG
-		win_bitmap_draw_sound_sync_debug(&global_bitmap, debug_last_cursor_marks_size,
+#if 0
+ 		win_bitmap_draw_sound_sync_debug(&global_bitmap, debug_last_cursor_marks_size,
 		                                 debug_last_cursor_marks,
 		                                 debug_last_cursor_mark_index - 1, &winsound);
 #endif
@@ -1322,7 +1323,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		flip_wall_clock = win_clock_get_wall();
 
-#ifdef DEBUG
+#if 0
 		{
 			unsigned long debug_play_cursor;
 			unsigned long debug_write_cursor;
@@ -1345,6 +1346,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		new_input = old_input;
 		old_input = temp;
 
+#if 0
 		uint64_t end_cycle_count = __rdtsc();
 		uint64_t cycles_elapsed = end_cycle_count - last_cycle_count;
 		last_cycle_count = end_cycle_count;
@@ -1354,8 +1356,9 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		TIX_LOGI("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
 		         (double)mega_cycles_per_frame);
+#endif
 
-#if DEBUG
+#if 0
 		{
 			debug_last_cursor_mark_index = RING_ADD(debug_last_cursor_marks_size,
 			                                        debug_last_cursor_mark_index, 1);
