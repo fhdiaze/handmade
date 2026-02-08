@@ -566,16 +566,16 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 			bool is_down = (key_stroke_info & (1UL << 31UL)) == 0;
 
 			if (was_down != is_down) {
-				if (vk_code == 'W') {
+				if (vk_code == 'K') {
 					win_keyboard_process_message(&keyboard_controller->moveup,
 					                             is_down);
-				} else if (vk_code == 'A') {
+				} else if (vk_code == 'H') {
 					win_keyboard_process_message(&keyboard_controller->moveleft,
 					                             is_down);
-				} else if (vk_code == 'S') {
+				} else if (vk_code == 'J') {
 					win_keyboard_process_message(&keyboard_controller->movedown,
 					                             is_down);
-				} else if (vk_code == 'D') {
+				} else if (vk_code == 'L') {
 					win_keyboard_process_message(
 						&keyboard_controller->moveright, is_down);
 				} else if (vk_code == 'Q') {
@@ -885,7 +885,9 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	win_file_build_path(&winstate, "game.dll", sizeof(gamedll_path), gamedll_path);
 
-	sprintf(tmpgamedll_filename, "game_tmp_%lu.dll", GetCurrentTime());
+	if (sprintf(tmpgamedll_filename, "game_tmp_%lu.dll", GetCurrentTime()) < 0) {
+		return EXIT_FAILURE;
+	}
 	win_file_build_path(&winstate, tmpgamedll_filename, sizeof(tmpgamedll_path),
 	                    tmpgamedll_path);
 
@@ -1025,8 +1027,6 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	Game_Input *new_input = &inputs[0];
 	Game_Input *old_input = &inputs[1];
 
-	new_input->secs_to_advance_over_update = target_secs_per_frame;
-
 	LARGE_INTEGER last_counter = win_clock_get_wall();
 	LARGE_INTEGER flip_wall_clock = win_clock_get_wall();
 
@@ -1044,12 +1044,17 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		return EXIT_FAILURE;
 	}
 
-	// size_t last_cycle_count = __rdtsc();
+	size_t last_cycle_count = __rdtsc();
 	while (is_global_running) {
+		new_input->dt_per_frame = target_secs_per_frame;
+
 		if (win_file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
 		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&
 		    win_code_unload_game(&game_code)) {
-			sprintf(tmpgamedll_filename, "game_tmp_%lu.dll", GetCurrentTime());
+			if (sprintf(tmpgamedll_filename, "game_tmp_%lu.dll", GetCurrentTime()) <
+			    0) {
+				return EXIT_FAILURE;
+			}
 			win_file_build_path(&winstate, tmpgamedll_filename, sizeof(tmpgamedll_path),
 			                    tmpgamedll_path);
 
@@ -1287,7 +1292,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		if (secs_elapsed_for_frame < target_secs_per_frame) {
 			if (is_granular_sleep) {
 				unsigned long sleep_ms =
-					(unsigned long)(1000.0f * (target_secs_per_frame -
+					(unsigned long)(1000.0F * (target_secs_per_frame -
 				                                   secs_elapsed_for_frame));
 				if (sleep_ms > 0) {
 					Sleep(sleep_ms);
@@ -1310,7 +1315,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		}
 
 		LARGE_INTEGER end_counter = win_clock_get_wall();
-		float ms_per_frame = 1000.0f * win_clock_elapsed_secs(last_counter, end_counter);
+		float ms_per_frame = 1000.0F * win_clock_elapsed_secs(last_counter, end_counter);
 		last_counter = end_counter;
 
 		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
@@ -1349,13 +1354,13 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		new_input = old_input;
 		old_input = temp;
 
-#if 0
+#if 1
 		uint64_t end_cycle_count = __rdtsc();
 		uint64_t cycles_elapsed = end_cycle_count - last_cycle_count;
 		last_cycle_count = end_cycle_count;
 
-		float fps = 1000.0f / ms_per_frame;
-		float mega_cycles_per_frame = (float)cycles_elapsed / 1000000.0f;
+		float fps = 1000.0F / ms_per_frame;
+		float mega_cycles_per_frame = (float)cycles_elapsed / 1000000.0F;
 
 		TIX_LOGI("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
 		         (double)mega_cycles_per_frame);

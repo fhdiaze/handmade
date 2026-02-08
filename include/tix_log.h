@@ -28,20 +28,15 @@
 #define STRGY(n) STRINGIFY(n)
 
 #ifdef DEBUG
-#define TIX_LOG_WRITE(fmt, ...)                                                  \
-	do {                                                                     \
-		FILE *_pr_log_file = fopen("log.txt", "a+");                     \
-		if (_pr_log_file == nullptr) {                                   \
-			break;                                                   \
-		}                                                                \
-		if (fprintf(_pr_log_file, fmt __VA_OPT__(, ) __VA_ARGS__) < 0) { \
-			break;                                                   \
-		}                                                                \
-                                                                                 \
-		if (fclose(_pr_log_file)) {                                      \
-			/*the file was not closed*/                              \
-			break;                                                   \
-		}                                                                \
+#define TIX_LOG_WRITE(fmt, ...)                                              \
+	do {                                                                 \
+		FILE *_pr_log_file = fopen("log.txt", "a+");                 \
+		if (_pr_log_file == nullptr) {                               \
+			break;                                               \
+		}                                                            \
+                                                                             \
+		(void)fprintf(_pr_log_file, fmt __VA_OPT__(, ) __VA_ARGS__); \
+		(void)fclose(_pr_log_file);                                  \
 	} while (false)
 #else
 #define TIX_LOG_WRITE(fmt, ...) printf(fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -56,7 +51,7 @@
 		if (!timespec_get(&_pr_ts, TIME_UTC)) {                                         \
 			break;                                                                  \
 		}                                                                               \
-		if (!gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                       \
+		if (gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                        \
 			break;                                                                  \
 		}                                                                               \
 		if (strftime(_pr_tstamp_str, TIX_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm) == 0) { \
