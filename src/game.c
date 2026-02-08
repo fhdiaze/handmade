@@ -7,6 +7,7 @@
 #include <assert.h>
 #include <limits.h>
 #include <math.h>
+#include <stddef.h>
 #include <stdint.h>
 
 /**
@@ -15,14 +16,14 @@
  * @param buffer
  * @param samples
  */
-static void game_sound_output(Game_State *game_state, Game_SoundBuffer *buffer)
+static void game_sound_output(Game_State *game_state, Game_SoundBuffer *buffer, unsigned tonehz)
 {
 	float tone_volume = 3000;
-	size_t wave_period = buffer->samples_per_sec / game_state->tonehz;
+	size_t wave_period = buffer->samples_per_sec / tonehz;
 	int16_t *sample_out = buffer->samples;
 	float sample_value = 0;
 	for (size_t i = 0; i < buffer->sample_count; ++i) {
-#if 1
+#if 0
 		float sine_value = sinf(game_state->tsine);
 		sample_value = sine_value * tone_volume;
 #else
@@ -33,48 +34,51 @@ static void game_sound_output(Game_State *game_state, Game_SoundBuffer *buffer)
 		*sample_out = (int16_t)sample_value; // channel two
 		++sample_out;
 
+#if 0
 		game_state->tsine += 2.0F * PIE / (float_t)wave_period;
 		if (game_state->tsine > 2.0F * PIE) {
 			game_state->tsine -= 2.0f * PIE;
 		}
+#endif
 	}
 }
 
-static void game_render_weird_gradient(Game_Bitmap *buffer, unsigned blue_offset,
-                                       unsigned green_offset)
+/**
+ * @brief maxx and maxy not included
+ *
+ * @param bitmap
+ * @param minx
+ * @param miny
+ * @param maxx
+ * @param maxy
+ */
+static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float min_x, float min_y, float max_x,
+                                         float max_y, unsigned color)
 {
-	uint8_t *row = (uint8_t *)buffer->memory;
-	for (size_t y = 0; y < buffer->height; ++y) {
-		uint32_t *pixel = (uint32_t *)row;
-		for (size_t x = 0; x < buffer->width; ++x) {
-			// Little endian in memory  B G R X -> because of the endianess
-			// little endian on a register: 0xXXRRGGBB
-			uint8_t blue = (uint8_t)(x + blue_offset);
-			uint8_t green = (uint8_t)(y + green_offset);
-			*pixel = (uint32_t)(green << CHAR_BIT * 2) | blue;
-			++pixel;
-		}
-		row += buffer->pitch_bytes;
-	}
-}
+	assert(min_x <= max_x && min_y <= max_y);
 
-static void game_render_player(Game_Bitmap *bitmap, unsigned player_x, unsigned player_y)
-{
-	assert(player_x <= bitmap->width - 10 && player_y <= bitmap->height - 10);
+	unsigned min_x_px = (unsigned)tools_int_max(tools_float_round_to_int(min_x), 0);
+	unsigned min_y_px = (unsigned)tools_int_max(tools_float_round_to_int(min_y), 0);
+	unsigned max_x_px = (unsigned)tools_int_max(tools_float_round_to_int(max_x), 0);
+	unsigned max_y_px = (unsigned)tools_int_max(tools_float_round_to_int(max_y), 0);
 
-	uint32_t color = 0xFFFFFFFF;
-	uint8_t *pixel_index = (uint8_t *)bitmap->memory +
-	                       player_x * (size_t)bitmap->bytes_per_pixel +
-	                       player_y * (size_t)bitmap->pitch_bytes;
+	min_x_px = TOOLS_MIN(min_x_px, bitmap->width);
+	min_y_px = TOOLS_MIN(min_y_px, bitmap->height);
+	max_x_px = TOOLS_MIN(max_x_px, bitmap->width);
+	max_y_px = TOOLS_MIN(max_y_px, bitmap->height);
+
+	uint8_t *pixel_ptr = (uint8_t *)bitmap->memory +
+	                     (size_t)(min_x_px * bitmap->bytes_per_pixel) +
+	                     (size_t)(min_y_px * bitmap->pitch_bytes);
 	uint32_t *pixel = nullptr;
-	for (unsigned y = player_y; y < player_y + 10; ++y) {
-		for (unsigned x = player_x; x < player_x + 10; ++x) {
-			pixel = (uint32_t *)pixel_index;
+	for (unsigned y = min_y_px; y < max_y_px; ++y) {
+		for (unsigned x = min_x_px; x < max_x_px; ++x) {
+			pixel = (uint32_t *)pixel_ptr;
 			*pixel = color;
-			pixel_index += bitmap->bytes_per_pixel;
+			pixel_ptr += bitmap->bytes_per_pixel;
 		}
 
-		pixel_index += bitmap->pitch_bytes - 10 * bitmap->bytes_per_pixel;
+		pixel_ptr += bitmap->pitch_bytes - (max_x_px - min_x_px) * bitmap->bytes_per_pixel;
 	}
 }
 
@@ -84,76 +88,23 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 	Game_State *game_state = game_memory->permamem;
 	if (!game_memory->is_initialized) {
-		const char *const filename = __FILE__;
-		Plat_ReadFileResult read = game_memory->plat_debug_read_file(thread, filename);
-		if (read.memory) {
-			game_memory->plat_debug_write_file(thread, "test.out", read.size,
-			                                   read.memory);
-			game_memory->plat_debug_free_file(thread, read.memory);
-			read.size = 0;
-		}
-
-		game_state->tonehz = 512;
-		game_state->blue_offset = 0;
-		game_state->green_offset = 0;
-		game_state->tsine = 0.0F;
-
-		game_state->player_x = 100;
-		game_state->player_y = 100;
-
-		game_state->tjump = 0.0F;
-
 		game_memory->is_initialized = true;
 	}
 
-	for (size_t i = 0; i < GAME_MAX_CONTROLLERS; ++i) {
-		Game_ControllerInput *controller = game_input_get_controller(input, i);
+	for (size_t controller_idx = 0; controller_idx < GAME_MAX_CONTROLLERS; ++controller_idx) {
+		Game_ControllerInput *controller = game_input_get_controller(input, controller_idx);
 
 		if (!controller->is_connected) {
 			continue;
 		}
 
 		if (controller->is_analog) {
-			game_state->blue_offset += (unsigned)(4.0F * controller->stick_avg_x);
-			game_state->tonehz = 512 + (unsigned)(128.0F * controller->stick_avg_y);
 		} else {
-			if (controller->moveleft.ended_down) {
-				game_state->blue_offset -= 1;
-			}
-
-			if (controller->moveright.ended_down) {
-				game_state->blue_offset += 1;
-			}
 		}
 
-		if (controller->actiondown.ended_down) {
-			game_state->green_offset += 1;
-		}
-
-		if (controller->actionup.ended_down) {
-			game_state->green_offset -= 1;
-		}
-
-		game_state->player_x += (unsigned)(4.0F * controller->stick_avg_x);
-		game_state->player_y -= (unsigned)(4.0F * controller->stick_avg_y);
-
-		if (game_state->tjump > 0) {
-			int delta = (int)(4.0F * controller->stick_avg_y +
-			                  10.0F * sinf(2.0F * PIE * game_state->tjump));
-			game_state->player_y =
-				delta < 0 ? RING_SUB(bitmap->height - 10, game_state->player_y,
-			                             (unsigned)(-delta)) :
-					    RING_ADD(bitmap->height - 10, game_state->player_y,
-			                             (unsigned)delta);
-		}
-
-		if (controller->actiondown.ended_down) {
-			game_state->tjump = 1.0f;
-		}
-		game_state->tjump -= 0.013F;
-
-		game_state->player_x %= bitmap->width - 10;
-		game_state->player_y %= bitmap->height - 10;
+		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width,
+		                             (float)bitmap->height, 0x00FF00FF);
+		game_bitmap_render_rectangle(bitmap, 10.0F, 40.0F, 40.0F, 41.0F, 0x0000FFFF);
 	}
 }
 
@@ -162,5 +113,5 @@ GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
 	assert(sizeof(Game_State) <= memory->permamem_size);
 
 	Game_State *game_state = memory->permamem;
-	game_sound_output(game_state, soundbuff);
+	game_sound_output(game_state, soundbuff, 400);
 }

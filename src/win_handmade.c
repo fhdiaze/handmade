@@ -95,7 +95,7 @@ PLAT_DEBUG_READFILE(plat_debug_readfile)
 		goto error_cleanup;
 	}
 
-	DWORD bytesread;
+	DWORD bytesread = 0;
 	if (!ReadFile(handle, result.memory, filesize, &bytesread, nullptr) ||
 	    bytesread != filesize) {
 		goto error_cleanup;
@@ -347,10 +347,10 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 
 static void win_sound_clear_buffer(Win_SoundOutput *sound_output)
 {
-	void *region_one;
-	DWORD region_one_size;
-	void *region_two;
-	DWORD region_two_size;
+	void *region_one = nullptr;
+	DWORD region_one_size = 0;
+	void *region_two = nullptr;
+	DWORD region_two_size = 0;
 	if (FAILED(IDirectSoundBuffer_Lock(secbuffer, 0, sound_output->buffsize, &region_one,
 	                                   &region_one_size, &region_two, &region_two_size, 0))) {
 		OutputDebugStringA("Error locking dsound secondary buffer");
@@ -795,7 +795,7 @@ static void win_bitmap_draw_sound_sync_debug(Win_Bitmap *bitmap_buffer,
 
 	unsigned line_height = 64;
 
-	unsigned painting_width = (unsigned)bitmap_buffer->width - 2 * padx;
+	unsigned painting_width = bitmap_buffer->width - 2 * padx;
 	float pixels_per_byte = (float)painting_width / (float)winsound->buffsize;
 
 	for (size_t i = 0; i < last_cursors_marks_size; ++i) {
@@ -902,7 +902,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.lpszClassName = "HandmadeHeroWindowClass",
 	};
 
-	win_bitmap_resize_section(&global_bitmap, 1200, 700);
+	win_bitmap_resize_section(&global_bitmap, 960, 540);
 
 	if (!RegisterClassA(&winclass)) {
 		TIX_LOGE("error registering the window class");

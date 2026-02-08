@@ -15,6 +15,9 @@
 #define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
 #define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
 
+#define TOOLS_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
+#define TOOLS_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
+
 /**
  * @brief Calculates the distance between two indexes in a ring buffer
  */
@@ -53,6 +56,10 @@ static constexpr unsigned GAME_MAX_MOUSE_BUTTONS = 5;
 static constexpr unsigned GAME_MAX_CONTROLLERS = 5;
 static constexpr unsigned GAME_MAX_CONTROLLER_BUTTONS = 12;
 
+/**
+ * @brief (0,0) is on the top left corner
+ *
+ */
 typedef struct Game_Bitmap {
 	void *memory;
 	unsigned width;
@@ -127,16 +134,6 @@ typedef struct Game_Input {
 } Game_Input;
 
 typedef struct Game_State {
-	unsigned tonehz;
-	unsigned blue_offset;
-	unsigned green_offset;
-
-	float tsine;
-
-	unsigned player_x;
-	unsigned player_y;
-
-	float tjump;
 } Game_State;
 
 typedef struct Game_Thread {
@@ -160,9 +157,32 @@ static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
  */
 static inline uint32_t lltoul(int64_t value)
 {
-	assert(value < INT32_MAX);
-	assert(value >= 0);
+	assert(value < INT32_MAX && value >= 0);
+
 	return (uint32_t)value;
+}
+
+static inline int tools_int_min(int a, int b)
+{
+	return a < b ? a : b;
+}
+
+static inline int tools_int_max(int a, int b)
+{
+	return a > b ? a : b;
+}
+
+/**
+ * @brief Rounds a float to the nearest biggest int: 0.5 -> 1
+ *
+ * @param value
+ * @return int
+ */
+static inline int tools_float_round_to_int(float value)
+{
+	int result = (int)(value + 0.5F);
+
+	return result;
 }
 
 // Platform services
