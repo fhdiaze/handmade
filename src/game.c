@@ -10,6 +10,9 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#define TILE_MAP_COUNT_X 17
+#define TILE_MAP_COUNT_Y 9
+
 /**
  * @brief
  *
@@ -94,10 +97,26 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
 	assert(sizeof(Game_State) <= game_memory->permamem_size);
 
+	float upper_left_x = -30.0F;
+	float upper_left_y = -30.0F;
+	float tile_width = 60.0F;
+	float tile_height = 60.0F;
+	uint32_t tile_map[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = {
+		{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
+		{ 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1 },
+		{ 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1 },
+		{ 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1 },
+		{ 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 },
+		{ 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1 },
+		{ 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
+		{ 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1 },
+		{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
+	};
+
 	Game_State *game_state = game_memory->permamem;
 	if (!game_memory->is_initialized) {
-		game_state->player_x = 10.0F;
-		game_state->player_y = 10.0F;
+		game_state->player_x = 150.0F;
+		game_state->player_y = 150.0F;
 		game_memory->is_initialized = true;
 	}
 
@@ -132,25 +151,28 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			pixels_per_sec_player_x *= 64.0F;
 			pixels_per_sec_player_y *= 64.0F;
 
-			game_state->player_x += input->dt_per_frame * pixels_per_sec_player_x;
-			game_state->player_y += input->dt_per_frame * pixels_per_sec_player_y;
-		}
+			float new_player_x = game_state->player_x +
+			                     input->secs_time_delta * pixels_per_sec_player_x;
+			float new_player_y = game_state->player_y +
+			                     input->secs_time_delta * pixels_per_sec_player_y;
 
-		uint32_t tile_map[9][17] = {
-			{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
-			{ 1, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-			{ 1, 1, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1 },
-			{ 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1 },
-			{ 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 },
-			{ 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1 },
-			{ 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1 },
-			{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-			{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
-		};
-		float upper_left_x = -30.0F;
-		float upper_left_y = -30.0F;
-		float tile_width = 60.0F;
-		float tile_height = 60.0F;
+			unsigned player_tile_x =
+				(unsigned)((new_player_x - upper_left_x) / tile_width);
+			unsigned player_tile_y =
+				(unsigned)((new_player_y - upper_left_y) / tile_width);
+
+			bool is_valid = false;
+			if (player_tile_x >= 0 && player_tile_x < TILE_MAP_COUNT_X &&
+			    player_tile_y >= 0 && player_tile_y < TILE_MAP_COUNT_Y) {
+				unsigned tile_map_value = tile_map[player_tile_y][player_tile_x];
+				is_valid = tile_map_value == 0;
+			}
+
+			if (is_valid) {
+				game_state->player_x = new_player_x;
+				game_state->player_y = new_player_y;
+			}
+		}
 
 		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width,
 		                             (float)bitmap->height, 1.0F, 0.0F, 1.0F);

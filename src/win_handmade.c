@@ -679,16 +679,22 @@ static void win_bitmap_resize_section(Win_Bitmap *buffer, unsigned win_width, un
 	buffer->pitch_bytes = buffer->width * buffer->bytes_per_pixel;
 }
 
-static void win_window_display_bitmap(HDC dchandle, Win_Bitmap *bitmap, long win_width,
+static void win_window_display_bitmap(Win_Bitmap *bitmap, HDC dchandle, long win_width,
                                       long win_height)
 {
-	StretchDIBits(dchandle, 0, 0, (int)bitmap->width, (int)bitmap->height, 0, 0,
+	int offset_x = 10;
+	int offset_y = 10;
+	PatBlt(dchandle, 0, 0, win_width, offset_y, BLACKNESS);
+	PatBlt(dchandle, offset_x + (int)bitmap->width, 0,
+	       win_width - offset_x - (int)bitmap->width, win_height, BLACKNESS);
+	PatBlt(dchandle, 0, offset_y + (int)bitmap->height, win_width, win_height - offset_y - (int)bitmap->height, BLACKNESS);
+	PatBlt(dchandle, 0, 0, offset_x, win_height, BLACKNESS);
+	StretchDIBits(dchandle, offset_x, offset_y, (int)bitmap->width, (int)bitmap->height, 0, 0,
 	              (int)bitmap->width, (int)bitmap->height, bitmap->memory, &bitmap->info,
 	              DIB_RGB_COLORS, SRCCOPY);
 }
 
-static LRESULT CALLBACK win_window_handle_callback([[__maybe_unused__]] HWND winhandle,
-                                                   [[__maybe_unused__]] UINT msg,
+static LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unused__]] UINT msg,
                                                    [[__maybe_unused__]] WPARAM wparam,
                                                    [[__maybe_unused__]] LPARAM lparam)
 {
@@ -714,7 +720,7 @@ static LRESULT CALLBACK win_window_handle_callback([[__maybe_unused__]] HWND win
 		PAINTSTRUCT paint;
 		HDC dchandle = BeginPaint(winhandle, &paint);
 		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
-		win_window_display_bitmap(dchandle, &global_bitmap, windim.width, windim.height);
+		win_window_display_bitmap(&global_bitmap, dchandle, windim.width, windim.height);
 		EndPaint(winhandle, &paint);
 	} break;
 	default: {
@@ -1046,7 +1052,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	size_t last_cycle_count = __rdtsc();
 	while (is_global_running) {
-		new_input->dt_per_frame = target_secs_per_frame;
+		OutputDebugStringA("LPCSTR lpOutputString");
+		new_input->secs_time_delta = target_secs_per_frame;
 
 		if (win_file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
 		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&
@@ -1327,7 +1334,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 #endif
 
 		// Flip the frame
-		win_window_display_bitmap(dchandle, &global_bitmap, windim.width, windim.height);
+		win_window_display_bitmap(&global_bitmap, dchandle, windim.width, windim.height);
 
 		flip_wall_clock = win_clock_get_wall();
 

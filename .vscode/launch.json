@@ -12,6 +12,7 @@
             "args": [],
             "cwd": "${workspaceFolder}/data",
             "preLaunchTask": "build-x64",
+            "console": "integratedTerminal",
         },
         {
             "type": "lldb",
