@@ -13,6 +13,19 @@
 #define TILE_MAP_COUNT_X 17
 #define TILE_MAP_COUNT_Y 9
 
+typedef struct Game_Tilemap {
+	unsigned count_x;
+	unsigned count_y;
+
+	float tile_width;
+	float tile_height;
+
+	float upper_left_x;
+	float upper_left_y;
+
+	uint32_t *tiles;
+} Game_Tilemap;
+
 /**
  * @brief
  *
@@ -93,24 +106,48 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float min_x, float
 	}
 }
 
+static bool game_tilemap_is_point_empty(Game_Tilemap *tilemap, float test_x, float test_y)
+{
+	bool is_empty = false;
+
+	unsigned player_tile_x =
+		(unsigned)((test_x - (float)tilemap->upper_left_x) / (float)tilemap->tile_width);
+	unsigned player_tile_y =
+		(unsigned)((test_y - (float)tilemap->upper_left_y) / (float)tilemap->tile_width);
+
+	if (player_tile_x >= 0 && player_tile_x < tilemap->count_x && player_tile_y >= 0 &&
+	    player_tile_y < tilemap->count_y) {
+		unsigned tile_map_value =
+			tilemap->tiles[player_tile_y * tilemap->count_x + player_tile_x];
+		is_empty = tile_map_value != 0;
+	}
+
+	return is_empty;
+}
+
 GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
 	assert(sizeof(Game_State) <= game_memory->permamem_size);
 
-	float upper_left_x = -30.0F;
-	float upper_left_y = -30.0F;
-	float tile_width = 60.0F;
-	float tile_height = 60.0F;
-	uint32_t tile_map[TILE_MAP_COUNT_Y][TILE_MAP_COUNT_X] = {
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
-		{ 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1 },
-		{ 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 },
-		{ 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
-		{ 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1 },
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
+	uint32_t tiles[TILE_MAP_COUNT_Y*TILE_MAP_COUNT_X] = {
+		1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+		1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1,
+		1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1,
+		1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+		0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+		1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1,
+		1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
+		1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1,
+		1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+	};
+	Game_Tilemap tilemap = {
+		.count_x = TILE_MAP_COUNT_X,
+		.count_y = TILE_MAP_COUNT_Y,
+		.upper_left_x = -30.0F,
+		.upper_left_y = -30.0F,
+		.tile_width = 60.0F,
+		.tile_height = 60.0F,
+		.tiles = tiles,
 	};
 
 	Game_State *game_state = game_memory->permamem;
