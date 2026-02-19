@@ -2,6 +2,7 @@
 * Windows platform code
 */
 
+#include "tix_math.h"
 #undef TIX_LOG_LEVEL
 #define TIX_LOG_LEVEL TIX_LOG_LEVEL_DEBUG
 
@@ -89,7 +90,7 @@ PLAT_DEBUG_READFILE(plat_debug_readfile)
 		goto error_cleanup;
 	}
 
-	uint32_t filesize = lltoul(filesize_struct.QuadPart);
+	uint32_t filesize = tix_math_ll_to_ul(filesize_struct.QuadPart);
 	result.memory = VirtualAlloc(nullptr, filesize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	if (!result.memory) {
 		goto error_cleanup;
@@ -687,7 +688,8 @@ static void win_window_display_bitmap(Win_Bitmap *bitmap, HDC dchandle, long win
 	PatBlt(dchandle, 0, 0, win_width, offset_y, BLACKNESS);
 	PatBlt(dchandle, offset_x + (int)bitmap->width, 0,
 	       win_width - offset_x - (int)bitmap->width, win_height, BLACKNESS);
-	PatBlt(dchandle, 0, offset_y + (int)bitmap->height, win_width, win_height - offset_y - (int)bitmap->height, BLACKNESS);
+	PatBlt(dchandle, 0, offset_y + (int)bitmap->height, win_width,
+	       win_height - offset_y - (int)bitmap->height, BLACKNESS);
 	PatBlt(dchandle, 0, 0, offset_x, win_height, BLACKNESS);
 	StretchDIBits(dchandle, offset_x, offset_y, (int)bitmap->width, (int)bitmap->height, 0, 0,
 	              (int)bitmap->width, (int)bitmap->height, bitmap->memory, &bitmap->info,

@@ -4,9 +4,9 @@
 
 #include "game.h"
 
+#include "tix_math.h"
 #include <assert.h>
 #include <limits.h>
-#include <math.h>
 #include <stddef.h>
 #include <stdint.h>
 
@@ -63,19 +63,19 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float min_x, float
 {
 	assert(min_x <= max_x && min_y <= max_y);
 
-	unsigned min_x_px = (unsigned)tools_int_max(tools_float_round_to_int(min_x), 0);
-	unsigned min_y_px = (unsigned)tools_int_max(tools_float_round_to_int(min_y), 0);
-	unsigned max_x_px = (unsigned)tools_int_max(tools_float_round_to_int(max_x), 0);
-	unsigned max_y_px = (unsigned)tools_int_max(tools_float_round_to_int(max_y), 0);
+	unsigned min_x_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(min_x), 0);
+	unsigned min_y_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(min_y), 0);
+	unsigned max_x_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(max_x), 0);
+	unsigned max_y_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(max_y), 0);
 
 	min_x_px = TOOLS_MIN(min_x_px, bitmap->width);
 	min_y_px = TOOLS_MIN(min_y_px, bitmap->height);
 	max_x_px = TOOLS_MIN(max_x_px, bitmap->width);
 	max_y_px = TOOLS_MIN(max_y_px, bitmap->height);
 
-	uint32_t red_bits = (uint32_t)tools_float_round_to_int(red * 255.0F);
-	uint32_t green_bits = (uint32_t)tools_float_round_to_int(green * 255.0F);
-	uint32_t blue_bits = (uint32_t)tools_float_round_to_int(blue * 255.0F);
+	uint32_t red_bits = (uint32_t)tix_math_float_round_to_int(red * 255.0F);
+	uint32_t green_bits = (uint32_t)tix_math_float_round_to_int(green * 255.0F);
+	uint32_t blue_bits = (uint32_t)tix_math_float_round_to_int(blue * 255.0F);
 	uint32_t color = red_bits << 16UL | green_bits << 8UL | blue_bits;
 
 	uint8_t *pixel_ptr = (uint8_t *)bitmap->memory +
@@ -147,8 +147,8 @@ static Game_CanonicalPosition game_world_get_canonical_position(Game_World *worl
 	float x = pos.win_rel_x - (float)world->upper_left_x;
 	float y = pos.win_rel_y - (float)world->upper_left_y;
 
-	int tile_x = (int)(x / (float)world->tile_width);
-	int tile_y = (int)floorf(y / (float)world->tile_width);
+	int tile_x = (int)tix_math_float_floor(x / (float)world->tile_width);
+	int tile_y = (int)tix_math_float_floor(y / (float)world->tile_width);
 
 	canpos.tile_rel_x = x - (float)(tile_x * (int)world->tile_width);
 	canpos.tile_rel_y = y - (float)(tile_y * (int)world->tile_height);
@@ -156,7 +156,7 @@ static Game_CanonicalPosition game_world_get_canonical_position(Game_World *worl
 	assert(canpos.tile_rel_x >= 0 && canpos.tile_rel_x < (float)world->tile_width);
 	assert(canpos.tile_rel_y >= 0 && canpos.tile_rel_y < (float)world->tile_height);
 
-	canpos.tile_x = (unsigned)abs(tile_x);
+	canpos.tile_x = tix_math_int_abs(tile_x);
 	canpos.tile_y = (unsigned)abs(tile_y);
 
 	if (tile_x < 0) {
@@ -255,7 +255,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		.tiles_count_x = TILES_COUNT_X,
 		.tiles_count_y = TILES_COUNT_Y,
 		.upper_left_x = -30,
-		.upper_left_y = -30,
+		.upper_left_y = 0,
 		.tile_width = 60,
 		.tile_height = 60,
 		.tilemaps = (Game_Tilemap *)tilemaps,

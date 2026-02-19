@@ -198,42 +198,6 @@ static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
 	return &input->controllers[controller_index];
 }
 
-/**
- * @brief truncates a int64_t into a uint32_t.
- *
- * @param value
- * @return uint32_t
- */
-static inline uint32_t lltoul(int64_t value)
-{
-	assert(value < INT32_MAX && value >= 0);
-
-	return (uint32_t)value;
-}
-
-static inline int tools_int_min(int a, int b)
-{
-	return a < b ? a : b;
-}
-
-static inline int tools_int_max(int a, int b)
-{
-	return a > b ? a : b;
-}
-
-/**
- * @brief Rounds a float to the nearest biggest int: 0.5 -> 1
- *
- * @param value
- * @return int
- */
-static inline int tools_float_round_to_int(float value)
-{
-	int result = (int)(value + 0.5F);
-
-	return result;
-}
-
 // Platform services
 
 #ifdef DEBUG
