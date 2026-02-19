@@ -133,7 +133,54 @@ typedef struct Game_Input {
 	Game_ControllerInput controllers[GAME_MAX_CONTROLLERS];
 } Game_Input;
 
+typedef struct Game_Tilemap {
+	uint32_t *tiles;
+} Game_Tilemap;
+
+typedef struct Game_World {
+	unsigned tilemaps_count_x;
+	unsigned tilemaps_count_y;
+
+	unsigned tiles_count_x;
+	unsigned tiles_count_y;
+
+	unsigned tile_width;
+	unsigned tile_height;
+
+	// Offset of the tile map relative to the screen
+	int upper_left_x;
+	int upper_left_y;
+
+	Game_Tilemap *tilemaps;
+} Game_World;
+
+typedef struct Game_RawPosition {
+	unsigned tilemap_x;
+	unsigned tilemap_y;
+
+	// X coordinate on the window
+	float win_rel_x;
+	// Y coordinate on the window
+	float win_rel_y;
+} Game_RawPosition;
+
+typedef struct Game_CanonicalPosition {
+	unsigned tilemap_x;
+	unsigned tilemap_y;
+
+	unsigned tile_x;
+	unsigned tile_y;
+
+	// X relative to the upper left corner of the tile
+	float tile_rel_x;
+	// Y relative to the upper left corner of the tile
+	float tile_rel_y;
+} Game_CanonicalPosition;
+
 typedef struct Game_State {
+	unsigned player_tilemap_x;
+	unsigned player_tilemap_y;
+
 	float player_x;
 	float player_y;
 } Game_State;
