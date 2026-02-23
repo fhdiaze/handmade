@@ -10,7 +10,6 @@
 
 #include "tix_log.h"
 #include <dsound.h>
-#include <math.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <xinput.h>

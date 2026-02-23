@@ -12,19 +12,19 @@
  * @param value
  * @return uint32_t
  */
-static inline uint32_t tix_math_ll_to_ul(int64_t value)
+inline uint32_t tix_math_ll_to_ul(int64_t value)
 {
 	assert(value < INT32_MAX && value >= 0);
 
 	return (uint32_t)value;
 }
 
-static inline int tix_math_int_min(int a, int b)
+inline int tix_math_int_min(int a, int b)
 {
 	return a < b ? a : b;
 }
 
-static inline int tix_math_int_max(int a, int b)
+inline int tix_math_int_max(int a, int b)
 {
 	return a > b ? a : b;
 }
@@ -35,19 +35,19 @@ static inline int tix_math_int_max(int a, int b)
  * @param value
  * @return int
  */
-static inline int tix_math_float_round_to_int(float value)
+inline int tix_math_float_round_to_int(float value)
 {
 	int result = (int)(value + 0.5F);
 
 	return result;
 }
 
-static inline float tix_math_float_floor(float value)
+inline float tix_math_float_floor(float value)
 {
 	return floorf(value);
 }
 
-static inline unsigned tix_math_int_abs(int value)
+inline unsigned tix_math_int_abs(int value)
 {
 	return (unsigned)(value < 0 ? -value : value);
 }

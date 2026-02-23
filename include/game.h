@@ -138,14 +138,16 @@ typedef struct Game_Tilemap {
 } Game_Tilemap;
 
 typedef struct Game_World {
+	// meters
+	float tile_side_mts;
+	// pixels
+	unsigned tile_side_pxs;
+
 	unsigned tilemaps_count_x;
 	unsigned tilemaps_count_y;
 
 	unsigned tiles_count_x;
 	unsigned tiles_count_y;
-
-	unsigned tile_width;
-	unsigned tile_height;
 
 	// Offset of the tile map relative to the screen
 	int upper_left_x;
@@ -165,8 +167,10 @@ typedef struct Game_RawPosition {
 } Game_RawPosition;
 
 typedef struct Game_CanonicalPosition {
+#if 1
 	unsigned tilemap_x;
 	unsigned tilemap_y;
+#endif
 
 	unsigned tile_x;
 	unsigned tile_y;
@@ -178,11 +182,7 @@ typedef struct Game_CanonicalPosition {
 } Game_CanonicalPosition;
 
 typedef struct Game_State {
-	unsigned player_tilemap_x;
-	unsigned player_tilemap_y;
-
-	float player_x;
-	float player_y;
+	Game_CanonicalPosition playerpos;
 } Game_State;
 
 typedef struct Game_Thread {
