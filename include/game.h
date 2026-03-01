@@ -150,11 +150,15 @@ typedef struct Game_World {
 	unsigned tiles_count_y;
 
 	// Offset of the tile map relative to the screen
-	int upper_left_x;
-	int upper_left_y;
+	int screen_offset_x;
+	int screen_offset_y;
 
 	Game_Tilemap *tilemaps;
 } Game_World;
+
+// Philly chicken avocado
+// rainbow roll
+// Prawn katsu and yuzu mayonnaise, no spicy please
 
 typedef struct Game_RawPosition {
 	unsigned tilemap_x;
