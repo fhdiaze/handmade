@@ -138,9 +138,8 @@ typedef struct Game_Tilemap {
 } Game_Tilemap;
 
 typedef struct Game_World {
-	// meters
+	float pxs_per_mtr;
 	float tile_side_mts;
-	// pixels
 	unsigned tile_side_pxs;
 
 	unsigned tilemaps_count_x;
@@ -150,25 +149,11 @@ typedef struct Game_World {
 	unsigned tiles_count_y;
 
 	// Offset of the tile map relative to the screen
-	int screen_offset_x;
-	int screen_offset_y;
+	int screen_offset_x_pxs;
+	int screen_offset_y_pxs;
 
 	Game_Tilemap *tilemaps;
 } Game_World;
-
-// Philly chicken avocado
-// rainbow roll
-// Prawn katsu and yuzu mayonnaise, no spicy please
-
-typedef struct Game_RawPosition {
-	unsigned tilemap_x;
-	unsigned tilemap_y;
-
-	// X coordinate on the window
-	float win_rel_x;
-	// Y coordinate on the window
-	float win_rel_y;
-} Game_RawPosition;
 
 typedef struct Game_CanonicalPosition {
 #if 1
@@ -180,9 +165,9 @@ typedef struct Game_CanonicalPosition {
 	unsigned tile_y;
 
 	// X relative to the upper left corner of the tile
-	float tile_rel_x;
+	float tile_rel_x_mts;
 	// Y relative to the upper left corner of the tile
-	float tile_rel_y;
+	float tile_rel_y_mts;
 } Game_CanonicalPosition;
 
 typedef struct Game_State {

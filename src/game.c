@@ -13,7 +13,8 @@
 #define TILES_COUNT_X 17
 #define TILES_COUNT_Y 9
 #define TILE_SIDE_PXS 60
-#define TILE_SIDE_MTS 1
+#define TILE_SIDE_MTS 1.4F
+#define PXS_PER_MTR (float)TILE_SIDE_PXS / TILE_SIDE_MTS
 
 /**
  * @brief
@@ -140,7 +141,7 @@ static Game_Tilemap *game_world_get_tilemap(Game_World *world, unsigned tilemap_
 static inline bool game_world_correct_coord(Game_World *world, unsigned tiles_count,
                                             unsigned *tilemap, unsigned *tile, float *tile_rel)
 {
-	int tiles_delta = (int)tix_math_float_floor(*tile_rel / (float)world->tile_side_pxs);
+	int tiles_delta = (int)tix_math_float_floor(*tile_rel / world->tile_side_mts);
 	int actual_tile = (int)*tile + tiles_delta;
 	int tilemaps_delta = (int)tix_math_float_floor((float)actual_tile / (float)tiles_count);
 
@@ -154,12 +155,14 @@ static inline bool game_world_correct_coord(Game_World *world, unsigned tiles_co
 
 	int new_tile = actual_tile - tilemaps_delta * (int)tiles_count;
 
-	assert(new_tile >= 0 && new_tile < (int)tiles_count);
+	assert(new_tile >= 0);
+	assert(new_tile < (int)tiles_count);
 
 	*tile = (unsigned)(new_tile);
-	*tile_rel -= (float)(tiles_delta * (int)world->tile_side_pxs);
+	*tile_rel -= (float)(tiles_delta)*world->tile_side_mts;
 
-	assert(*tile_rel >= 0.0F && *tile_rel < (float)world->tile_side_pxs);
+	assert(*tile_rel >= 0.0F);
+	assert(*tile_rel < world->tile_side_mts);
 
 	return true;
 }
@@ -167,13 +170,13 @@ static inline bool game_world_correct_coord(Game_World *world, unsigned tiles_co
 static bool game_world_correct_position(Game_World *world, Game_CanonicalPosition *pos)
 {
 	bool was_success = game_world_correct_coord(world, world->tiles_count_x, &pos->tilemap_x,
-	                                            &pos->tile_x, &pos->tile_rel_x);
+	                                            &pos->tile_x, &pos->tile_rel_x_mts);
 	if (!was_success) {
 		return was_success;
 	}
 
 	was_success = game_world_correct_coord(world, world->tiles_count_y, &pos->tilemap_y,
-	                                       &pos->tile_y, &pos->tile_rel_y);
+	                                       &pos->tile_y, &pos->tile_rel_y_mts);
 
 	return was_success;
 }
@@ -247,14 +250,15 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	tilemaps[1][1].tiles = (uint32_t *)tiles11;
 
 	Game_World world = {
+		.pxs_per_mtr = PXS_PER_MTR,
 		.tile_side_mts = TILE_SIDE_MTS,
 		.tile_side_pxs = TILE_SIDE_PXS,
 		.tilemaps_count_x = 2,
 		.tilemaps_count_y = 2,
 		.tiles_count_x = TILES_COUNT_X,
 		.tiles_count_y = TILES_COUNT_Y,
-		.screen_offset_x = -TILE_SIDE_PXS / 2,
-		.screen_offset_y = 0,
+		.screen_offset_x_pxs = -TILE_SIDE_PXS / 2,
+		.screen_offset_y_pxs = 0,
 		.tilemaps = (Game_Tilemap *)tilemaps,
 	};
 
@@ -264,14 +268,14 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		game_state->playerpos.tilemap_y = 0;
 		game_state->playerpos.tile_x = 3;
 		game_state->playerpos.tile_y = 3;
-		game_state->playerpos.tile_rel_x = 5.0F;
-		game_state->playerpos.tile_rel_y = 5.0F;
+		game_state->playerpos.tile_rel_x_mts = 0.5F;
+		game_state->playerpos.tile_rel_y_mts = 0.5F;
 
 		game_memory->is_initialized = true;
 	}
 
-	float player_width = 0.75F * (float)world.tile_side_pxs;
-	float player_height = (float)world.tile_side_pxs;
+	float player_height_mts = 1.4F;
+	float player_width_mts = 0.75F * player_height_mts;
 
 	for (size_t controller_idx = 0; controller_idx < GAME_MAX_CONTROLLERS; ++controller_idx) {
 		Game_ControllerInput *controller = game_input_get_controller(input, controller_idx);
@@ -282,55 +286,49 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		if (controller->is_analog) {
 		} else {
-			float pixels_per_sec_player_x = 0.0F;
-			float pixels_per_sec_player_y = 0.0F;
+			float mts_per_sec_player_x = 0.0F;
+			float mts_per_sec_player_y = 0.0F;
 
 			if (controller->moveup.ended_down) {
-				pixels_per_sec_player_y = -1.0F;
+				mts_per_sec_player_y = -1.0F;
 			}
 
 			if (controller->movedown.ended_down) {
-				pixels_per_sec_player_y = 1.0F;
+				mts_per_sec_player_y = 1.0F;
 			}
 
 			if (controller->moveleft.ended_down) {
-				pixels_per_sec_player_x = -1.0F;
+				mts_per_sec_player_x = -1.0F;
 			}
 
 			if (controller->moveright.ended_down) {
-				pixels_per_sec_player_x = 1.0F;
+				mts_per_sec_player_x = 1.0F;
 			}
 
-			pixels_per_sec_player_x *= 64.0F;
-			pixels_per_sec_player_y *= 64.0F;
+			mts_per_sec_player_x *= 2.0F;
+			mts_per_sec_player_y *= 2.0F;
 
-			float new_player_x = game_state->playerpos.tile_rel_x +
-			                     input->secs_time_delta * pixels_per_sec_player_x;
-			float new_player_y = game_state->playerpos.tile_rel_y +
-			                     input->secs_time_delta * pixels_per_sec_player_y;
+			float new_player_x = game_state->playerpos.tile_rel_x_mts +
+			                     input->secs_time_delta * mts_per_sec_player_x;
+			float new_player_y = game_state->playerpos.tile_rel_y_mts +
+			                     input->secs_time_delta * mts_per_sec_player_y;
 
 			Game_CanonicalPosition new_player_pos = game_state->playerpos;
-			new_player_pos.tile_rel_x = new_player_x;
-			new_player_pos.tile_rel_y = new_player_y;
-
-			if (new_player_x < 0) {
-				int a = 0;
-			}
+			new_player_pos.tile_rel_x_mts = new_player_x;
+			new_player_pos.tile_rel_y_mts = new_player_y;
 
 			if (!game_world_correct_position(&world, &new_player_pos)) {
 				continue;
 			}
 
 			Game_CanonicalPosition left_bottom_pos = new_player_pos;
-			left_bottom_pos.tile_rel_x =
-				new_player_pos.tile_rel_x - player_width * 0.5F;
+			left_bottom_pos.tile_rel_x_mts -= player_width_mts * 0.5F;
 			if (!game_world_correct_position(&world, &left_bottom_pos)) {
 				continue;
 			}
 
 			Game_CanonicalPosition right_bottom_pos = new_player_pos;
-			right_bottom_pos.tile_rel_x =
-				new_player_pos.tile_rel_x + player_width * 0.5F;
+			right_bottom_pos.tile_rel_x_mts += player_width_mts * 0.5F;
 			if (!game_world_correct_position(&world, &right_bottom_pos)) {
 				continue;
 			}
@@ -355,13 +353,17 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 					game_tilemap_get_tile_value(tilemap, &world, col, row);
 				float gray = tile_id == 1 ? 1.0F : 0.5F;
 
-				float min_x = (float)world.screen_offset_x +
+				float min_x = (float)world.screen_offset_x_pxs +
 				              (float)col * (float)world.tile_side_pxs;
-				float min_y = (float)world.screen_offset_y +
+				float min_y = (float)world.screen_offset_y_pxs +
 				              (float)row * (float)world.tile_side_pxs;
 				float max_x = min_x + (float)world.tile_side_pxs;
 				float max_y = min_y + (float)world.tile_side_pxs;
 
+				if (game_state->playerpos.tile_y == row &&
+				    game_state->playerpos.tile_x == col) {
+					gray = 0.0F;
+				}
 				game_bitmap_render_rectangle(bitmap, min_x, min_y, max_x, max_y,
 				                             gray, gray, gray);
 			}
@@ -370,14 +372,19 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float player_red = 1.0F;
 		float player_green = 1.0F;
 		float player_blue = 0.0F;
-		float player_x = (float)(game_state->playerpos.tile_x * world.tile_side_pxs) +
-		                 game_state->playerpos.tile_rel_x + (float)world.screen_offset_x;
-		float player_y = (float)(game_state->playerpos.tile_y * world.tile_side_pxs) +
-		                 game_state->playerpos.tile_rel_y + (float)world.screen_offset_y;
-		float player_left = player_x - 0.5F * player_width;
-		float player_top = player_y - player_height;
+		float pxs_player_x =
+			(float)world.screen_offset_x_pxs +
+			(float)game_state->playerpos.tile_x * (float)world.tile_side_pxs +
+			game_state->playerpos.tile_rel_x_mts * world.pxs_per_mtr;
+		float pxs_player_y =
+			(float)world.screen_offset_y_pxs +
+			(float)game_state->playerpos.tile_y * (float)world.tile_side_pxs +
+			game_state->playerpos.tile_rel_y_mts * world.pxs_per_mtr;
+		float player_left = pxs_player_x - 0.5F * player_width_mts * world.pxs_per_mtr;
+		float player_top = pxs_player_y - player_height_mts * world.pxs_per_mtr;
 		game_bitmap_render_rectangle(bitmap, player_left, player_top,
-		                             player_left + player_width, player_top + player_height,
+		                             player_left + player_width_mts * world.pxs_per_mtr,
+		                             player_top + player_height_mts * world.pxs_per_mtr,
 		                             player_red, player_green, player_blue);
 	}
 }
