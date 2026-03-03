@@ -148,14 +148,20 @@ typedef struct Game_World {
 	unsigned tiles_count_x;
 	unsigned tiles_count_y;
 
-	// Offset of the tile map relative to the screen
-	int screen_offset_x_pxs;
-	int screen_offset_y_pxs;
+	/**
+	 * @brief Pixel offset of the tile map relative to the top left corner of screen.
+	 */
+	int camera_zero_x_pxs;
+
+	/**
+	 * @brief Pixel offset of the tile map relative to the top left corner of screen.
+	 */
+	int camera_zero_y_pxs;
 
 	Game_Tilemap *tilemaps;
 } Game_World;
 
-typedef struct Game_CanonicalPosition {
+typedef struct Game_Position {
 #if 1
 	unsigned tilemap_x;
 	unsigned tilemap_y;
@@ -164,14 +170,20 @@ typedef struct Game_CanonicalPosition {
 	unsigned tile_x;
 	unsigned tile_y;
 
-	// X relative to the upper left corner of the tile
+	/**
+	 * @brief X relative to the lower left corner of the tile
+	 */
 	float tile_rel_x_mts;
-	// Y relative to the upper left corner of the tile
+
+	/**
+	 * @brief Y relative to the lower left corner of the tile
+	 *
+	 */
 	float tile_rel_y_mts;
-} Game_CanonicalPosition;
+} Game_Position;
 
 typedef struct Game_State {
-	Game_CanonicalPosition playerpos;
+	Game_Position playerpos;
 } Game_State;
 
 typedef struct Game_Thread {
