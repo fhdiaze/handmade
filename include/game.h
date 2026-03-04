@@ -133,40 +133,32 @@ typedef struct Game_Input {
 	Game_ControllerInput controllers[GAME_MAX_CONTROLLERS];
 } Game_Input;
 
-typedef struct Game_Tilemap {
+typedef struct Game_TileChunk {
 	uint32_t *tiles;
-} Game_Tilemap;
+} Game_TileChunk;
 
 typedef struct Game_World {
-	float pxs_per_mtr;
+	uint16_t chunk_shift_bits;
+	uint32_t chunk_mask;
+
+	/**
+	 * @brief Chunk side in tiles
+	 */
+	uint16_t chunk_side_tls;
+
 	float tile_side_mts;
 	unsigned tile_side_pxs;
-
-	unsigned tilemaps_count_x;
-	unsigned tilemaps_count_y;
-
-	unsigned tiles_count_x;
-	unsigned tiles_count_y;
+	float pxs_per_mtr;
 
 	/**
-	 * @brief Pixel offset of the tile map relative to the top left corner of screen.
+	 * @brief Side of the world in tilechunks
 	 */
-	int camera_zero_x_pxs;
+	uint32_t side_tcs;
 
-	/**
-	 * @brief Pixel offset of the tile map relative to the top left corner of screen.
-	 */
-	int camera_zero_y_pxs;
-
-	Game_Tilemap *tilemaps;
+	Game_TileChunk *tilechunks;
 } Game_World;
 
-typedef struct Game_Position {
-#if 1
-	unsigned tilemap_x;
-	unsigned tilemap_y;
-#endif
-
+typedef struct Game_WorldPosition {
 	unsigned tile_x;
 	unsigned tile_y;
 
@@ -180,10 +172,25 @@ typedef struct Game_Position {
 	 *
 	 */
 	float tile_rel_y_mts;
-} Game_Position;
+} Game_WorldPosition;
+
+typedef struct Game_ChunkPosition {
+	unsigned left_lower_tile_x;
+	unsigned left_lower_tile_y;
+
+	/**
+	 * @brief X tile relative to the lower left tile of a chunk
+	 */
+	uint32_t rel_tile_x;
+
+	/**
+	 * @brief Y tile relative to the lower left tile of a chunk
+	 */
+	uint32_t rel_tile_y;
+} Game_ChunkPosition;
 
 typedef struct Game_State {
-	Game_Position playerpos;
+	Game_WorldPosition playerpos;
 } Game_State;
 
 typedef struct Game_Thread {

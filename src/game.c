@@ -10,8 +10,8 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#define TILES_COUNT_X 17
-#define TILES_COUNT_Y 9
+#define TILES_COUNT_X 256
+#define TILES_COUNT_Y 256
 #define TILE_SIDE_PXS 60
 #define TILE_SIDE_MTS 1.4F
 #define PXS_PER_MTR (float)TILE_SIDE_PXS / TILE_SIDE_MTS
@@ -97,70 +97,68 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float min_x_pxs, f
 	}
 }
 
-static inline uint32_t game_tilemap_get_tile_value(Game_Tilemap *tilemap, Game_World *world,
-                                                   unsigned tile_x, unsigned tile_y)
+static inline Game_ChunkPosition game_world_get_chunk_pos(Game_World *world, uint32_t tile_x,
+                                                          uint32_t tile_y)
 {
-	assert(tilemap);
+	Game_ChunkPosition result;
 
-	assert(tile_x >= 0 && tile_x < world->tiles_count_x && tile_y >= 0 &&
-	       tile_y < world->tiles_count_y);
+	result.left_lower_tile_x = tile_x >> world->chunk_shift_bits;
+	result.left_lower_tile_y = tile_y >> world->chunk_shift_bits;
+	result.rel_tile_x = tile_x & world->chunk_mask;
+	result.rel_tile_y = tile_y & world->chunk_mask;
 
-	uint32_t tile_value = tilemap->tiles[tile_y * world->tiles_count_x + tile_x];
+	return result;
+}
+
+static inline uint32_t game_tilechunk_get_tile_value(Game_TileChunk *tilechunk, Game_World *world,
+                                                     uint32_t tile_x, uint32_t tile_y)
+{
+	assert(tilechunk);
+	assert(tile_x < world->chunk_side_tls);
+	assert(tile_y < world->chunk_side_tls);
+
+	uint32_t tile_value = tilechunk->tiles[tile_y * world->chunk_side_tls + tile_x];
 
 	return tile_value;
 }
 
-static inline bool game_tilemap_is_point_empty(Game_Tilemap *tilemap, Game_World *world,
-                                               unsigned tile_x, unsigned tile_y)
+static inline bool game_tilechunk_is_tile_empty(Game_TileChunk *tilechunk, Game_World *world,
+                                                uint32_t tile_x, uint32_t tile_y)
 {
-	assert(tilemap);
+	assert(tilechunk);
 
 	bool is_empty = false;
 
-	if (tile_x >= 0 && tile_x < world->tiles_count_x && tile_y >= 0 &&
-	    tile_y < world->tiles_count_y) {
-		uint32_t tilemap_value =
-			game_tilemap_get_tile_value(tilemap, world, tile_x, tile_y);
-		is_empty = tilemap_value == 0;
-	}
+	assert(tile_x < world->chunk_side_tls);
+	assert(tile_y < world->chunk_side_tls);
+
+	uint32_t tilemap_value = game_tilechunk_get_tile_value(tilechunk, world, tile_x, tile_y);
+	is_empty = tilemap_value == 0;
 
 	return is_empty;
 }
 
-static Game_Tilemap *game_world_get_tilemap(Game_World *world, unsigned tilemap_x,
-                                            unsigned tilemap_y)
+static Game_TileChunk *game_world_get_tilechunk(Game_World *world, uint32_t tilechunk_x,
+                                                uint32_t tilechunk_y)
 {
-	if (tilemap_x >= world->tilemaps_count_x || tilemap_y >= world->tilemaps_count_y) {
-		return nullptr;
+	Game_TileChunk *result = nullptr;
+
+	if (tilechunk_x < world->side_tcs && tilechunk_y < world->side_tcs) {
+		result = &world->tilechunks[tilechunk_y * world->side_tcs + tilechunk_x];
 	}
 
-	Game_Tilemap *tilemap = &world->tilemaps[tilemap_y * world->tilemaps_count_x + tilemap_x];
-
-	return tilemap;
+	return result;
 }
 
-static inline bool game_world_correct_coord(Game_World *world, unsigned tiles_count,
-                                            unsigned *tilemap, unsigned *tile, float *tile_rel)
+static inline bool game_world_correct_coord(Game_World *world, unsigned *tile, float *tile_rel)
 {
-	int tiles_delta = (int)tix_math_float_floor(*tile_rel / world->tile_side_mts);
-	int actual_tile = (int)*tile + tiles_delta;
-	int tilemaps_delta = (int)tix_math_float_floor((float)actual_tile / (float)tiles_count);
+	int tiles_deviation = (int)tix_math_float_floor(*tile_rel / world->tile_side_mts);
+	// World is toroidal
+	*tile = (unsigned)((int)*tile + tiles_deviation);
 
-	int new_tilemap = (int)*tilemap + tilemaps_delta;
+	assert(*tile < world->chunk_side_tls);
 
-	if (new_tilemap < 0 || new_tilemap > (int)world->tilemaps_count_x) {
-		return false;
-	}
-
-	*tilemap = (unsigned)new_tilemap;
-
-	int new_tile = actual_tile - tilemaps_delta * (int)tiles_count;
-
-	assert(new_tile >= 0);
-	assert(new_tile < (int)tiles_count);
-
-	*tile = (unsigned)(new_tile);
-	*tile_rel -= (float)(tiles_delta)*world->tile_side_mts;
+	*tile_rel -= (float)(tiles_deviation)*world->tile_side_mts;
 
 	assert(*tile_rel >= 0.0F);
 	assert(*tile_rel < world->tile_side_mts);
@@ -168,30 +166,30 @@ static inline bool game_world_correct_coord(Game_World *world, unsigned tiles_co
 	return true;
 }
 
-static bool game_world_correct_position(Game_World *world, Game_Position *pos)
+static bool game_world_correct_position(Game_World *world, Game_WorldPosition *pos)
 {
-	bool was_success = game_world_correct_coord(world, world->tiles_count_x, &pos->tilemap_x,
-	                                            &pos->tile_x, &pos->tile_rel_x_mts);
+	bool was_success = game_world_correct_coord(world, &pos->tile_x, &pos->tile_rel_x_mts);
 	if (!was_success) {
 		return was_success;
 	}
 
-	was_success = game_world_correct_coord(world, world->tiles_count_y, &pos->tilemap_y,
-	                                       &pos->tile_y, &pos->tile_rel_y_mts);
+	was_success = game_world_correct_coord(world, &pos->tile_y, &pos->tile_rel_y_mts);
 
 	return was_success;
 }
 
-static bool game_world_is_point_empty(Game_World *world, Game_Position pos)
+static bool game_world_is_point_empty(Game_World *world, Game_WorldPosition wpos)
 {
 	bool is_empty = false;
 
-	Game_Tilemap *tilemap = game_world_get_tilemap(world, pos.tilemap_x, pos.tilemap_y);
-	if (!tilemap) {
+	Game_ChunkPosition cpos = game_world_get_chunk_pos(world, wpos.tile_x, wpos.tile_y);
+	Game_TileChunk *tilechunk =
+		game_world_get_tilechunk(world, cpos.left_lower_tile_x, cpos.left_lower_tile_y);
+	if (!tilechunk) {
 		return is_empty;
 	}
 
-	is_empty = game_tilemap_is_point_empty(tilemap, world, pos.tile_x, pos.tile_y);
+	is_empty = game_tilechunk_is_tile_empty(tilechunk, world, wpos.tile_x, wpos.tile_y);
 
 	return is_empty;
 }
@@ -200,73 +198,102 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
 	assert(sizeof(Game_State) <= game_memory->permamem_size);
 
-	uint32_t tiles00[TILES_COUNT_Y][TILES_COUNT_X] = {
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-		{ 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1 },
-		{ 1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0 },
-		{ 1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1 },
-		{ 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1 },
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
+	uint32_t tiles[TILES_COUNT_Y][TILES_COUNT_X] = {
+		{
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+		},
+		{
+			1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 1, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+			1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+		},
+		{
+			1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+			1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+			1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1,
+		},
+		{
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+			1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+		},
 	};
-	uint32_t tiles01[TILES_COUNT_Y][TILES_COUNT_X] = {
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-	};
-	uint32_t tiles10[TILES_COUNT_Y][TILES_COUNT_X] = {
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
-	};
-	uint32_t tiles11[TILES_COUNT_Y][TILES_COUNT_X] = {
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 0, 1, 1, 1, 1, 1, 1, 1, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 },
-		{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 },
-	};
-	Game_Tilemap tilemaps[2][2] = {};
-	tilemaps[0][0].tiles = (uint32_t *)tiles00;
-	tilemaps[0][1].tiles = (uint32_t *)tiles10;
-	tilemaps[1][0].tiles = (uint32_t *)tiles01;
-	tilemaps[1][1].tiles = (uint32_t *)tiles11;
+
+	Game_TileChunk tilechunks[2][2] = {};
+	tilechunks[0][0].tiles = (uint32_t *)tiles00;
+	tilechunks[0][1].tiles = (uint32_t *)tiles10;
+	tilechunks[1][0].tiles = (uint32_t *)tiles01;
+	tilechunks[1][1].tiles = (uint32_t *)tiles11;
+
+	float camera_zero_x_pxs = -TILE_SIDE_PXS / 2;
+	float camera_zero_y_pxs = TILES_COUNT_Y * TILE_SIDE_PXS;
 
 	Game_World world = {
+		.chunk_mask = 0xFF,
+		.chunk_shift_bits = 8,
+		.chunk_side_tls = 256,
 		.pxs_per_mtr = PXS_PER_MTR,
 		.tile_side_mts = TILE_SIDE_MTS,
 		.tile_side_pxs = TILE_SIDE_PXS,
-		.tilemaps_count_x = 2,
-		.tilemaps_count_y = 2,
-		.tiles_count_x = TILES_COUNT_X,
-		.tiles_count_y = TILES_COUNT_Y,
-		.camera_zero_x_pxs = -TILE_SIDE_PXS / 2,
-		.camera_zero_y_pxs = TILES_COUNT_Y * TILE_SIDE_PXS,
-		.tilemaps = (Game_Tilemap *)tilemaps,
+		.tilechunks = (Game_TileChunk *)tilechunks,
 	};
 
 	Game_State *game_state = game_memory->permamem;
 	if (!game_memory->is_initialized) {
-		game_state->playerpos.tilemap_x = 0;
-		game_state->playerpos.tilemap_y = 0;
 		game_state->playerpos.tile_x = 3;
 		game_state->playerpos.tile_y = 3;
 		game_state->playerpos.tile_rel_x_mts = 0.5F;
@@ -314,7 +341,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			float new_player_y = game_state->playerpos.tile_rel_y_mts +
 			                     input->secs_time_delta * mts_per_sec_player_y;
 
-			Game_Position new_player_pos = game_state->playerpos;
+			Game_WorldPosition new_player_pos = game_state->playerpos;
 			new_player_pos.tile_rel_x_mts = new_player_x;
 			new_player_pos.tile_rel_y_mts = new_player_y;
 
@@ -322,13 +349,13 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				continue;
 			}
 
-			Game_Position left_bottom_pos = new_player_pos;
+			Game_WorldPosition left_bottom_pos = new_player_pos;
 			left_bottom_pos.tile_rel_x_mts -= player_width_mts * 0.5F;
 			if (!game_world_correct_position(&world, &left_bottom_pos)) {
 				continue;
 			}
 
-			Game_Position right_bottom_pos = new_player_pos;
+			Game_WorldPosition right_bottom_pos = new_player_pos;
 			right_bottom_pos.tile_rel_x_mts += player_width_mts * 0.5F;
 			if (!game_world_correct_position(&world, &right_bottom_pos)) {
 				continue;
@@ -346,18 +373,18 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width,
 		                             (float)bitmap->height, 1.0F, 0.0F, 1.0F);
 
-		Game_Tilemap *tilemap = game_world_get_tilemap(
-			&world, game_state->playerpos.tilemap_x, game_state->playerpos.tilemap_y);
-		for (unsigned row = 0; row < world.tiles_count_y; ++row) {
-			for (unsigned col = 0; col < world.tiles_count_x; ++col) {
+		Game_TileChunk *tilechunk = game_world_get_tilechunk(
+			&world, game_state->playerpos.tile_x, game_state->playerpos.tile_y);
+		for (unsigned row = 0; row < world.chunk_side_tls; ++row) {
+			for (unsigned col = 0; col < world.chunk_side_tls; ++col) {
 				uint32_t tile_id =
-					game_tilemap_get_tile_value(tilemap, &world, col, row);
+					game_tilechunk_get_tile_value(tilechunk, &world, col, row);
 				float gray = tile_id == 1 ? 1.0F : 0.5F;
 
-				float min_x_pxs = (float)world.camera_zero_x_pxs +
-				                  (float)col * (float)world.tile_side_pxs;
-				float max_y_pxs = (float)world.camera_zero_y_pxs -
-				                  (float)row * (float)world.tile_side_pxs;
+				float min_x_pxs =
+					camera_zero_x_pxs + (float)col * (float)world.tile_side_pxs;
+				float max_y_pxs =
+					camera_zero_y_pxs - (float)row * (float)world.tile_side_pxs;
 				float min_y_pxs = max_y_pxs - (float)world.tile_side_pxs;
 				float max_x_pxs = min_x_pxs + (float)world.tile_side_pxs;
 
@@ -375,11 +402,11 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float player_green = 1.0F;
 		float player_blue = 0.0F;
 		float player_x_pxs =
-			(float)world.camera_zero_x_pxs +
+			camera_zero_x_pxs +
 			(float)game_state->playerpos.tile_x * (float)world.tile_side_pxs +
 			game_state->playerpos.tile_rel_x_mts * world.pxs_per_mtr;
 		float player_y_pxs =
-			(float)world.camera_zero_y_pxs -
+			camera_zero_y_pxs -
 			(float)game_state->playerpos.tile_y * (float)world.tile_side_pxs -
 			game_state->playerpos.tile_rel_y_mts * world.pxs_per_mtr;
 		float player_min_x_pxs = player_x_pxs - 0.5F * player_width_mts * world.pxs_per_mtr;
