@@ -147,7 +147,7 @@ typedef struct Game_World {
 	uint16_t chunk_side_tls;
 
 	float tile_side_mts;
-	unsigned tile_side_pxs;
+	uint32_t tile_side_pxs;
 	float pxs_per_mtr;
 
 	/**
@@ -159,8 +159,8 @@ typedef struct Game_World {
 } Game_World;
 
 typedef struct Game_WorldPosition {
-	unsigned tile_x;
-	unsigned tile_y;
+	uint32_t tile_x;
+	uint32_t tile_y;
 
 	/**
 	 * @brief X relative to the lower left corner of the tile
@@ -175,8 +175,8 @@ typedef struct Game_WorldPosition {
 } Game_WorldPosition;
 
 typedef struct Game_ChunkPosition {
-	unsigned left_lower_tile_x;
-	unsigned left_lower_tile_y;
+	uint32_t left_lower_tile_x;
+	uint32_t left_lower_tile_y;
 
 	/**
 	 * @brief X tile relative to the lower left tile of a chunk

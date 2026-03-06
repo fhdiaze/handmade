@@ -132,8 +132,8 @@ static inline bool game_tilechunk_is_tile_empty(Game_TileChunk *tilechunk, Game_
 	assert(tile_x < world->chunk_side_tls);
 	assert(tile_y < world->chunk_side_tls);
 
-	uint32_t tilemap_value = game_tilechunk_get_tile_value(tilechunk, world, tile_x, tile_y);
-	is_empty = tilemap_value == 0;
+	uint32_t tile_value = game_tilechunk_get_tile_value(tilechunk, world, tile_x, tile_y);
+	is_empty = tile_value == 0;
 
 	return is_empty;
 }
@@ -150,15 +150,16 @@ static Game_TileChunk *game_world_get_tilechunk(Game_World *world, uint32_t tile
 	return result;
 }
 
-static inline bool game_world_correct_coord(Game_World *world, unsigned *tile, float *tile_rel)
+static inline bool game_world_correct_coord(Game_World *world, uint32_t *tile, float *tile_rel)
 {
-	int tiles_deviation = (int)tix_math_float_floor(*tile_rel / world->tile_side_mts);
+	int tile_offset = (int)tix_math_float_floor(*tile_rel / world->tile_side_mts);
+
 	// World is toroidal
-	*tile = (unsigned)((int)*tile + tiles_deviation);
+	*tile = (unsigned)((int)*tile + tile_offset);
 
 	assert(*tile < world->chunk_side_tls);
 
-	*tile_rel -= (float)(tiles_deviation)*world->tile_side_mts;
+	*tile_rel -= (float)(tile_offset)*world->tile_side_mts;
 
 	assert(*tile_rel >= 0.0F);
 	assert(*tile_rel < world->tile_side_mts);
@@ -189,7 +190,7 @@ static bool game_world_is_point_empty(Game_World *world, Game_WorldPosition wpos
 		return is_empty;
 	}
 
-	is_empty = game_tilechunk_is_tile_empty(tilechunk, world, wpos.tile_x, wpos.tile_y);
+	is_empty = game_tilechunk_is_tile_empty(tilechunk, world, cpos.rel_tile_x, cpos.rel_tile_y);
 
 	return is_empty;
 }
@@ -273,23 +274,21 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		},
 	};
 
-	Game_TileChunk tilechunks[2][2] = {};
-	tilechunks[0][0].tiles = (uint32_t *)tiles00;
-	tilechunks[0][1].tiles = (uint32_t *)tiles10;
-	tilechunks[1][0].tiles = (uint32_t *)tiles01;
-	tilechunks[1][1].tiles = (uint32_t *)tiles11;
-
-	float camera_zero_x_pxs = -TILE_SIDE_PXS / 2;
+	float camera_zero_x_pxs = -TILE_SIDE_PXS / 2.0F;
 	float camera_zero_y_pxs = TILES_COUNT_Y * TILE_SIDE_PXS;
+	Game_TileChunk tilechunk = {
+		.tiles = (uint32_t *)tiles,
+	};
 
 	Game_World world = {
-		.chunk_mask = 0xFF,
 		.chunk_shift_bits = 8,
+		.chunk_mask = 0xFF,
 		.chunk_side_tls = 256,
 		.pxs_per_mtr = PXS_PER_MTR,
 		.tile_side_mts = TILE_SIDE_MTS,
 		.tile_side_pxs = TILE_SIDE_PXS,
-		.tilechunks = (Game_TileChunk *)tilechunks,
+		.side_tcs = 1,
+		.tilechunks = &tilechunk,
 	};
 
 	Game_State *game_state = game_memory->permamem;
@@ -372,13 +371,15 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width,
 		                             (float)bitmap->height, 1.0F, 0.0F, 1.0F);
-
-		Game_TileChunk *tilechunk = game_world_get_tilechunk(
+		Game_ChunkPosition player_cpos = game_world_get_chunk_pos(
 			&world, game_state->playerpos.tile_x, game_state->playerpos.tile_y);
+
+		Game_TileChunk *player_tilechunk = game_world_get_tilechunk(
+			&world, player_cpos.left_lower_tile_x, player_cpos.left_lower_tile_y);
 		for (unsigned row = 0; row < world.chunk_side_tls; ++row) {
 			for (unsigned col = 0; col < world.chunk_side_tls; ++col) {
-				uint32_t tile_id =
-					game_tilechunk_get_tile_value(tilechunk, &world, col, row);
+				uint32_t tile_id = game_tilechunk_get_tile_value(player_tilechunk,
+				                                                 &world, col, row);
 				float gray = tile_id == 1 ? 1.0F : 0.5F;
 
 				float min_x_pxs =
