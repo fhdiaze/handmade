@@ -110,34 +110,6 @@ static inline Game_ChunkPosition game_world_get_chunk_pos(Game_World *world, uin
 	return result;
 }
 
-static inline uint32_t game_tilechunk_get_tile_value(Game_TileChunk *tilechunk, Game_World *world,
-                                                     uint32_t tile_x, uint32_t tile_y)
-{
-	assert(tilechunk);
-	assert(tile_x < world->chunk_side_tls);
-	assert(tile_y < world->chunk_side_tls);
-
-	uint32_t tile_value = tilechunk->tiles[tile_y * world->chunk_side_tls + tile_x];
-
-	return tile_value;
-}
-
-static inline bool game_tilechunk_is_tile_empty(Game_TileChunk *tilechunk, Game_World *world,
-                                                uint32_t tile_x, uint32_t tile_y)
-{
-	assert(tilechunk);
-
-	bool is_empty = false;
-
-	assert(tile_x < world->chunk_side_tls);
-	assert(tile_y < world->chunk_side_tls);
-
-	uint32_t tile_value = game_tilechunk_get_tile_value(tilechunk, world, tile_x, tile_y);
-	is_empty = tile_value == 0;
-
-	return is_empty;
-}
-
 static Game_TileChunk *game_world_get_tilechunk(Game_World *world, uint32_t tilechunk_x,
                                                 uint32_t tilechunk_y)
 {
@@ -148,6 +120,27 @@ static Game_TileChunk *game_world_get_tilechunk(Game_World *world, uint32_t tile
 	}
 
 	return result;
+}
+
+static inline uint32_t game_world_get_tile_value(Game_World *world, uint32_t tile_x,
+                                                 uint32_t tile_y)
+{
+	uint32_t tile_value = 0;
+
+	Game_ChunkPosition cpos = game_world_get_chunk_pos(world, tile_x, tile_y);
+	Game_TileChunk *tilechunk =
+		game_world_get_tilechunk(world, cpos.left_lower_tile_x, cpos.left_lower_tile_y);
+
+	if (!tilechunk) {
+		return tile_value;
+	}
+
+	assert(tile_x < world->chunk_side_tls);
+	assert(tile_y < world->chunk_side_tls);
+
+	tile_value = tilechunk->tiles[tile_y * world->chunk_side_tls + tile_x];
+
+	return tile_value;
 }
 
 static inline bool game_world_correct_coord(Game_World *world, uint32_t *tile, float *tile_rel)
@@ -179,18 +172,10 @@ static bool game_world_correct_position(Game_World *world, Game_WorldPosition *p
 	return was_success;
 }
 
-static bool game_world_is_point_empty(Game_World *world, Game_WorldPosition wpos)
+static bool game_world_is_point_empty(Game_World *world, Game_WorldPosition pos)
 {
-	bool is_empty = false;
-
-	Game_ChunkPosition cpos = game_world_get_chunk_pos(world, wpos.tile_x, wpos.tile_y);
-	Game_TileChunk *tilechunk =
-		game_world_get_tilechunk(world, cpos.left_lower_tile_x, cpos.left_lower_tile_y);
-	if (!tilechunk) {
-		return is_empty;
-	}
-
-	is_empty = game_tilechunk_is_tile_empty(tilechunk, world, cpos.rel_tile_x, cpos.rel_tile_y);
+	uint32_t tile_value = game_world_get_tile_value(world, pos.tile_x, pos.tile_y);
+	bool is_empty = tile_value == 0;
 
 	return is_empty;
 }
@@ -274,8 +259,6 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		},
 	};
 
-	float camera_zero_x_pxs = -TILE_SIDE_PXS / 2.0F;
-	float camera_zero_y_pxs = TILES_COUNT_Y * TILE_SIDE_PXS;
 	Game_TileChunk tilechunk = {
 		.tiles = (uint32_t *)tiles,
 	};
@@ -295,8 +278,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	if (!game_memory->is_initialized) {
 		game_state->playerpos.tile_x = 3;
 		game_state->playerpos.tile_y = 3;
-		game_state->playerpos.tile_rel_x_mts = 0.5F;
-		game_state->playerpos.tile_rel_y_mts = 0.5F;
+		game_state->playerpos.tile_rel_x_mts = 0.5F * world.tile_side_mts;
+		game_state->playerpos.tile_rel_y_mts = 0.5F * world.tile_side_mts;
 
 		game_memory->is_initialized = true;
 	}
@@ -371,21 +354,24 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width,
 		                             (float)bitmap->height, 1.0F, 0.0F, 1.0F);
-		Game_ChunkPosition player_cpos = game_world_get_chunk_pos(
-			&world, game_state->playerpos.tile_x, game_state->playerpos.tile_y);
 
-		Game_TileChunk *player_tilechunk = game_world_get_tilechunk(
-			&world, player_cpos.left_lower_tile_x, player_cpos.left_lower_tile_y);
-		for (unsigned row = 0; row < world.chunk_side_tls; ++row) {
-			for (unsigned col = 0; col < world.chunk_side_tls; ++col) {
-				uint32_t tile_id = game_tilechunk_get_tile_value(player_tilechunk,
-				                                                 &world, col, row);
-				float gray = tile_id == 1 ? 1.0F : 0.5F;
+		float center_x = (float)bitmap->width * 0.5F;
+		float center_y = (float)bitmap->height * 0.5F;
+		for (int32_t row_offset = -10; row_offset < 10; ++row_offset) {
+			for (int32_t col_offset = -20; col_offset < 20; ++col_offset) {
+				uint32_t col = (uint32_t)(col_offset +
+				                          (int32_t)game_state->playerpos.tile_x);
+				uint32_t row = (uint32_t)(row_offset +
+				                          (int32_t)game_state->playerpos.tile_y);
 
-				float min_x_pxs =
-					camera_zero_x_pxs + (float)col * (float)world.tile_side_pxs;
+				uint32_t tile_type_id = game_world_get_tile_value(&world, col, row);
+				float gray = tile_type_id == 1 ? 1.0F : 0.5F;
+
+				float min_x_pxs = center_x +
+				                  (float)col_offset * (float)world.tile_side_pxs -
+				                  0.5F * (float)world.tile_side_pxs;
 				float max_y_pxs =
-					camera_zero_y_pxs - (float)row * (float)world.tile_side_pxs;
+					center_y - (float)row_offset * (float)world.tile_side_pxs;
 				float min_y_pxs = max_y_pxs - (float)world.tile_side_pxs;
 				float max_x_pxs = min_x_pxs + (float)world.tile_side_pxs;
 
@@ -402,16 +388,12 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float player_red = 1.0F;
 		float player_green = 1.0F;
 		float player_blue = 0.0F;
-		float player_x_pxs =
-			camera_zero_x_pxs +
-			(float)game_state->playerpos.tile_x * (float)world.tile_side_pxs +
-			game_state->playerpos.tile_rel_x_mts * world.pxs_per_mtr;
-		float player_y_pxs =
-			camera_zero_y_pxs -
-			(float)game_state->playerpos.tile_y * (float)world.tile_side_pxs -
-			game_state->playerpos.tile_rel_y_mts * world.pxs_per_mtr;
-		float player_min_x_pxs = player_x_pxs - 0.5F * player_width_mts * world.pxs_per_mtr;
-		float player_min_y_pxs = player_y_pxs - player_height_mts * world.pxs_per_mtr;
+		float player_min_x_pxs = center_x - 0.5F * (float)world.tile_side_pxs +
+		                         game_state->playerpos.tile_rel_x_mts * world.pxs_per_mtr -
+		                         0.5F * player_width_mts * world.pxs_per_mtr;
+		float player_min_y_pxs = center_y -
+		                         game_state->playerpos.tile_rel_y_mts * world.pxs_per_mtr -
+		                         player_height_mts * world.pxs_per_mtr;
 		float player_max_x_pxs = player_min_x_pxs + player_width_mts * world.pxs_per_mtr;
 		float player_max_y_pxs = player_min_y_pxs + player_height_mts * world.pxs_per_mtr;
 		game_bitmap_render_rectangle(bitmap, player_min_x_pxs, player_min_y_pxs,
