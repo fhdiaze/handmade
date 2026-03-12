@@ -6,13 +6,13 @@
 #undef TIX_LOG_LEVEL
 #define TIX_LOG_LEVEL TIX_LOG_LEVEL_DEBUG
 
-#include "win_handmade.h"
-
-#include "tix_log.h"
 #include <dsound.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <xinput.h>
+
+#include "tix_log.h"
+#include "win_handmade.h"
 
 // globals
 static bool is_global_running = false;
@@ -584,7 +584,7 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 				} else if (vk_code == 'E') {
 					win_keyboard_process_message(
 						&keyboard_controller->right_shoulder, is_down);
-				} else if (vk_code == VK_UP) {
+				} else if (vk_code == VK_CONTROL) {
 					win_keyboard_process_message(&keyboard_controller->actionup,
 					                             is_down);
 				} else if (vk_code == VK_LEFT) {

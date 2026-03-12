@@ -37,7 +37,7 @@ inline int tix_math_int_max(int a, int b)
  */
 inline int tix_math_float_round_to_int(float value)
 {
-	int result = (int)(value + 0.5F);
+	int result = (int)roundf(value);
 
 	return result;
 }

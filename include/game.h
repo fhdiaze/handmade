@@ -10,6 +10,8 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include "tile.h"
+
 #define KB_TO_BYTES(_pr_v) (_pr_v * 1024)
 #define MB_TO_BYTES(_pr_v) (KB_TO_BYTES(_pr_v) * 1024)
 #define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
@@ -133,64 +135,14 @@ typedef struct Game_Input {
 	Game_ControllerInput controllers[GAME_MAX_CONTROLLERS];
 } Game_Input;
 
-typedef struct Game_TileChunk {
-	uint32_t *tiles;
-} Game_TileChunk;
-
 typedef struct Game_World {
-	uint16_t chunk_shift_bits;
-	uint32_t chunk_mask;
-
-	/**
-	 * @brief Chunk side in tiles
-	 */
-	uint16_t chunk_side_tls;
-
-	float tile_side_mts;
-	uint32_t tile_side_pxs;
-	float pxs_per_mtr;
-
-	/**
-	 * @brief Side of the world in tilechunks
-	 */
-	uint32_t side_tcs;
-
-	Game_TileChunk *tilechunks;
+	Game_Tilemap *tilemap;
 } Game_World;
 
-typedef struct Game_WorldPosition {
-	uint32_t tile_x;
-	uint32_t tile_y;
-
-	/**
-	 * @brief X relative to the lower left corner of the tile
-	 */
-	float tile_rel_x_mts;
-
-	/**
-	 * @brief Y relative to the lower left corner of the tile
-	 *
-	 */
-	float tile_rel_y_mts;
-} Game_WorldPosition;
-
-typedef struct Game_ChunkPosition {
-	uint32_t left_lower_tile_x;
-	uint32_t left_lower_tile_y;
-
-	/**
-	 * @brief X tile relative to the lower left tile of a chunk
-	 */
-	uint32_t rel_tile_x;
-
-	/**
-	 * @brief Y tile relative to the lower left tile of a chunk
-	 */
-	uint32_t rel_tile_y;
-} Game_ChunkPosition;
 
 typedef struct Game_State {
-	Game_WorldPosition playerpos;
+	Game_World *world;
+	Game_TilemapPosition playerpos;
 } Game_State;
 
 typedef struct Game_Thread {
