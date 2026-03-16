@@ -4,7 +4,7 @@
 
 #include <stdint.h>
 
-typedef struct Game_ChunkPosition {
+typedef struct Tile_ChunkPosition {
 	uint32_t left_lower_tile_x;
 	uint32_t left_lower_tile_y;
 
@@ -17,13 +17,13 @@ typedef struct Game_ChunkPosition {
 	 * @brief Y tile relative to the lower left tile of a chunk
 	 */
 	uint32_t rel_tile_y;
-} Game_ChunkPosition;
+} Tile_ChunkPosition;
 
-typedef struct Game_TileChunk {
+typedef struct Tile_Chunk {
 	uint32_t *tiles;
-} Game_TileChunk;
+} Tile_Chunk;
 
-typedef struct Game_Tilemap {
+typedef struct Tile_Map {
 	uint16_t chunk_shift_bits;
 	uint32_t chunk_mask;
 
@@ -45,12 +45,12 @@ typedef struct Game_Tilemap {
 	 */
 	uint32_t side_tcs;
 
-	Game_TileChunk *tilechunks;
+	Tile_Chunk *tilechunks;
 
-} Game_Tilemap;
+} Tile_Map;
 
 // TODO(Fredy.Diaz): rename this as Tilemap Position
-typedef struct Game_TilemapPosition {
+typedef struct Tile_MapPosition {
 	uint32_t tile_x;
 	uint32_t tile_y;
 
@@ -64,6 +64,6 @@ typedef struct Game_TilemapPosition {
 	 *
 	 */
 	float tile_rel_y_mts;
-} Game_TilemapPosition;
+} Tile_MapPosition;
 
 #endif // TILE_H

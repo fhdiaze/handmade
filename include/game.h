@@ -135,14 +135,20 @@ typedef struct Game_Input {
 	Game_ControllerInput controllers[GAME_MAX_CONTROLLERS];
 } Game_Input;
 
+typedef struct Game_Arena {
+	size_t size;
+	uint8_t *base;
+	size_t used;
+} Game_Arena;
+
 typedef struct Game_World {
-	Game_Tilemap *tilemap;
+	Tile_Map *tilemap;
 } Game_World;
 
-
 typedef struct Game_State {
+	Game_Arena *arena;
 	Game_World *world;
-	Game_TilemapPosition playerpos;
+	Tile_MapPosition playerpos;
 } Game_State;
 
 typedef struct Game_Thread {

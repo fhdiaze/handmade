@@ -105,36 +105,79 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float min_x_pxs, f
 	}
 }
 
+static void game_arena_init(Game_Arena *arena, size_t size, uint8_t *base)
+{
+	arena->size = size;
+	arena->base = base;
+	arena->used = 0;
+}
+
+static void *game_arena_push_size(Game_Arena *arena, size_t size)
+{
+	assert(arena->size + size > arena->size);
+
+	void *result = arena->base + arena->used;
+	arena->used += size;
+
+	return result;
+}
+
+static void *game_arena_push_array(Game_Arena *arena, size_t count, size_t size)
+{
+	void *result = game_arena_push_size(arena, count * size);
+
+	return result;
+}
+
 GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
 	assert(sizeof(Game_State) <= game_memory->permamem_size);
 
+	float player_height_mts = 1.4F;
+	float player_width_mts = 0.75F * player_height_mts;
+
 	Game_State *game_state = game_memory->permamem;
+	Game_Arena *arena = game_state->arena;
+	Game_World *world = game_state->world;
+	Tile_Map *map = world->tilemap;
+
 	if (!game_memory->is_initialized) {
 		game_state->playerpos.tile_x = 3;
 		game_state->playerpos.tile_y = 3;
 		game_state->playerpos.tile_rel_x_mts = 0.0F;
 		game_state->playerpos.tile_rel_y_mts = 0.0F;
 
-		game_state->world = ;
-		Game_World *world = game_state->world;
+		size_t game_state_size = sizeof(*game_state);
+		game_arena_init(game_state->arena, game_memory->permamem_size - game_state_size,
+		                (uint8_t *)game_memory->permamem + game_state_size);
 
-		Game_TileChunk tilechunk = {
-			.tiles = (uint32_t *)tiles,
-		};
+		game_state->world =
+			game_arena_push_size(game_state->arena, sizeof(*game_state->world));
+		world = game_state->world;
+		map = world->tilemap;
+		arena = game_state->arena;
 
-		Game_Tilemap tilemap = {
-			.chunk_shift_bits = 8,
-			.chunk_mask = 0xFF,
-			.chunk_side_tls = 256,
-			.tile_radius_pxs = TILE_RADIUS_PXS,
-			.tile_radius_mts = TILE_RADIUS_MTS,
-			.tile_side_pxs = TILE_SIDE_PXS,
-			.tile_side_mts = TILE_SIDE_MTS,
-			.pxs_per_mtr = PXS_PER_MTR,
-			.side_tcs = 1,
-			.tilechunks = &tilechunk,
-		};
+		map->chunk_shift_bits = 8, map->chunk_mask = 0xFF;
+		map->chunk_side_tls = 256;
+		map->tile_radius_pxs = TILE_RADIUS_PXS;
+		map->tile_radius_mts = TILE_RADIUS_MTS;
+		map->tile_side_pxs = TILE_SIDE_PXS;
+		map->tile_side_mts = TILE_SIDE_MTS;
+		map->pxs_per_mtr = PXS_PER_MTR;
+		map->side_tcs = 16;
+
+		map->tilechunks = (Tile_Chunk *)game_arena_push_array(
+			arena, (size_t)map->side_tcs * (size_t)map->side_tcs, sizeof(Tile_Chunk));
+
+		for (uint32_t x = 0; x < map->side_tcs; ++x) {
+			for (uint32_t y = 0; y < map->side_tcs; ++y) {
+				uint32_t *tiles = (uint32_t *)game_arena_push_array(
+					arena,
+					(size_t)map->chunk_side_tls * (size_t)map->chunk_side_tls,
+					sizeof(uint32_t));
+				map->tilechunks[y * map->side_tcs + x].tiles = tiles;
+			}
+		}
 
 		uint32_t tiles_per_width = 17;
 		uint32_t tiles_per_height = 9;
@@ -148,9 +191,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 							screen_x * tiles_per_width + chunk_tile_x;
 						uint32_t tile_y =
 							screen_y * tiles_per_height + chunk_tile_y;
-						game_tilemap_set_tile_value(world->tilemap,
-						                            chunk_tile_x,
-						                            chunk_tile_y, 0);
+						tile_map_set_tile_value(map, game_state->arena,
+						                        tile_x, tile_y, 0);
 					}
 				}
 			}
@@ -158,9 +200,6 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		game_memory->is_initialized = true;
 	}
-
-	float player_height_mts = 1.4F;
-	float player_width_mts = 0.75F * player_height_mts;
 
 	for (size_t controller_idx = 0; controller_idx < GAME_MAX_CONTROLLERS; ++controller_idx) {
 		Game_ControllerInput *controller = game_input_get_controller(input, controller_idx);
@@ -203,29 +242,29 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			float new_player_y = game_state->playerpos.tile_rel_y_mts +
 			                     input->secs_time_delta * mts_per_sec_player_y;
 
-			Game_TilemapPosition new_player_pos = game_state->playerpos;
+			Tile_MapPosition new_player_pos = game_state->playerpos;
 			new_player_pos.tile_rel_x_mts = new_player_x;
 			new_player_pos.tile_rel_y_mts = new_player_y;
 
-			if (!game_tilemap_correct_position(&tilemap, &new_player_pos)) {
+			if (!tile_map_correct_position(map, &new_player_pos)) {
 				continue;
 			}
 
-			Game_TilemapPosition left_bottom_pos = new_player_pos;
+			Tile_MapPosition left_bottom_pos = new_player_pos;
 			left_bottom_pos.tile_rel_x_mts -= player_width_mts * 0.5F;
-			if (!game_tilemap_correct_position(&tilemap, &left_bottom_pos)) {
+			if (!tile_map_correct_position(map, &left_bottom_pos)) {
 				continue;
 			}
 
-			Game_TilemapPosition right_bottom_pos = new_player_pos;
+			Tile_MapPosition right_bottom_pos = new_player_pos;
 			right_bottom_pos.tile_rel_x_mts += player_width_mts * 0.5F;
-			if (!game_tilemap_correct_position(&tilemap, &right_bottom_pos)) {
+			if (!tile_map_correct_position(&map, &right_bottom_pos)) {
 				continue;
 			}
 
-			if (game_tilemap_is_point_empty(&tilemap, new_player_pos) &&
-			    game_tilemap_is_point_empty(&tilemap, left_bottom_pos) &&
-			    game_tilemap_is_point_empty(&tilemap, right_bottom_pos)) {
+			if (tile_map_is_point_empty(&map, new_player_pos) &&
+			    tile_map_is_point_empty(&map, left_bottom_pos) &&
+			    tile_map_is_point_empty(&map, right_bottom_pos)) {
 				game_state->playerpos = new_player_pos;
 			} else {
 				continue;
@@ -245,21 +284,20 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				uint32_t row = (uint32_t)(tile_row_offset +
 				                          (int32_t)game_state->playerpos.tile_y);
 
-				uint32_t tile_type_id =
-					game_tilemap_get_tile_value(&tilemap, col, row);
+				uint32_t tile_type_id = tile_map_get_tile_value(map, col, row);
 				float gray = tile_type_id == 1 ? 1.0F : 0.5F;
 
 				float min_x_pxs =
-					center_x - (float)tilemap.tile_radius_pxs +
-					(float)tile_col_offset * (float)tilemap.tile_side_pxs -
-					game_state->playerpos.tile_rel_x_mts * tilemap.pxs_per_mtr;
+					center_x - (float)map->tile_radius_pxs +
+					(float)tile_col_offset * (float)map->tile_side_pxs -
+					game_state->playerpos.tile_rel_x_mts * map->pxs_per_mtr;
 				float min_y_pxs =
-					center_y - (float)tilemap.tile_side_pxs -
-					(float)tile_row_offset * (float)tilemap.tile_side_pxs +
-					game_state->playerpos.tile_rel_y_mts * tilemap.pxs_per_mtr +
-					(float)tilemap.tile_radius_pxs;
-				float max_x_pxs = min_x_pxs + (float)tilemap.tile_side_pxs;
-				float max_y_pxs = min_y_pxs + (float)tilemap.tile_side_pxs;
+					center_y - (float)map->tile_side_pxs -
+					(float)tile_row_offset * (float)map->tile_side_pxs +
+					game_state->playerpos.tile_rel_y_mts * map->pxs_per_mtr +
+					(float)map->tile_radius_pxs;
+				float max_x_pxs = min_x_pxs + (float)map->tile_side_pxs;
+				float max_y_pxs = min_y_pxs + (float)map->tile_side_pxs;
 
 				if (game_state->playerpos.tile_y == row &&
 				    game_state->playerpos.tile_x == col) {
@@ -274,10 +312,10 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float player_red = 1.0F;
 		float player_green = 1.0F;
 		float player_blue = 0.0F;
-		float player_min_x_pxs = center_x - 0.5F * player_width_mts * tilemap.pxs_per_mtr;
-		float player_min_y_pxs = center_y - player_height_mts * tilemap.pxs_per_mtr;
-		float player_max_x_pxs = player_min_x_pxs + player_width_mts * tilemap.pxs_per_mtr;
-		float player_max_y_pxs = player_min_y_pxs + player_height_mts * tilemap.pxs_per_mtr;
+		float player_min_x_pxs = center_x - 0.5F * player_width_mts * map->pxs_per_mtr;
+		float player_min_y_pxs = center_y - player_height_mts * map->pxs_per_mtr;
+		float player_max_x_pxs = player_min_x_pxs + player_width_mts * map->pxs_per_mtr;
+		float player_max_y_pxs = player_min_y_pxs + player_height_mts * map->pxs_per_mtr;
 		game_bitmap_render_rectangle(bitmap, player_min_x_pxs, player_min_y_pxs,
 		                             player_max_x_pxs, player_max_y_pxs, player_red,
 		                             player_green, player_blue);
