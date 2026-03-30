@@ -11,8 +11,6 @@ static inline bool tile_map_correct_coord(Tile_Map *tilemap, uint32_t *tile, flo
 	// World is toroidal
 	*tile = (unsigned)((int)*tile + tile_offset);
 
-	assert(*tile < tilemap->chunk_side_tls);
-
 	*tile_rel -= (float)(tile_offset)*tilemap->tile_side_mts;
 
 	assert(*tile_rel <= tilemap->tile_radius_mts);
@@ -66,7 +64,7 @@ static inline uint32_t tile_map_get_tile_value(Tile_Map *tilemap, uint32_t tile_
 	return tile_value;
 }
 
-bool tile_map_correct_position(Tile_Map *tilemap, Tile_MapPosition *pos)
+bool tile_map_correct_position(Tile_Map *tilemap, Tile_Position *pos)
 {
 	bool was_success = tile_map_correct_coord(tilemap, &pos->tile_x, &pos->tile_rel_x_mts);
 	if (!was_success) {
@@ -78,7 +76,7 @@ bool tile_map_correct_position(Tile_Map *tilemap, Tile_MapPosition *pos)
 	return was_success;
 }
 
-bool tile_map_is_point_empty(Tile_Map *tilemap, Tile_MapPosition pos)
+bool tile_map_is_point_empty(Tile_Map *tilemap, Tile_Position pos)
 {
 	uint32_t tile_value = tile_map_get_tile_value(tilemap, pos.tile_x, pos.tile_y);
 	bool is_empty = tile_value == 0;
@@ -97,8 +95,8 @@ void tile_map_set_tile_value(Tile_Map *tilemap, Game_Arena *arena, uint32_t tile
 		return;
 	}
 
-	assert(tile_x < tilemap->chunk_side_tls);
-	assert(tile_y < tilemap->chunk_side_tls);
+	assert(cpos.rel_tile_x < tilemap->chunk_side_tls);
+	assert(cpos.rel_tile_y < tilemap->chunk_side_tls);
 
-	tilechunk->tiles[tile_y * tilemap->chunk_side_tls + tile_x] = tile_value;
+	tilechunk->tiles[cpos.rel_tile_y * tilemap->chunk_side_tls + cpos.rel_tile_x] = tile_value;
 }

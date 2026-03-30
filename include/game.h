@@ -142,13 +142,13 @@ typedef struct Game_Arena {
 } Game_Arena;
 
 typedef struct Game_World {
-	Tile_Map *tilemap;
+	Tile_Map *map;
 } Game_World;
 
 typedef struct Game_State {
-	Game_Arena *arena;
+	Game_Arena arena;
 	Game_World *world;
-	Tile_MapPosition playerpos;
+	Tile_Position playerpos;
 } Game_State;
 
 typedef struct Game_Thread {

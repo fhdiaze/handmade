@@ -49,8 +49,7 @@ typedef struct Tile_Map {
 
 } Tile_Map;
 
-// TODO(Fredy.Diaz): rename this as Tilemap Position
-typedef struct Tile_MapPosition {
+typedef struct Tile_Position {
 	uint32_t tile_x;
 	uint32_t tile_y;
 
@@ -64,6 +63,6 @@ typedef struct Tile_MapPosition {
 	 *
 	 */
 	float tile_rel_y_mts;
-} Tile_MapPosition;
+} Tile_Position;
 
 #endif // TILE_H
