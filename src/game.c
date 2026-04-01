@@ -142,7 +142,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	Tile_Map *map = nullptr;
 
 	if (!game_memory->is_initialized) {
-		game_state->playerpos.tile_x = 3;
+		game_state->playerpos.tile_x = 1;
 		game_state->playerpos.tile_y = 3;
 		game_state->playerpos.tile_rel_x_mts = 0.0F;
 		game_state->playerpos.tile_rel_y_mts = 0.0F;
@@ -159,21 +159,22 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		map = world->map;
 		arena = &game_state->arena;
 
-		map->chunk_shift_bits = 8;
-		map->chunk_mask = 0xFF;
-		map->chunk_side_tls = 256;
 		map->tile_radius_pxs = TILE_RADIUS_PXS;
 		map->tile_radius_mts = TILE_RADIUS_MTS;
 		map->tile_side_pxs = TILE_SIDE_PXS;
 		map->tile_side_mts = TILE_SIDE_MTS;
 		map->pxs_per_mtr = PXS_PER_MTR;
-		map->side_tcs = 4;
 
+		map->chunk_shift_bits = 4;
+		map->chunk_mask = (1UL << map->chunk_shift_bits) - 1;
+		map->chunk_side_tls = (uint16_t)(1UL << map->chunk_shift_bits);
+
+		map->side_tcs = 128;
 		map->tilechunks = (Tile_Chunk *)game_arena_push_array(
 			arena, (size_t)map->side_tcs * (size_t)map->side_tcs, sizeof(Tile_Chunk));
 
-		for (uint32_t x = 0; x < map->side_tcs; ++x) {
-			for (uint32_t y = 0; y < map->side_tcs; ++y) {
+		for (uint32_t y = 0; y < map->side_tcs; ++y) {
+			for (uint32_t x = 0; x < map->side_tcs; ++x) {
 				uint32_t *tiles = (uint32_t *)game_arena_push_array(
 					arena,
 					(size_t)map->chunk_side_tls * (size_t)map->chunk_side_tls,
@@ -185,7 +186,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		uint32_t tiles_per_width = 17;
 		uint32_t tiles_per_height = 9;
 		for (uint32_t screen_y = 0; screen_y < 32; ++screen_y) {
-			for (uint32_t screen_x = 0; screen_x < 17; ++screen_x) {
+			for (uint32_t screen_x = 0; screen_x < 32; ++screen_x) {
 				for (uint32_t chunk_tile_y = 0; chunk_tile_y < tiles_per_height;
 				     ++chunk_tile_y) {
 					for (uint32_t chunk_tile_x = 0;
@@ -194,8 +195,12 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 							screen_x * tiles_per_width + chunk_tile_x;
 						uint32_t tile_y =
 							screen_y * tiles_per_height + chunk_tile_y;
-						tile_map_set_tile_value(map, &game_state->arena,
-						                        tile_x, tile_y, 0);
+						tile_map_set_tile_value(
+							map, &game_state->arena, tile_x, tile_y,
+							(chunk_tile_x == chunk_tile_y &&
+						         chunk_tile_y % 2) ?
+								1 :
+								0);
 					}
 				}
 			}
