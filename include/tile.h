@@ -5,18 +5,18 @@
 #include <stdint.h>
 
 typedef struct Tile_ChunkPosition {
-	uint32_t left_lower_tile_x;
-	uint32_t left_lower_tile_y;
+	uint32_t chunk_x;
+	uint32_t chunk_y;
 
 	/**
-	 * @brief X tile relative to the lower left tile of a chunk
+	 * @brief X tile relative to the chunk
 	 */
-	uint32_t rel_tile_x;
+	uint32_t tile_x;
 
 	/**
-	 * @brief Y tile relative to the lower left tile of a chunk
+	 * @brief Y tile relative to the chunk
 	 */
-	uint32_t rel_tile_y;
+	uint32_t tile_y;
 } Tile_ChunkPosition;
 
 typedef struct Tile_Chunk {
@@ -64,5 +64,11 @@ typedef struct Tile_Position {
 	 */
 	float tile_rel_y_mts;
 } Tile_Position;
+
+typedef enum Tile_Type : uint32_t {
+	TILE_TYPE_EMPTY = 0,
+	TILE_TYPE_WALKABLE = 1,
+	TILE_TYPE_WALL = 2,
+} Tile_Type;
 
 #endif // TILE_H

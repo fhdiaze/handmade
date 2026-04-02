@@ -185,24 +185,44 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		uint32_t tiles_per_width = 17;
 		uint32_t tiles_per_height = 9;
-		for (uint32_t screen_y = 0; screen_y < 32; ++screen_y) {
-			for (uint32_t screen_x = 0; screen_x < 32; ++screen_x) {
-				for (uint32_t chunk_tile_y = 0; chunk_tile_y < tiles_per_height;
-				     ++chunk_tile_y) {
-					for (uint32_t chunk_tile_x = 0;
-					     chunk_tile_x < tiles_per_width; ++chunk_tile_x) {
-						uint32_t tile_x =
-							screen_x * tiles_per_width + chunk_tile_x;
-						uint32_t tile_y =
-							screen_y * tiles_per_height + chunk_tile_y;
-						tile_map_set_tile_value(
-							map, &game_state->arena, tile_x, tile_y,
-							(chunk_tile_x == chunk_tile_y &&
-						         chunk_tile_y % 2) ?
-								1 :
-								0);
+		uint32_t screen_x = 0;
+		uint32_t screen_y = 0;
+		uint32_t random_choice = 0;
+		static uint32_t random_nums[] = { 1 };
+		uint32_t random_num_idx = 0;
+		for (uint32_t screen_idx = 0; screen_idx < 100; ++screen_idx) {
+			for (uint32_t chunk_tile_y = 0; chunk_tile_y < tiles_per_height;
+			     ++chunk_tile_y) {
+				for (uint32_t chunk_tile_x = 0; chunk_tile_x < tiles_per_width;
+				     ++chunk_tile_x) {
+					uint32_t tile_x = screen_x * tiles_per_width + chunk_tile_x;
+					uint32_t tile_y =
+						screen_y * tiles_per_height + chunk_tile_y;
+
+					uint32_t tile_value = TILE_TYPE_WALKABLE;
+					if (chunk_tile_x == 0 ||
+					    chunk_tile_x == tiles_per_width - 1) {
+						if (chunk_tile_y != tiles_per_height / 2) {
+							tile_value = TILE_TYPE_WALL;
+						}
 					}
+					if (chunk_tile_y == 0 ||
+					    chunk_tile_y == tiles_per_height - 1) {
+						if (chunk_tile_x != tiles_per_width / 2) {
+							tile_value = TILE_TYPE_WALL;
+						}
+					}
+
+					tile_map_set_tile_value(map, &game_state->arena, tile_x,
+					                        tile_y, tile_value);
 				}
+			}
+
+			random_choice = random_nums[random_num_idx] % 2;
+			if (random_choice == 0) {
+				++screen_x;
+			} else {
+				++screen_y;
 			}
 		}
 
@@ -272,9 +292,9 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				continue;
 			}
 
-			if (tile_map_is_point_empty(map, new_player_pos) &&
-			    tile_map_is_point_empty(map, left_bottom_pos) &&
-			    tile_map_is_point_empty(map, right_bottom_pos)) {
+			if (tile_map_is_point_walkable(map, new_player_pos) &&
+			    tile_map_is_point_walkable(map, left_bottom_pos) &&
+			    tile_map_is_point_walkable(map, right_bottom_pos)) {
 				game_state->playerpos = new_player_pos;
 			} else {
 				continue;
@@ -295,27 +315,32 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				                          (int32_t)game_state->playerpos.tile_y);
 
 				uint32_t tile_type_id = tile_map_get_tile_value(map, col, row);
-				float gray = tile_type_id == 1 ? 1.0F : 0.5F;
 
-				float min_x_pxs =
-					center_x - (float)map->tile_radius_pxs +
-					(float)tile_col_offset * (float)map->tile_side_pxs -
-					game_state->playerpos.tile_rel_x_mts * map->pxs_per_mtr;
-				float min_y_pxs =
-					center_y - (float)map->tile_side_pxs -
-					(float)tile_row_offset * (float)map->tile_side_pxs +
-					game_state->playerpos.tile_rel_y_mts * map->pxs_per_mtr +
-					(float)map->tile_radius_pxs;
-				float max_x_pxs = min_x_pxs + (float)map->tile_side_pxs;
-				float max_y_pxs = min_y_pxs + (float)map->tile_side_pxs;
+				if (tile_type_id > TILE_TYPE_EMPTY) {
+					float gray = tile_type_id == TILE_TYPE_WALL ? 1.0F : 0.5F;
 
-				if (game_state->playerpos.tile_y == row &&
-				    game_state->playerpos.tile_x == col) {
-					gray = 0.0F;
+					float min_x_pxs =
+						center_x - (float)map->tile_radius_pxs +
+						(float)tile_col_offset * (float)map->tile_side_pxs -
+						game_state->playerpos.tile_rel_x_mts *
+							map->pxs_per_mtr;
+					float min_y_pxs =
+						center_y - (float)map->tile_side_pxs -
+						(float)tile_row_offset * (float)map->tile_side_pxs +
+						game_state->playerpos.tile_rel_y_mts *
+							map->pxs_per_mtr +
+						(float)map->tile_radius_pxs;
+					float max_x_pxs = min_x_pxs + (float)map->tile_side_pxs;
+					float max_y_pxs = min_y_pxs + (float)map->tile_side_pxs;
+
+					if (game_state->playerpos.tile_y == row &&
+					    game_state->playerpos.tile_x == col) {
+						gray = 0.0F;
+					}
+					game_bitmap_render_rectangle(bitmap, min_x_pxs, min_y_pxs,
+					                             max_x_pxs, max_y_pxs, gray,
+					                             gray, gray);
 				}
-				game_bitmap_render_rectangle(bitmap, min_x_pxs, min_y_pxs,
-				                             max_x_pxs, max_y_pxs, gray, gray,
-				                             gray);
 			}
 		}
 
