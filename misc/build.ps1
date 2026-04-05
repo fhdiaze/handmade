@@ -18,6 +18,7 @@ param(
 $PlatformFile = ".\src\win_handmade.c"
 $GameFile = ".\src\game.c"
 $Outdir = ".\bin"
+$Datadir = ".\data"
 $PlatformFileName = [System.IO.Path]::GetFileNameWithoutExtension($PlatformFile)
 $GameFileName = [System.IO.Path]::GetFileNameWithoutExtension($GameFile)
 $OutPlatform = Join-Path $Outdir "$PlatformFileName.exe"
@@ -31,6 +32,10 @@ if ($LiveBuild) {
     Remove-Item $Outdir/*.pdb -ErrorAction SilentlyContinue
 } else {
     Remove-Item -Path $Outdir -Recurse -Force -ErrorAction SilentlyContinue
+}
+
+if (!(Test-Path $Datadir)) {
+    New-Item -ItemType Directory -Path $Datadir | Out-Null
 }
 
 if (!(Test-Path $Outdir)) {

@@ -80,7 +80,7 @@ typedef struct Game_SoundBuffer {
 typedef struct Game_ButtonState {
 	// half transistion count per frame
 	unsigned half_transition_count;
-	bool ended_down;
+	uint8_t ended_down;
 } Game_ButtonState;
 
 typedef struct Game_ControllerInput {
@@ -109,8 +109,8 @@ typedef struct Game_ControllerInput {
 	};
 
 	// TODO(fredy): bools in structs are suspicious
-	bool is_analog;
-	bool is_connected;
+	uint8_t is_analog;
+	uint8_t is_connected;
 } Game_ControllerInput;
 
 typedef struct Game_Input {
@@ -161,6 +161,7 @@ static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
                                                               size_t controller_index)
 {
 	assert(controller_index < GAME_MAX_CONTROLLERS);
+
 	return &input->controllers[controller_index];
 }
 
@@ -181,7 +182,7 @@ typedef PLAT_DEBUG_READFILE(plat_debug_readfile_func);
 typedef PLAT_DEBUG_FREEFILE(plat_debug_freefile_func);
 
 #define PLAT_DEBUG_WRITEFILE(name) \
-	bool name(Game_Thread *thread, const char *const filename, size_t memorysize, void *memory)
+	uint8_t name(Game_Thread *thread, const char *const filename, size_t memorysize, void *memory)
 typedef PLAT_DEBUG_WRITEFILE(plat_debug_writefile_func);
 
 #endif // DEBUG
@@ -199,8 +200,14 @@ typedef struct Game_Memory {
 	plat_debug_readfile_func *plat_debug_read_file;
 	plat_debug_writefile_func *plat_debug_write_file;
 
-	bool is_initialized;
+	uint8_t is_initialized;
 } Game_Memory;
+
+void game_arena_init(Game_Arena *arena, size_t size, uint8_t *base);
+
+void *game_arena_push_size(Game_Arena *arena, size_t size);
+
+void *game_arena_push_array(Game_Arena *arena, size_t count, size_t size);
 
 /**
  * @brief Updates the game status and renders it

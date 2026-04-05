@@ -15,8 +15,8 @@
 #include "win_handmade.h"
 
 // globals
-static bool is_global_running = false;
-static bool is_global_pause = false;
+static uint8_t is_global_running = 0U;
+static uint8_t is_global_pause = 0U;
 static Win_Bitmap global_bitmap;
 static LPDIRECTSOUNDBUFFER secbuffer;
 static int64_t global_perf_count_frequency;
@@ -122,7 +122,7 @@ error_cleanup:
 
 PLAT_DEBUG_WRITEFILE(plat_debug_writefile)
 {
-	bool result = false;
+	uint8_t result = 0U;
 	HANDLE handle = CreateFileA(filename, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
 	if (handle == INVALID_HANDLE_VALUE) {
 		return result;
@@ -142,16 +142,16 @@ error_cleanup:
 		CloseHandle(handle);
 	}
 
-	return false;
+	return 0U;
 }
 
-static bool win_file_get_exe_path(Win_State *winstate)
+static uint8_t win_file_get_exe_path(Win_State *winstate)
 {
 	unsigned long exe_path_length =
 		GetModuleFileNameA(nullptr, winstate->exe_path, WIN_STATE_MAX_FILE_PATH);
 	if (exe_path_length == 0 || exe_path_length == WIN_STATE_MAX_FILE_PATH) {
 		TIX_LOGE("unable to get the executable path");
-		return false;
+		return 0U;
 	}
 
 	winstate->exe_path_last_slash = winstate->exe_path + exe_path_length - 1;
@@ -162,7 +162,7 @@ static bool win_file_get_exe_path(Win_State *winstate)
 		}
 	}
 
-	return true;
+	return 1U;
 }
 
 static void win_file_build_path(Win_State *winstate, const char *const filename,
@@ -182,31 +182,31 @@ static void win_file_build_input_path(Win_State *winstate, unsigned slot_index, 
 	win_file_build_path(winstate, filename, dest_count, dest);
 }
 
-static inline bool win_file_get_last_write_time(const char *const filename, FILETIME *result)
+static inline uint8_t win_file_get_last_write_time(const char *const filename, FILETIME *result)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
 	if (!GetFileAttributesExA(filename, GetFileExInfoStandard, &data)) {
 		TIX_LOGE("unable to check the timestamp of the dll");
-		return false;
+		return 0U;
 	}
 
 	*result = data.ftLastWriteTime;
 
-	return true;
+	return 1U;
 }
 
-static bool win_code_load_game(const char *const gamedll_path, const char *const tmpdll_path,
-                               Win_GameCode *game_code)
+static uint8_t win_code_load_game(const char *const gamedll_path, const char *const tmpdll_path,
+                                  Win_GameCode *game_code)
 {
 	FILETIME dll_last_write_time = {};
 	if (!win_file_get_last_write_time(gamedll_path, &dll_last_write_time)) {
-		return false;
+		return 0U;
 	}
 
-	if (!CopyFileA(gamedll_path, tmpdll_path, false)) {
+	if (!CopyFileA(gamedll_path, tmpdll_path, 0U)) {
 		DWORD error = GetLastError();
 		TIX_LOGE("unable to copy the dll: '%s', error: %lu", gamedll_path, error);
-		return false;
+		return 0U;
 	}
 
 	game_code->game_dll = LoadLibraryA(tmpdll_path);
@@ -230,20 +230,20 @@ static bool win_code_load_game(const char *const gamedll_path, const char *const
 	return game_code->is_valid;
 }
 
-static bool win_code_unload_game(Win_GameCode *game_code)
+static uint8_t win_code_unload_game(Win_GameCode *game_code)
 {
 	if (game_code->game_dll) {
 		if (!FreeLibrary(game_code->game_dll)) {
-			return false;
+			return 0U;
 		}
 		game_code->game_dll = nullptr;
 	}
 
-	game_code->is_valid = false;
+	game_code->is_valid = 0U;
 	game_code->sound_create_samples = nullptr;
 	game_code->update_and_render = nullptr;
 
-	return true;
+	return 1U;
 }
 
 static void win_xinput_load(void)
@@ -431,7 +431,7 @@ static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock
 	}
 }
 
-static void win_keyboard_process_message(Game_ButtonState *newstate, bool is_down)
+static void win_keyboard_process_message(Game_ButtonState *newstate, uint8_t is_down)
 {
 	if (newstate->ended_down != is_down) {
 		newstate->ended_down = is_down;
@@ -554,7 +554,7 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
 		switch (msg.message) {
 		case WM_QUIT: {
-			is_global_running = false;
+			is_global_running = 0U;
 		} break;
 		case WM_SYSKEYDOWN:
 		case WM_SYSKEYUP:
@@ -562,8 +562,8 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 		case WM_KEYUP: {
 			size_t vk_code = (size_t)msg.wParam;
 			size_t key_stroke_info = (size_t)msg.lParam;
-			bool was_down = (key_stroke_info & (1UL << 30UL)) != 0;
-			bool is_down = (key_stroke_info & (1UL << 31UL)) == 0;
+			uint8_t was_down = (key_stroke_info & (1UL << 30UL)) != 0;
+			uint8_t is_down = (key_stroke_info & (1UL << 31UL)) == 0;
 
 			if (was_down != is_down) {
 				if (vk_code == 'K') {
@@ -625,9 +625,9 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 					}
 #endif
 				}
-				bool was_alt_key_down = (key_stroke_info & (1UL << 29UL)) != 0;
+				uint8_t was_alt_key_down = (key_stroke_info & (1UL << 29UL)) != 0;
 				if ((vk_code == VK_F4) && was_alt_key_down) {
-					is_global_running = false;
+					is_global_running = 0U;
 				}
 			}
 			break;
@@ -703,13 +703,13 @@ static LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unu
 
 	switch (msg) {
 	case WM_CLOSE: {
-		is_global_running = false;
+		is_global_running = 0U;
 	} break;
 	case WM_ACTIVATEAPP: {
 		OutputDebugStringA("WM_ACTIVATEAPP\n");
 	} break;
 	case WM_DESTROY: {
-		is_global_running = false;
+		is_global_running = 0U;
 	} break;
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
@@ -900,7 +900,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	// sets the scheduler granularity to 1ms, so that our Sleep() can be more granular
 	unsigned desire_scheduler_ms = 1;
-	bool is_granular_sleep = timeBeginPeriod(desire_scheduler_ms) == TIMERR_NOERROR;
+	uint8_t is_granular_sleep = timeBeginPeriod(desire_scheduler_ms) == TIMERR_NOERROR;
 
 	win_xinput_load();
 
@@ -956,7 +956,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		return EXIT_FAILURE;
 	}
 
-	is_global_running = true;
+	is_global_running = 1U;
 
 #if 0
 	{
@@ -1043,7 +1043,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	// size_t sound_latency_bytes = 0;
 	// float sound_latency_secs = 0.0F;
-	bool is_sound_valid = false;
+	uint8_t is_sound_valid = 0U;
 
 	Win_GameCode game_code = {};
 	FILETIME gamedll_last_write_time = {};
@@ -1080,7 +1080,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			game_input_get_controller(new_input, 0);
 		Game_ControllerInput zero_controller = {};
 		*new_keyboard_controller = zero_controller;
-		new_keyboard_controller->is_connected = true;
+		new_keyboard_controller->is_connected = 1U;
 
 		for (size_t i = 0; i < GAME_MAX_CONTROLLER_BUTTONS; ++i) {
 			new_keyboard_controller->buttons[i].ended_down =
@@ -1123,12 +1123,12 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				game_input_get_controller(new_input, our_controller_index);
 			XINPUT_STATE state;
 			if (XInputGetState(i, &state) != ERROR_SUCCESS) {
-				new_controller->is_connected = false;
+				new_controller->is_connected = 0U;
 				continue;
 			}
 
 			// Plugged in
-			new_controller->is_connected = true;
+			new_controller->is_connected = 1U;
 			new_controller->is_analog = old_controller->is_analog;
 
 			XINPUT_GAMEPAD *pad = &state.Gamepad;
@@ -1138,32 +1138,32 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			new_controller->stick_avg_y = win_xinput_process_stick_value(
 				pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
 
-			if (new_controller->stick_avg_x != 0.0f ||
-			    new_controller->stick_avg_y != 0.0f) {
-				new_controller->is_analog = true;
+			if (new_controller->stick_avg_x != 0.0F ||
+			    new_controller->stick_avg_y != 0.0F) {
+				new_controller->is_analog = 1U;
 			}
 
 			if (pad->wButtons & XINPUT_GAMEPAD_DPAD_UP) {
-				new_controller->stick_avg_y = 1.0f;
-				new_controller->is_analog = false;
+				new_controller->stick_avg_y = 1.0F;
+				new_controller->is_analog = 0U;
 			}
 
 			if (pad->wButtons & XINPUT_GAMEPAD_DPAD_DOWN) {
-				new_controller->stick_avg_y = -1.0f;
-				new_controller->is_analog = false;
+				new_controller->stick_avg_y = -1.0F;
+				new_controller->is_analog = 0U;
 			}
 
 			if (pad->wButtons & XINPUT_GAMEPAD_DPAD_LEFT) {
-				new_controller->stick_avg_x = -1.0f;
-				new_controller->is_analog = false;
+				new_controller->stick_avg_x = -1.0F;
+				new_controller->is_analog = 0U;
 			}
 
 			if (pad->wButtons & XINPUT_GAMEPAD_DPAD_RIGHT) {
-				new_controller->stick_avg_x = 1.0f;
-				new_controller->is_analog = false;
+				new_controller->stick_avg_x = 1.0F;
+				new_controller->is_analog = 0U;
 			}
 
-			float threshold = 0.5f;
+			float threshold = 0.5F;
 			win_xinput_process_button(new_controller->stick_avg_x < -threshold ? 1 : 0,
 			                          &old_controller->moveleft, 1,
 			                          &new_controller->moveleft);
@@ -1229,7 +1229,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			if (!is_sound_valid) {
 				winsound.running_sample_index =
 					write_cursor / winsound.bytes_per_sample;
-				is_sound_valid = true;
+				is_sound_valid = 1U;
 			}
 
 			// NOTE(fredy): Compute how much sound to write and where
@@ -1290,7 +1290,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			                      &game_soundbuff);
 
 		} else {
-			is_sound_valid = false;
+			is_sound_valid = 0U;
 		}
 
 		LARGE_INTEGER work_counter = win_clock_get_wall();

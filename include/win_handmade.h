@@ -63,7 +63,7 @@ typedef struct Win_GameCode {
 
 	FILETIME dll_write_time;
 
-	bool is_valid;
+	uint8_t is_valid;
 } Win_GameCode;
 
 typedef struct Win_ReplaySlot {
