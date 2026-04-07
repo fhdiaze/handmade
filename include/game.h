@@ -174,17 +174,17 @@ typedef struct Plat_ReadFileResult {
 	void *memory;
 } Plat_ReadFileResult;
 
-#define PLAT_DEBUG_READFILE(name) \
+#define PLAT_FILE_READ_DEBUG(name) \
 	Plat_ReadFileResult name(Game_Thread *thread, const char *const filename)
-typedef PLAT_DEBUG_READFILE(plat_debug_readfile_func);
+typedef PLAT_FILE_READ_DEBUG(plat_file_read_debug_func);
 
-#define PLAT_DEBUG_FREEFILE(name) void name(Game_Thread *thread, void *memory)
-typedef PLAT_DEBUG_FREEFILE(plat_debug_freefile_func);
+#define PLAT_FILE_FREE_DEBUG(name) void name(Game_Thread *thread, void *memory)
+typedef PLAT_FILE_FREE_DEBUG(plat_file_free_debug_func);
 
-#define PLAT_DEBUG_WRITEFILE(name)                                                       \
+#define PLAT_FILE_WRITE_DEBUG(name)                                                      \
 	uint8_t name(Game_Thread *thread, const char *const filename, size_t memorysize, \
 	             void *memory)
-typedef PLAT_DEBUG_WRITEFILE(plat_debug_writefile_func);
+typedef PLAT_FILE_WRITE_DEBUG(plat_file_write_debug_func);
 
 #endif // DEBUG
 
@@ -197,9 +197,9 @@ typedef struct Game_Memory {
 	size_t transmem_size; // transient storage in bytes
 	void *transmem; // This should be zero initialized
 
-	plat_debug_freefile_func *plat_debug_free_file;
-	plat_debug_readfile_func *plat_debug_read_file;
-	plat_debug_writefile_func *plat_debug_write_file;
+	plat_file_free_debug_func *plat_file_free_debug;
+	plat_file_read_debug_func *plat_file_read_debug;
+	plat_file_write_debug_func *plat_file_write_debug;
 
 	uint8_t is_initialized;
 } Game_Memory;

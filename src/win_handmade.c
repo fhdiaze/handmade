@@ -68,14 +68,14 @@ static void tix_string_concat(const size_t one_count, const char *const restrict
 
 // services
 
-PLAT_DEBUG_FREEFILE(plat_debug_freefile)
+PLAT_FILE_FREE_DEBUG(plat_file_free_debug)
 {
 	if (memory) {
 		VirtualFree(memory, 0, MEM_RELEASE);
 	}
 }
 
-PLAT_DEBUG_READFILE(plat_debug_readfile)
+PLAT_FILE_READ_DEBUG(plat_file_read_debug)
 {
 	Plat_ReadFileResult result = {};
 	HANDLE handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING,
@@ -112,7 +112,7 @@ error_cleanup:
 		CloseHandle(handle);
 	}
 
-	plat_debug_freefile(thread, result.memory);
+	plat_file_free_debug(thread, result.memory);
 
 	result.memory = nullptr;
 	result.size = 0;
@@ -120,7 +120,7 @@ error_cleanup:
 	return result;
 }
 
-PLAT_DEBUG_WRITEFILE(plat_debug_writefile)
+PLAT_FILE_WRITE_DEBUG(plat_file_write_debug)
 {
 	uint8_t result = 0U;
 	HANDLE handle = CreateFileA(filename, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
@@ -987,9 +987,9 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	Game_Memory game_memory = {
-		.plat_debug_free_file = plat_debug_freefile,
-		.plat_debug_read_file = plat_debug_readfile,
-		.plat_debug_write_file = plat_debug_writefile,
+		.plat_file_free_debug = plat_file_free_debug,
+		.plat_file_read_debug = plat_file_read_debug,
+		.plat_file_write_debug = plat_file_write_debug,
 	};
 	game_memory.permamem_size = MB_TO_BYTES(64ULL);
 	game_memory.transmem_size = GB_TO_BYTES(1ULL);

@@ -69,12 +69,12 @@ inline uint32_t tile_map_get_tile_value(Tile_Map *map, uint32_t tile_x, uint32_t
 
 uint8_t tile_map_correct_position(Tile_Position *pos)
 {
-	uint8_t was_success = tile_map_correct_coord(&pos->tile_x, &pos->tile_rel_x_mts);
+	uint8_t was_success = tile_map_correct_coord(&pos->tile_x, &pos->offset_x_mts);
 	if (!was_success) {
 		return was_success;
 	}
 
-	was_success = tile_map_correct_coord(&pos->tile_y, &pos->tile_rel_y_mts);
+	was_success = tile_map_correct_coord(&pos->tile_y, &pos->offset_y_mts);
 
 	return was_success;
 }

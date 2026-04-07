@@ -62,13 +62,13 @@ typedef struct Tile_Position {
 	/**
 	 * @brief X relative to the center of the tile
 	 */
-	float tile_rel_x_mts;
+	float offset_x_mts;
 
 	/**
 	 * @brief Y relative to the center of the tile
 	 *
 	 */
-	float tile_rel_y_mts;
+	float offset_y_mts;
 } Tile_Position;
 
 typedef enum Tile_Type : uint32_t {
