@@ -1,4 +1,3 @@
-// clang-format Language: C
 #ifndef TILE_H
 #define TILE_H
 
@@ -9,11 +8,11 @@
 
 #define TILE_SIDE_PXS (TILE_RADIUS_PXS * 2UL)
 #define TILE_SIDE_MTS (TILE_RADIUS_MTS * 2.0F)
-#define PXS_PER_MTR (float)TILE_RADIUS_PXS / TILE_RADIUS_MTS
+#define PXS_PER_MTR ((float)TILE_RADIUS_PXS / TILE_RADIUS_MTS)
 
 #define CHUNK_SHIFT_BITS 4UL
 #define CHUNK_SIDE_TLS (1UL << CHUNK_SHIFT_BITS)
-#define CHUNK_MASK CHUNK_SIDE_TLS - 1
+#define CHUNK_MASK (CHUNK_SIDE_TLS - 1)
 #define CHUNK_TILES_COUNT (CHUNK_SIDE_TLS * CHUNK_SIDE_TLS)
 
 /**
@@ -24,6 +23,12 @@
 #define MAP_CHUNKS_COUNT_Z 2
 #define MAP_CHUNKS_COUNT_XY (MAP_CHUNKS_COUNT_Y * MAP_CHUNKS_COUNT_X)
 #define MAP_CHUNKS_COUNT (MAP_CHUNKS_COUNT_XY * MAP_CHUNKS_COUNT_Z)
+
+#define TILE_MAP_GET_TILE_VALUE_BY_POS(map, pos) \
+	tile_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
+
+#define TILE_MAP_ARE_SAME_TILE(one, other) \
+	(one.tile_x == other.tile_x && one.tile_y == other.tile_y && one.tile_z == other.tile_z)
 
 typedef struct Tile_ChunkPosition {
 	uint32_t chunk_x;
@@ -67,9 +72,9 @@ typedef struct Tile_Position {
 } Tile_Position;
 
 typedef enum Tile_Type : uint32_t {
-	TILE_TYPE_EMPTY = 0,
-	TILE_TYPE_WALKABLE = 1,
-	TILE_TYPE_WALL = 2,
+	TILE_TYPE_NONE = 0,
+	TILE_TYPE_WALL = 1,
+	TILE_TYPE_EMPTY = 2,
 	TILE_TYPE_STAIRS_UP = 3,
 	TILE_TYPE_STAIRS_DOWN = 4,
 } Tile_Type;

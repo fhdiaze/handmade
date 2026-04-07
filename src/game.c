@@ -763,7 +763,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			options = random_choice == 2 ? 2 : 3;
 			random_choice = random_nums[random_num_idx] % options;
 
-			is_stairs_up = random_choice == 2 && !tile_z;
+			is_stairs_up = random_choice == 2 ? !tile_z : is_stairs_up;
+			is_stairs_down = random_choice == 2 ? !!tile_z : is_stairs_down;
 			is_right_door = random_choice == 1;
 			is_top_door = random_choice == 0;
 
@@ -775,19 +776,22 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 					uint32_t tile_y =
 						screen_y * tiles_per_height + chunk_tile_y;
 
-					uint32_t tile_value = TILE_TYPE_WALKABLE;
+					uint32_t tile_value = TILE_TYPE_EMPTY;
 					if (chunk_tile_x == 0 &&
-					    (chunk_tile_y != tiles_per_height / 2 || !is_left_door)) {
+					    (chunk_tile_y != tiles_per_height / 2 ||
+					     !is_left_door)) {
 						tile_value = TILE_TYPE_WALL;
 					}
 
 					if (chunk_tile_x == tiles_per_width - 1 &&
-					    (chunk_tile_y != tiles_per_height / 2 || !is_right_door)) {
+					    (chunk_tile_y != tiles_per_height / 2 ||
+					     !is_right_door)) {
 						tile_value = TILE_TYPE_WALL;
 					}
 
 					if (chunk_tile_y == 0 &&
-					    (chunk_tile_x != tiles_per_width / 2 || !is_bottom_door)) {
+					    (chunk_tile_x != tiles_per_width / 2 ||
+					     !is_bottom_door)) {
 						tile_value = TILE_TYPE_WALL;
 					}
 
@@ -796,7 +800,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 						tile_value = TILE_TYPE_WALL;
 					}
 
-					if (chunk_tile_x == 10 && chunk_tile_y == 6 && is_stairs_up) {
+					if (chunk_tile_x == 10 && chunk_tile_y == 6 &&
+					    is_stairs_up) {
 						tile_value = TILE_TYPE_STAIRS_UP;
 					}
 
@@ -822,11 +827,17 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 			is_left_door = is_right_door;
 			is_bottom_door = is_top_door;
-			is_stairs_down = is_stairs_up;
+
+			if (random_choice == 2) {
+				is_stairs_down = !is_stairs_down;
+				is_stairs_up = !is_stairs_up;
+			} else {
+				is_stairs_down = 0U;
+				is_stairs_up = 0U;
+			}
 
 			is_right_door = 0U;
 			is_top_door = 0U;
-			is_stairs_up = 0U;
 		}
 
 		game_memory->is_initialized = 1U;
@@ -898,6 +909,17 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			if (tile_map_is_point_walkable(map, new_player_pos) &&
 			    tile_map_is_point_walkable(map, left_bottom_pos) &&
 			    tile_map_is_point_walkable(map, right_bottom_pos)) {
+				if (!TILE_MAP_ARE_SAME_TILE(new_player_pos,
+				                            game_state->playerpos)) {
+					uint32_t tile_value =
+						TILE_MAP_GET_TILE_VALUE_BY_POS(map, new_player_pos);
+					if (tile_value == TILE_TYPE_STAIRS_UP) {
+						++new_player_pos.tile_z;
+					} else if (tile_value == TILE_TYPE_STAIRS_DOWN) {
+						--new_player_pos.tile_z;
+					}
+				}
+
 				game_state->playerpos = new_player_pos;
 			} else {
 				continue;
@@ -921,11 +943,11 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				uint32_t tile_type_id =
 					tile_map_get_tile_value(map, col, row, level);
 
-				if (tile_type_id > TILE_TYPE_EMPTY) {
+				if (tile_type_id > TILE_TYPE_NONE) {
 					float gray = 0.0F; // Walkable
 
 					switch (tile_type_id) {
-					case TILE_TYPE_WALKABLE: {
+					case TILE_TYPE_EMPTY: {
 						gray = 0.5F;
 					} break;
 					case TILE_TYPE_WALL: {

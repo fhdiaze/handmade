@@ -47,8 +47,8 @@ static Tile_Chunk *tile_map_get_chunk(Tile_Map *map, uint32_t chunk_x, uint32_t 
 	return result;
 }
 
-static inline uint32_t tile_map_get_tile_value(Tile_Map *map, uint32_t tile_x, uint32_t tile_y,
-                                               uint32_t tile_z)
+inline uint32_t tile_map_get_tile_value(Tile_Map *map, uint32_t tile_x, uint32_t tile_y,
+                                        uint32_t tile_z)
 {
 	uint32_t tile_value = 0;
 
@@ -82,7 +82,8 @@ uint8_t tile_map_correct_position(Tile_Position *pos)
 uint8_t tile_map_is_point_walkable(Tile_Map *map, Tile_Position pos)
 {
 	uint32_t tile_value = tile_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
-	uint8_t is_walkable = tile_value == TILE_TYPE_WALKABLE;
+	uint8_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
+	                      tile_value == TILE_TYPE_STAIRS_DOWN;
 
 	return is_walkable;
 }
@@ -99,7 +100,7 @@ void tile_map_set_tile_value(Tile_Map *map, Game_Arena *arena, uint32_t tile_x, 
 		tilechunk->tiles =
 			game_arena_push_array(arena, (size_t)CHUNK_TILES_COUNT, sizeof(uint32_t));
 		for (uint32_t tile_idx = 0; tile_idx < CHUNK_TILES_COUNT; ++tile_idx) {
-			tilechunk->tiles[tile_idx] = TILE_TYPE_WALKABLE;
+			tilechunk->tiles[tile_idx] = TILE_TYPE_EMPTY;
 		}
 	}
 

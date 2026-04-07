@@ -181,8 +181,9 @@ typedef PLAT_DEBUG_READFILE(plat_debug_readfile_func);
 #define PLAT_DEBUG_FREEFILE(name) void name(Game_Thread *thread, void *memory)
 typedef PLAT_DEBUG_FREEFILE(plat_debug_freefile_func);
 
-#define PLAT_DEBUG_WRITEFILE(name) \
-	uint8_t name(Game_Thread *thread, const char *const filename, size_t memorysize, void *memory)
+#define PLAT_DEBUG_WRITEFILE(name)                                                       \
+	uint8_t name(Game_Thread *thread, const char *const filename, size_t memorysize, \
+	             void *memory)
 typedef PLAT_DEBUG_WRITEFILE(plat_debug_writefile_func);
 
 #endif // DEBUG
