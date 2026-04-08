@@ -175,15 +175,15 @@ typedef struct Plat_ReadFileResult {
 } Plat_ReadFileResult;
 
 #define PLAT_FILE_READ_DEBUG(name) \
-	Plat_ReadFileResult name(Game_Thread *thread, const char *const filename)
+	Plat_ReadFileResult name(const char *const filename, Game_Thread *thread)
 typedef PLAT_FILE_READ_DEBUG(plat_file_read_debug_func);
 
-#define PLAT_FILE_FREE_DEBUG(name) void name(Game_Thread *thread, void *memory)
+#define PLAT_FILE_FREE_DEBUG(name) void name(void *memory, Game_Thread *thread)
 typedef PLAT_FILE_FREE_DEBUG(plat_file_free_debug_func);
 
-#define PLAT_FILE_WRITE_DEBUG(name)                                                      \
-	uint8_t name(Game_Thread *thread, const char *const filename, size_t memorysize, \
-	             void *memory)
+#define PLAT_FILE_WRITE_DEBUG(name)                                               \
+	uint8_t name(const char *const filename, size_t memorysize, void *memory, \
+	             Game_Thread *thread)
 typedef PLAT_FILE_WRITE_DEBUG(plat_file_write_debug_func);
 
 #endif // DEBUG
@@ -213,13 +213,13 @@ void *game_arena_push_array(Game_Arena *arena, size_t count, size_t size);
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_BITMAP_UPDATE_AND_RENDER(name)                                         \
-	void name(Game_Thread *thread, Game_Memory *game_memory, Game_Input *input, \
-	          Game_Bitmap *bitmap)
+#define GAME_BITMAP_UPDATE_AND_RENDER(name)                                           \
+	void name(Game_Bitmap *bitmap, Game_Thread *thread, Game_Memory *game_memory, \
+	          Game_Input *input)
 typedef GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render_func);
 
 #define GAME_SOUND_CREATE_SAMPLES(name) \
-	void name(Game_Thread *thread, Game_Memory *memory, Game_SoundBuffer *soundbuff)
+	void name(Game_SoundBuffer *soundbuff, Game_Thread *thread, Game_Memory *memory)
 typedef GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_func);
 
 #endif // GAME_H

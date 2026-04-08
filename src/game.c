@@ -22,7 +22,7 @@
  * @param buffer
  * @param samples
  */
-static void game_sound_output(Game_State *game_state, Game_SoundBuffer *buffer, unsigned tonehz)
+static void game_sound_output(Game_SoundBuffer *buffer, Game_State *game_state, unsigned tonehz)
 {
 	float tone_volume = 3000;
 	size_t wave_period = buffer->samples_per_sec / tonehz;
@@ -97,11 +97,11 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float min_x_pxs, f
 	}
 }
 
-static void game_bitmap_render_bmp_debug(Game_Thread *thread,
-                                         plat_file_read_debug_func *plat_file_read_debug_func,
-                                         char *filename)
+static void game_bitmap_render_file_debug(Game_Bitmap *bitmap, const char *const filename,
+                                          plat_file_read_debug_func *plat_file_read_debug_func,
+                                          Game_Thread *thread)
 {
-	Plat_ReadFileResult content = plat_file_read_debug_func(thread, filename);
+	Plat_ReadFileResult read_result = plat_file_read_debug_func(filename, thread);
 }
 
 void game_arena_init(Game_Arena *arena, size_t size, uint8_t *base)
@@ -141,6 +141,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	Tile_Map *map = nullptr;
 
 	if (!game_memory->is_initialized) {
+		game_bitmap_render_file_debug(bitmap, "/test/test_background.bmp",
+		                              game_memory->plat_file_read_debug, thread);
 		game_state->playerpos.tile_x = 1;
 		game_state->playerpos.tile_y = 3;
 		game_state->playerpos.tile_z = 0;
@@ -1010,5 +1012,5 @@ GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
 	assert(sizeof(Game_State) <= memory->permamem_size);
 
 	Game_State *game_state = memory->permamem;
-	game_sound_output(game_state, soundbuff, 400);
+	game_sound_output(soundbuff, game_state, 400);
 }

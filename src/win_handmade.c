@@ -1217,7 +1217,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			win_input_playback(&winstate, new_input);
 		}
 		if (game_code.update_and_render) {
-			game_code.update_and_render(&thread, &game_memory, new_input, &bitmap);
+			game_code.update_and_render(&bitmap, &thread, &game_memory, new_input);
 		}
 
 		unsigned bytes_to_write = 0;
@@ -1261,8 +1261,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 			game_soundbuff.sample_count = bytes_to_write / winsound.bytes_per_sample;
 			if (game_code.sound_create_samples) {
-				game_code.sound_create_samples(&thread, &game_memory,
-				                               &game_soundbuff);
+				game_code.sound_create_samples(&game_soundbuff, &thread,
+				                               &game_memory);
 			}
 #if 0
 			Win_DebugTimeMark *mark =
