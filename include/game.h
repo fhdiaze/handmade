@@ -59,15 +59,35 @@ static constexpr unsigned GAME_MAX_CONTROLLERS = 5;
 static constexpr unsigned GAME_MAX_CONTROLLER_BUTTONS = 12;
 
 /**
- * @brief (0,0) is on the top left corner
- *
+ * @brief The byte order at increasing memory addresses is (BB GB RR AA).
+ * The byte order in a register (little endian) is (AA RR GG BB).
+ * The pixels order is bottom-up.
+ */
+#pragma pack(push, 1)
+typedef struct Game_BitmapHeader {
+	uint16_t file_type;
+	uint32_t file_size;
+	uint16_t reserved_one;
+	uint16_t reserved_two;
+	uint32_t offset;
+	uint32_t size;
+	int32_t width;
+	int32_t height;
+	uint16_t planes;
+
+	uint16_t bits_per_pixel;
+} Game_BitmapHeader;
+#pragma pack(pop)
+
+/**
+ * @brief (0,0) is on the top left corner.
+ * The byte order in a register (little endian) is AA RR GG BB
  */
 typedef struct Game_Bitmap {
 	void *memory;
 	unsigned width;
 	unsigned height;
 	unsigned pitch_bytes; // size of a row in bytes
-
 	unsigned bytes_per_pixel;
 } Game_Bitmap;
 
@@ -149,6 +169,8 @@ typedef struct Game_State {
 	Game_Arena arena;
 	Game_World *world;
 	Tile_Position playerpos;
+
+	Game_BitmapHeader *sample_bmp;
 } Game_State;
 
 typedef struct Game_Thread {
@@ -192,10 +214,10 @@ typedef PLAT_FILE_WRITE_DEBUG(plat_file_write_debug_func);
 
 typedef struct Game_Memory {
 	size_t permamem_size; // permanent storage in bytes
-	void *permamem; // This should be zero initialized
+	void *permamem;       // This should be zero initialized
 
 	size_t transmem_size; // transient storage in bytes
-	void *transmem; // This should be zero initialized
+	void *transmem;       // This should be zero initialized
 
 	plat_file_free_debug_func *plat_file_free_debug;
 	plat_file_read_debug_func *plat_file_read_debug;

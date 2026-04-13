@@ -50,7 +50,7 @@ static void game_sound_output(Game_SoundBuffer *buffer, Game_State *game_state, 
 }
 
 /**
- * @brief maxx and maxy not included
+ * @brief max_x and max_y not included
  *
  * @param bitmap
  * @param min_x
@@ -97,11 +97,21 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float min_x_pxs, f
 	}
 }
 
-static void game_bitmap_render_file_debug(Game_Bitmap *bitmap, const char *const filename,
-                                          plat_file_read_debug_func *plat_file_read_debug_func,
-                                          Game_Thread *thread)
+static Game_BitmapHeader *
+game_file_lead_bitmap_debug(const char *const filename,
+                            plat_file_read_debug_func *plat_file_read_debug_func,
+                            Game_Thread *thread)
 {
+	Game_BitmapHeader *result = nullptr;
+
 	Plat_ReadFileResult read_result = plat_file_read_debug_func(filename, thread);
+	if (read_result.memory == nullptr) {
+		return result;
+	}
+
+	result = (Game_BitmapHeader *)read_result.memory;
+
+	return result;
 }
 
 void game_arena_init(Game_Arena *arena, size_t size, uint8_t *base)
@@ -141,8 +151,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	Tile_Map *map = nullptr;
 
 	if (!game_memory->is_initialized) {
-		game_bitmap_render_file_debug(bitmap, "/test/test_background.bmp",
-		                              game_memory->plat_file_read_debug, thread);
+		game_state->sample_bmp = game_file_lead_bitmap_debug(
+			"test/structured_art.bmp", game_memory->plat_file_read_debug, thread);
 		game_state->playerpos.tile_x = 1;
 		game_state->playerpos.tile_y = 3;
 		game_state->playerpos.tile_z = 0;
@@ -1004,6 +1014,30 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		game_bitmap_render_rectangle(bitmap, player_min_x_pxs, player_min_y_pxs,
 		                             player_max_x_pxs, player_max_y_pxs, player_red,
 		                             player_green, player_blue);
+
+		if (!game_state->sample_bmp) {
+			continue;
+		}
+
+		// Register order: AA RR GG BB. Bottom-up
+		uint32_t *source_pixel = (uint32_t *)((uint8_t *)(game_state->sample_bmp) +
+		                                      game_state->sample_bmp->offset);
+		// Register order: AA RR GG BB. Top-down
+		uint32_t *target_pixel = nullptr;
+		uint32_t blit_width = min((uint32_t)game_state->sample_bmp->width, bitmap->width);
+		uint32_t blit_height =
+			min((uint32_t)game_state->sample_bmp->height, bitmap->height);
+		for (uint32_t y = 0; y < blit_height; ++y) {
+			target_pixel = (uint32_t *)(bitmap->memory) +
+			               (size_t)((uint32_t)(game_state->sample_bmp->height) - y) *
+			                       (size_t)(bitmap->width);
+			for (uint32_t x = 0; x < blit_width; ++x) {
+				*target_pixel = *source_pixel;
+
+				++target_pixel;
+				++source_pixel;
+			}
+		}
 	}
 }
 

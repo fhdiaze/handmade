@@ -18,6 +18,10 @@ typedef struct Win_WindowDimensions {
 	long height;
 } Win_WindowDimensions;
 
+/**
+ * @brief (0,0) is on the top left corner.
+ * The byte order in a register (little endian) is AA RR GG BB
+ */
 typedef struct Win_Bitmap {
 	unsigned width;
 	unsigned height;
