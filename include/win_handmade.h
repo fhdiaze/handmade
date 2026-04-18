@@ -27,7 +27,7 @@ typedef struct Win_Bitmap {
 	unsigned height;
 	unsigned pitch_bytes; // size of a row in bytes
 	unsigned bytes_per_pixel;
-	void *memory;
+	void *top_left_px;
 	BITMAPINFO info;
 } Win_Bitmap;
 

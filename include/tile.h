@@ -3,26 +3,32 @@
 
 #include <stdint.h>
 
-#define TILE_RADIUS_PXS 30
-#define TILE_RADIUS_MTS 0.7F
+#define TILE_RADIUS_PX 30
+#define TILE_RADIUS_M 0.7F
 
-#define TILE_SIDE_PXS (TILE_RADIUS_PXS * 2UL)
-#define TILE_SIDE_MTS (TILE_RADIUS_MTS * 2.0F)
-#define PXS_PER_MTR ((float)TILE_RADIUS_PXS / TILE_RADIUS_MTS)
-
-#define CHUNK_SHIFT_BITS 4UL
-#define CHUNK_SIDE_TLS (1UL << CHUNK_SHIFT_BITS)
-#define CHUNK_MASK (CHUNK_SIDE_TLS - 1)
-#define CHUNK_TILES_COUNT (CHUNK_SIDE_TLS * CHUNK_SIDE_TLS)
+#define TILE_SIDE_PX (TILE_RADIUS_PX * 2UL)
+/**
+ * @brief Side of a tile in meters
+ */
+#define TILE_SIDE_M (TILE_RADIUS_M * 2.0F)
+#define PIXELS_PER_METER ((float)TILE_RADIUS_PX / TILE_RADIUS_M)
+#define CHUNK_SHIFT_BIT 4UL
 
 /**
-* @brief Map side in tilechunks
+ * @brief Size of a chunk in tiles
+ */
+#define CHUNK_SIDE_TL (1UL << CHUNK_SHIFT_BIT)
+#define CHUNK_MASK (CHUNK_SIDE_TL - 1)
+#define CHUNK_SIZE_TL (CHUNK_SIDE_TL * CHUNK_SIDE_TL)
+
+/**
+* @brief Map side in tile chunks
 */
-#define MAP_CHUNKS_COUNT_X 128
-#define MAP_CHUNKS_COUNT_Y 128
-#define MAP_CHUNKS_COUNT_Z 2
-#define MAP_CHUNKS_COUNT_XY (MAP_CHUNKS_COUNT_Y * MAP_CHUNKS_COUNT_X)
-#define MAP_CHUNKS_COUNT (MAP_CHUNKS_COUNT_XY * MAP_CHUNKS_COUNT_Z)
+#define MAP_SIDE_X_CHK 128
+#define MAP_SIDE_Y_CHK 128
+#define MAP_SIDE_Z_CHK 2
+#define MAP_SIZE_XY_CHK (MAP_SIDE_Y_CHK * MAP_SIDE_X_CHK)
+#define MAP_SIZE_CHK (MAP_SIZE_XY_CHK * MAP_SIDE_Z_CHK)
 
 #define TILE_MAP_GET_TILE_VALUE_BY_POS(map, pos) \
 	tile_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
@@ -51,7 +57,7 @@ typedef struct Tile_Chunk {
 } Tile_Chunk;
 
 typedef struct Tile_Map {
-	Tile_Chunk *tilechunks;
+	Tile_Chunk *chunks;
 } Tile_Map;
 
 typedef struct Tile_Position {
@@ -60,21 +66,21 @@ typedef struct Tile_Position {
 	uint32_t tile_z;
 
 	/**
-	 * @brief X relative to the center of the tile
+	 * @brief X relative to the center of the tile in meters
 	 */
-	float offset_x_mts;
+	float offset_x_m;
 
 	/**
-	 * @brief Y relative to the center of the tile
+	 * @brief Y relative to the center of the tile in meters
 	 *
 	 */
-	float offset_y_mts;
+	float offset_y_m;
 } Tile_Position;
 
 typedef enum Tile_Type : uint32_t {
 	TILE_TYPE_NONE = 0,
-	TILE_TYPE_WALL = 1,
-	TILE_TYPE_EMPTY = 2,
+	TILE_TYPE_EMPTY = 1,
+	TILE_TYPE_WALL = 2,
 	TILE_TYPE_STAIRS_UP = 3,
 	TILE_TYPE_STAIRS_DOWN = 4,
 } Tile_Type;

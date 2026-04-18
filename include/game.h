@@ -67,10 +67,13 @@ static constexpr unsigned GAME_MAX_CONTROLLER_BUTTONS = 12;
 typedef struct Game_BitmapHeader {
 	uint16_t file_type;
 	uint32_t file_size;
+
 	uint16_t reserved_one;
 	uint16_t reserved_two;
+
 	uint32_t offset;
 	uint32_t size;
+
 	int32_t width;
 	int32_t height;
 	uint16_t planes;
@@ -84,12 +87,21 @@ typedef struct Game_BitmapHeader {
  * The byte order in a register (little endian) is AA RR GG BB
  */
 typedef struct Game_Bitmap {
-	void *memory;
-	unsigned width;
-	unsigned height;
+	void *top_left_px;
+	unsigned width_px;    // pixels
+	unsigned height_px;   // pixels
 	unsigned pitch_bytes; // size of a row in bytes
 	unsigned bytes_per_pixel;
 } Game_Bitmap;
+
+typedef struct Game_LoadedBitmap {
+	// in pixels
+	int32_t width_px;
+	// in pixels
+	int32_t height_px;
+
+	uint32_t *bottom_left_px;
+} Game_LoadedBitmap;
 
 typedef struct Game_SoundBuffer {
 	unsigned samples_per_sec;
@@ -170,7 +182,10 @@ typedef struct Game_State {
 	Game_World *world;
 	Tile_Position playerpos;
 
-	Game_BitmapHeader *sample_bmp;
+	Game_LoadedBitmap backdrop;
+	Game_LoadedBitmap hero_head;
+	Game_LoadedBitmap hero_cape;
+	Game_LoadedBitmap hero_torso;
 } Game_State;
 
 typedef struct Game_Thread {

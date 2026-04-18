@@ -61,60 +61,107 @@ static void game_sound_output(Game_SoundBuffer *buffer, Game_State *game_state, 
  * @param green
  * @param blue
  */
-static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float min_x_pxs, float min_y_pxs,
-                                         float max_x_pxs, float max_y_pxs, float red, float green,
-                                         float blue)
+static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f,
+                                         float start_y_px_f, float end_x_px_f, float end_y_px_f,
+                                         float red, float green, float blue)
 {
-	assert(min_x_pxs <= max_x_pxs && min_y_pxs <= max_y_pxs);
+	assert(start_x_px_f <= end_x_px_f && start_y_px_f <= end_y_px_f);
 
-	unsigned min_x_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(min_x_pxs), 0);
-	unsigned min_y_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(min_y_pxs), 0);
-	unsigned max_x_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(max_x_pxs), 0);
-	unsigned max_y_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(max_y_pxs), 0);
+	unsigned min_x_px =
+		(unsigned)tix_math_int_max(tix_math_float_round_to_int(start_x_px_f), 0);
+	unsigned min_y_px =
+		(unsigned)tix_math_int_max(tix_math_float_round_to_int(start_y_px_f), 0);
+	unsigned max_x_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(end_x_px_f), 0);
+	unsigned max_y_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(end_y_px_f), 0);
 
-	min_x_px = TOOLS_MIN(min_x_px, bitmap->width);
-	min_y_px = TOOLS_MIN(min_y_px, bitmap->height);
-	max_x_px = TOOLS_MIN(max_x_px, bitmap->width);
-	max_y_px = TOOLS_MIN(max_y_px, bitmap->height);
+	min_x_px = TOOLS_MIN(min_x_px, bitmap->width_px);
+	min_y_px = TOOLS_MIN(min_y_px, bitmap->height_px);
+	max_x_px = TOOLS_MIN(max_x_px, bitmap->width_px);
+	max_y_px = TOOLS_MIN(max_y_px, bitmap->height_px);
 
 	uint32_t red_bits = (uint32_t)tix_math_float_round_to_int(red * 255.0F);
 	uint32_t green_bits = (uint32_t)tix_math_float_round_to_int(green * 255.0F);
 	uint32_t blue_bits = (uint32_t)tix_math_float_round_to_int(blue * 255.0F);
 	uint32_t color = red_bits << 16UL | green_bits << 8UL | blue_bits;
 
-	uint8_t *pixel_ptr = (uint8_t *)bitmap->memory +
-	                     (size_t)(min_x_px * bitmap->bytes_per_pixel) +
-	                     (size_t)(min_y_px * bitmap->pitch_bytes);
+	unsigned char *pixel_first_byte_ptr = (unsigned char *)bitmap->top_left_px +
+	                                      (size_t)(min_x_px * bitmap->bytes_per_pixel) +
+	                                      (size_t)(min_y_px * bitmap->pitch_bytes);
 	uint32_t *pixel = nullptr;
 	for (unsigned y = min_y_px; y < max_y_px; ++y) {
 		for (unsigned x = min_x_px; x < max_x_px; ++x) {
-			pixel = (uint32_t *)pixel_ptr;
+			pixel = (uint32_t *)pixel_first_byte_ptr;
 			*pixel = color;
-			pixel_ptr += bitmap->bytes_per_pixel;
+			pixel_first_byte_ptr += bitmap->bytes_per_pixel;
 		}
 
-		pixel_ptr += bitmap->pitch_bytes - (max_x_px - min_x_px) * bitmap->bytes_per_pixel;
+		pixel_first_byte_ptr +=
+			bitmap->pitch_bytes - (max_x_px - min_x_px) * bitmap->bytes_per_pixel;
 	}
 }
 
-static Game_BitmapHeader *
-game_file_lead_bitmap_debug(const char *const filename,
+static void game_bitmap_render_bitmap(Game_Bitmap *target, const Game_LoadedBitmap *const source,
+                                      float offset_x_px_f, float offset_y_px_f)
+{
+	if (source && source->bottom_left_px) {
+		assert(offset_x_px_f >= 0.0F);
+		assert(offset_y_px_f >= 0.0F);
+
+		unsigned offset_x_px = (unsigned)tix_math_float_round_to_int(offset_x_px_f);
+		unsigned offset_y_px = (unsigned)tix_math_float_round_to_int(offset_y_px_f);
+
+		offset_x_px = TOOLS_MIN(offset_x_px, target->width_px);
+		offset_y_px = TOOLS_MIN(offset_y_px, target->height_px);
+
+		uint32_t *target_top_left_px_ptr = (uint32_t *)target->top_left_px + offset_x_px;
+
+		// Register order: AA RR GG BB. Bottom-up
+		uint32_t *source_px_ptr = nullptr;
+		// Register order: AA RR GG BB. Top-down
+		uint32_t *target_px_ptr = nullptr;
+
+		uint32_t blit_width =
+			min((uint32_t)(source->width_px) + offset_x_px, target->width_px);
+		uint32_t blit_height =
+			min((uint32_t)(source->height_px) + offset_y_px, target->height_px);
+		unsigned target_offset_y = offset_y_px + blit_height - 1;
+		for (size_t y = 0; y < blit_height; ++y) {
+			target_px_ptr = target_top_left_px_ptr +
+			                (target_offset_y - y) * (size_t)(target->width_px);
+			source_px_ptr = source->bottom_left_px + y * (size_t)(source->width_px);
+			for (size_t x = 0; x < blit_width; ++x) {
+				*target_px_ptr = *source_px_ptr;
+
+				++target_px_ptr;
+				++source_px_ptr;
+			}
+		}
+	}
+}
+
+static Game_LoadedBitmap
+game_file_load_bitmap_debug(const char *const filename,
                             plat_file_read_debug_func *plat_file_read_debug_func,
                             Game_Thread *thread)
 {
-	Game_BitmapHeader *result = nullptr;
+	Game_LoadedBitmap result = {};
 
 	Plat_ReadFileResult read_result = plat_file_read_debug_func(filename, thread);
 	if (read_result.memory == nullptr) {
 		return result;
 	}
 
-	result = (Game_BitmapHeader *)read_result.memory;
+	Game_BitmapHeader *bitmap = (Game_BitmapHeader *)read_result.memory;
+
+	result.bottom_left_px =
+		(uint32_t *)((unsigned char *)(read_result.memory) + bitmap->offset);
+	result.width_px = bitmap->width;
+	result.height_px = bitmap->height;
 
 	return result;
 }
 
-void game_arena_init(Game_Arena *arena, size_t size, uint8_t *base)
+void game_arena_init(Game_Arena *arena, size_t size, unsigned char *base)
 {
 	arena->size = size;
 	arena->base = base;
@@ -142,8 +189,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
 	assert(sizeof(Game_State) <= game_memory->permamem_size);
 
-	float player_height_mts = 1.4F;
-	float player_width_mts = 0.75F * player_height_mts;
+	float player_height_m = 1.4F;
+	float player_width_m = 0.75F * player_height_m;
 
 	Game_State *game_state = game_memory->permamem;
 	Game_Arena *arena = &game_state->arena;
@@ -151,13 +198,21 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	Tile_Map *map = nullptr;
 
 	if (!game_memory->is_initialized) {
-		game_state->sample_bmp = game_file_lead_bitmap_debug(
-			"test/structured_art.bmp", game_memory->plat_file_read_debug, thread);
+		game_state->backdrop = game_file_load_bitmap_debug(
+			"test/test_background.bmp", game_memory->plat_file_read_debug, thread);
+		game_state->hero_head = game_file_load_bitmap_debug(
+			"test/test_hero_front_head.bmp", game_memory->plat_file_read_debug, thread);
+		game_state->hero_cape = game_file_load_bitmap_debug(
+			"test/test_hero_front_cape.bmp", game_memory->plat_file_read_debug, thread);
+		game_state->hero_torso =
+			game_file_load_bitmap_debug("test/test_hero_front_torso.bmp",
+		                                    game_memory->plat_file_read_debug, thread);
+
 		game_state->playerpos.tile_x = 1;
 		game_state->playerpos.tile_y = 3;
 		game_state->playerpos.tile_z = 0;
-		game_state->playerpos.offset_x_mts = 0.0F;
-		game_state->playerpos.offset_y_mts = 0.0F;
+		game_state->playerpos.offset_x_m = 0.0F;
+		game_state->playerpos.offset_y_m = 0.0F;
 
 		size_t game_state_size = sizeof(*game_state);
 		game_arena_init(&game_state->arena, game_memory->permamem_size - game_state_size,
@@ -171,8 +226,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		map = world->map;
 		arena = &game_state->arena;
 
-		map->tilechunks = (Tile_Chunk *)game_arena_push_array(
-			arena, (size_t)MAP_CHUNKS_COUNT, sizeof(Tile_Chunk));
+		map->chunks = (Tile_Chunk *)game_arena_push_array(arena, (size_t)MAP_SIZE_CHK,
+		                                                  sizeof(Tile_Chunk));
 
 		uint32_t tiles_per_width = 17;
 		uint32_t tiles_per_height = 9;
@@ -900,27 +955,27 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			mts_per_sec_player_x *= player_speed;
 			mts_per_sec_player_y *= player_speed;
 
-			float new_player_x = game_state->playerpos.offset_x_mts +
+			float new_player_x = game_state->playerpos.offset_x_m +
 			                     input->secs_time_delta * mts_per_sec_player_x;
-			float new_player_y = game_state->playerpos.offset_y_mts +
+			float new_player_y = game_state->playerpos.offset_y_m +
 			                     input->secs_time_delta * mts_per_sec_player_y;
 
 			Tile_Position new_player_pos = game_state->playerpos;
-			new_player_pos.offset_x_mts = new_player_x;
-			new_player_pos.offset_y_mts = new_player_y;
+			new_player_pos.offset_x_m = new_player_x;
+			new_player_pos.offset_y_m = new_player_y;
 
 			if (!tile_map_correct_position(&new_player_pos)) {
 				continue;
 			}
 
 			Tile_Position left_bottom_pos = new_player_pos;
-			left_bottom_pos.offset_x_mts -= player_width_mts * 0.5F;
+			left_bottom_pos.offset_x_m -= player_width_m * 0.5F;
 			if (!tile_map_correct_position(&left_bottom_pos)) {
 				continue;
 			}
 
 			Tile_Position right_bottom_pos = new_player_pos;
-			right_bottom_pos.offset_x_mts += player_width_mts * 0.5F;
+			right_bottom_pos.offset_x_m += player_width_m * 0.5F;
 			if (!tile_map_correct_position(&right_bottom_pos)) {
 				continue;
 			}
@@ -945,11 +1000,19 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			}
 		}
 
-		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width,
-		                             (float)bitmap->height, 1.0F, 0.0F, 1.0F);
+#if 0
+		game_bitmap_render_bitmap(bitmap, &game_state->backdrop, 0.0F, 0.0F);
+		game_bitmap_render_bitmap(bitmap, &game_state->hero_head, 0.0F, 0.0F);
+		game_bitmap_render_bitmap(bitmap, &game_state->hero_cape, 0.0F, 0.0F);
+		game_bitmap_render_bitmap(bitmap, &game_state->hero_torso, 0.0F, 0.0F);
 
-		float center_x = (float)bitmap->width * 0.5F;
-		float center_y = (float)bitmap->height * 0.5F;
+#else
+		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width_px,
+		                             (float)bitmap->height_px, 1.0F, 0.0F, 1.0F);
+#endif
+
+		float center_x = (float)bitmap->width_px * 0.5F;
+		float center_y = (float)bitmap->height_px * 0.5F;
 		for (int32_t tile_row_offset = -10; tile_row_offset < 10; ++tile_row_offset) {
 			for (int32_t tile_col_offset = -20; tile_col_offset < 20;
 			     ++tile_col_offset) {
@@ -962,7 +1025,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				uint32_t tile_type_id =
 					tile_map_get_tile_value(map, col, row, level);
 
-				if (tile_type_id > TILE_TYPE_NONE) {
+				if (tile_type_id > TILE_TYPE_EMPTY) {
 					float gray = 0.0F; // Walkable
 
 					switch (tile_type_id) {
@@ -981,23 +1044,24 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 					} break;
 					}
 
-					float min_x_pxs =
-						center_x - (float)TILE_RADIUS_PXS +
-						(float)tile_col_offset * (float)TILE_SIDE_PXS -
-						game_state->playerpos.offset_x_mts * PXS_PER_MTR;
-					float min_y_pxs =
-						center_y - (float)TILE_SIDE_PXS -
-						(float)tile_row_offset * (float)TILE_SIDE_PXS +
-						game_state->playerpos.offset_y_mts * PXS_PER_MTR +
-						(float)TILE_RADIUS_PXS;
-					float max_x_pxs = min_x_pxs + (float)TILE_SIDE_PXS;
-					float max_y_pxs = min_y_pxs + (float)TILE_SIDE_PXS;
+					float min_x_px =
+						center_x - (float)TILE_RADIUS_PX +
+						(float)tile_col_offset * (float)TILE_SIDE_PX -
+						game_state->playerpos.offset_x_m * PIXELS_PER_METER;
+					float min_y_px =
+						center_y - (float)TILE_SIDE_PX -
+						(float)tile_row_offset * (float)TILE_SIDE_PX +
+						game_state->playerpos.offset_y_m *
+							PIXELS_PER_METER +
+						(float)TILE_RADIUS_PX;
+					float max_x_pxs = min_x_px + (float)TILE_SIDE_PX;
+					float max_y_pxs = min_y_px + (float)TILE_SIDE_PX;
 
 					if (game_state->playerpos.tile_y == row &&
 					    game_state->playerpos.tile_x == col) {
 						gray = 0.0F;
 					}
-					game_bitmap_render_rectangle(bitmap, min_x_pxs, min_y_pxs,
+					game_bitmap_render_rectangle(bitmap, min_x_px, min_y_px,
 					                             max_x_pxs, max_y_pxs, gray,
 					                             gray, gray);
 				}
@@ -1007,37 +1071,13 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float player_red = 1.0F;
 		float player_green = 1.0F;
 		float player_blue = 0.0F;
-		float player_min_x_pxs = center_x - 0.5F * player_width_mts * PXS_PER_MTR;
-		float player_min_y_pxs = center_y - player_height_mts * PXS_PER_MTR;
-		float player_max_x_pxs = player_min_x_pxs + player_width_mts * PXS_PER_MTR;
-		float player_max_y_pxs = player_min_y_pxs + player_height_mts * PXS_PER_MTR;
-		game_bitmap_render_rectangle(bitmap, player_min_x_pxs, player_min_y_pxs,
-		                             player_max_x_pxs, player_max_y_pxs, player_red,
+		float player_min_x_px = center_x - 0.5F * player_width_m * PIXELS_PER_METER;
+		float player_min_y_px = center_y - player_height_m * PIXELS_PER_METER;
+		float player_max_x_px = player_min_x_px + player_width_m * PIXELS_PER_METER;
+		float player_max_y_px = player_min_y_px + player_height_m * PIXELS_PER_METER;
+		game_bitmap_render_rectangle(bitmap, player_min_x_px, player_min_y_px,
+		                             player_max_x_px, player_max_y_px, player_red,
 		                             player_green, player_blue);
-
-		if (!game_state->sample_bmp) {
-			continue;
-		}
-
-		// Register order: AA RR GG BB. Bottom-up
-		uint32_t *source_pixel = (uint32_t *)((uint8_t *)(game_state->sample_bmp) +
-		                                      game_state->sample_bmp->offset);
-		// Register order: AA RR GG BB. Top-down
-		uint32_t *target_pixel = nullptr;
-		uint32_t blit_width = min((uint32_t)game_state->sample_bmp->width, bitmap->width);
-		uint32_t blit_height =
-			min((uint32_t)game_state->sample_bmp->height, bitmap->height);
-		for (uint32_t y = 0; y < blit_height; ++y) {
-			target_pixel = (uint32_t *)(bitmap->memory) +
-			               (size_t)((uint32_t)(game_state->sample_bmp->height) - y) *
-			                       (size_t)(bitmap->width);
-			for (uint32_t x = 0; x < blit_width; ++x) {
-				*target_pixel = *source_pixel;
-
-				++target_pixel;
-				++source_pixel;
-			}
-		}
 	}
 }
 

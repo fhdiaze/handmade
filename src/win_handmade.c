@@ -656,8 +656,8 @@ static Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
  */
 static void win_bitmap_resize_section(Win_Bitmap *buffer, unsigned win_width, unsigned win_height)
 {
-	if (buffer->memory) {
-		VirtualFree(buffer->memory, 0, MEM_RELEASE);
+	if (buffer->top_left_px) {
+		VirtualFree(buffer->top_left_px, 0, MEM_RELEASE);
 	}
 
 	buffer->width = win_width;
@@ -675,7 +675,7 @@ static void win_bitmap_resize_section(Win_Bitmap *buffer, unsigned win_width, un
 	size_t bitmap_memory_size = (size_t)(buffer->width) * (size_t)(buffer->height) *
 	                            (size_t)(buffer->bytes_per_pixel);
 
-	buffer->memory =
+	buffer->top_left_px =
 		VirtualAlloc(nullptr, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	buffer->pitch_bytes = buffer->width * buffer->bytes_per_pixel;
 }
@@ -692,7 +692,7 @@ static void win_window_display_bitmap(Win_Bitmap *bitmap, HDC dchandle, long win
 	       win_height - offset_y - (int)bitmap->height, BLACKNESS);
 	PatBlt(dchandle, 0, 0, offset_x, win_height, BLACKNESS);
 	StretchDIBits(dchandle, offset_x, offset_y, (int)bitmap->width, (int)bitmap->height, 0, 0,
-	              (int)bitmap->width, (int)bitmap->height, bitmap->memory, &bitmap->info,
+	              (int)bitmap->width, (int)bitmap->height, bitmap->top_left_px, &bitmap->info,
 	              DIB_RGB_COLORS, SRCCOPY);
 }
 
@@ -763,7 +763,7 @@ static void win_bitmap_draw_vertical_debug(Win_Bitmap *bitmap, unsigned x, unsig
 	assert(top >= 0 && top < bitmap->height);
 	assert(top <= bottom);
 
-	uint8_t *pixel_start = (uint8_t *)bitmap->memory + x * (size_t)bitmap->bytes_per_pixel +
+	uint8_t *pixel_start = (uint8_t *)bitmap->top_left_px + x * (size_t)bitmap->bytes_per_pixel +
 	                       top * (size_t)bitmap->pitch_bytes;
 	uint32_t *pixel = nullptr;
 	for (size_t y = top; y < bottom; ++y) {
@@ -1204,9 +1204,9 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		 * @brief Update and rendering
 		 */
 
-		bitmap.memory = global_bitmap.memory;
-		bitmap.width = global_bitmap.width;
-		bitmap.height = global_bitmap.height;
+		bitmap.top_left_px = global_bitmap.top_left_px;
+		bitmap.width_px = global_bitmap.width;
+		bitmap.height_px = global_bitmap.height;
 		bitmap.pitch_bytes = global_bitmap.pitch_bytes;
 		bitmap.bytes_per_pixel = global_bitmap.bytes_per_pixel;
 
