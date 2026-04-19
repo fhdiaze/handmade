@@ -106,12 +106,14 @@ static void game_bitmap_render_bitmap(Game_Bitmap *target, const Game_LoadedBitm
 	if (source && source->bottom_left_px) {
 		assert(offset_x_px_f >= 0.0F);
 		assert(offset_y_px_f >= 0.0F);
+		assert(source->width_px >= 0);
+		assert(source->height_px >= 0);
 
 		unsigned offset_x_px = (unsigned)tix_math_float_round_to_int(offset_x_px_f);
 		unsigned offset_y_px = (unsigned)tix_math_float_round_to_int(offset_y_px_f);
 
-		offset_x_px = TOOLS_MIN(offset_x_px, target->width_px);
-		offset_y_px = TOOLS_MIN(offset_y_px, target->height_px);
+		assert(offset_x_px < target->width_px);
+		assert(offset_y_px < target->height_px);
 
 		uint32_t *target_top_left_px_ptr = (uint32_t *)target->top_left_px + offset_x_px;
 
@@ -121,9 +123,9 @@ static void game_bitmap_render_bitmap(Game_Bitmap *target, const Game_LoadedBitm
 		uint32_t *target_px_ptr = nullptr;
 
 		uint32_t blit_width =
-			min((uint32_t)(source->width_px) + offset_x_px, target->width_px);
+			min(target->width_px - offset_x_px, (uint32_t)source->width_px);
 		uint32_t blit_height =
-			min((uint32_t)(source->height_px) + offset_y_px, target->height_px);
+			min(target->height_px - offset_y_px, (uint32_t)source->height_px);
 		unsigned target_offset_y = offset_y_px + blit_height - 1;
 		for (size_t y = 0; y < blit_height; ++y) {
 			target_px_ptr = target_top_left_px_ptr +
@@ -161,7 +163,7 @@ game_file_load_bitmap_debug(const char *const filename,
 	return result;
 }
 
-void game_arena_init(Game_Arena *arena, size_t size, unsigned char *base)
+void game_arena_init(Game_Arena *arena, size_t size, unsigned char *const base)
 {
 	arena->size = size;
 	arena->base = base;
@@ -216,7 +218,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		size_t game_state_size = sizeof(*game_state);
 		game_arena_init(&game_state->arena, game_memory->permamem_size - game_state_size,
-		                (uint8_t *)game_memory->permamem + game_state_size);
+		                (unsigned char *)game_memory->permamem + game_state_size);
 
 		game_state->world =
 			game_arena_push_size(&game_state->arena, sizeof(*game_state->world));
@@ -1000,12 +1002,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			}
 		}
 
-#if 0
+#if 1
 		game_bitmap_render_bitmap(bitmap, &game_state->backdrop, 0.0F, 0.0F);
-		game_bitmap_render_bitmap(bitmap, &game_state->hero_head, 0.0F, 0.0F);
-		game_bitmap_render_bitmap(bitmap, &game_state->hero_cape, 0.0F, 0.0F);
-		game_bitmap_render_bitmap(bitmap, &game_state->hero_torso, 0.0F, 0.0F);
-
 #else
 		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width_px,
 		                             (float)bitmap->height_px, 1.0F, 0.0F, 1.0F);
@@ -1054,16 +1052,16 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 						game_state->playerpos.offset_y_m *
 							PIXELS_PER_METER +
 						(float)TILE_RADIUS_PX;
-					float max_x_pxs = min_x_px + (float)TILE_SIDE_PX;
-					float max_y_pxs = min_y_px + (float)TILE_SIDE_PX;
+					float max_x_px = min_x_px + (float)TILE_SIDE_PX;
+					float max_y_px = min_y_px + (float)TILE_SIDE_PX;
 
 					if (game_state->playerpos.tile_y == row &&
 					    game_state->playerpos.tile_x == col) {
 						gray = 0.0F;
 					}
 					game_bitmap_render_rectangle(bitmap, min_x_px, min_y_px,
-					                             max_x_pxs, max_y_pxs, gray,
-					                             gray, gray);
+					                             max_x_px, max_y_px, gray, gray,
+					                             gray);
 				}
 			}
 		}
@@ -1075,9 +1073,16 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float player_min_y_px = center_y - player_height_m * PIXELS_PER_METER;
 		float player_max_x_px = player_min_x_px + player_width_m * PIXELS_PER_METER;
 		float player_max_y_px = player_min_y_px + player_height_m * PIXELS_PER_METER;
-		game_bitmap_render_rectangle(bitmap, player_min_x_px, player_min_y_px,
-		                             player_max_x_px, player_max_y_px, player_red,
-		                             player_green, player_blue);
+		// game_bitmap_render_rectangle(bitmap, player_min_x_px, player_min_y_px,
+		//                              player_max_x_px, player_max_y_px, player_red,
+		//                              player_green, player_blue);
+
+		game_bitmap_render_bitmap(bitmap, &game_state->hero_head, player_min_x_px,
+		                          player_min_y_px);
+		// game_bitmap_render_bitmap(bitmap, &game_state->hero_cape, player_min_x_px,
+		//                           player_min_y_px);
+		// game_bitmap_render_bitmap(bitmap, &game_state->hero_torso, player_min_x_px,
+		//                           player_min_y_px);
 	}
 }
 

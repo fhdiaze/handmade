@@ -72,13 +72,34 @@ typedef struct Game_BitmapHeader {
 	uint16_t reserved_two;
 
 	uint32_t offset;
-	uint32_t size;
+
+	/**
+	 * @brief Size of this header in bytes
+	 */
+	uint32_t header_size_byte;
 
 	int32_t width;
 	int32_t height;
 	uint16_t planes;
 
 	uint16_t bits_per_pixel;
+
+	uint32_t compression;
+
+	/**
+	 * @brief Size of the bitmap in bytes
+	 */
+	uint32_t bitmap_size_byte;
+
+	int32_t horz_resolution;
+	int32_t vert_resolution;
+
+	uint32_t colors_used;
+	uint32_t colors_important;
+
+	uint32_t red_mask;
+	uint32_t green_mask;
+	uint32_t blue_mask;
 } Game_BitmapHeader;
 #pragma pack(pop)
 
@@ -169,7 +190,7 @@ typedef struct Game_Input {
 
 typedef struct Game_Arena {
 	size_t size;
-	uint8_t *base;
+	unsigned char *base;
 	size_t used;
 } Game_Arena;
 
@@ -241,7 +262,7 @@ typedef struct Game_Memory {
 	uint8_t is_initialized;
 } Game_Memory;
 
-void game_arena_init(Game_Arena *arena, size_t size, uint8_t *base);
+void game_arena_init(Game_Arena *arena, size_t size, unsigned char *base);
 
 void *game_arena_push_size(Game_Arena *arena, size_t size);
 

@@ -763,8 +763,9 @@ static void win_bitmap_draw_vertical_debug(Win_Bitmap *bitmap, unsigned x, unsig
 	assert(top >= 0 && top < bitmap->height);
 	assert(top <= bottom);
 
-	uint8_t *pixel_start = (uint8_t *)bitmap->top_left_px + x * (size_t)bitmap->bytes_per_pixel +
-	                       top * (size_t)bitmap->pitch_bytes;
+	unsigned char *pixel_start = (unsigned char *)bitmap->top_left_px +
+	                             x * (size_t)bitmap->bytes_per_pixel +
+	                             top * (size_t)bitmap->pitch_bytes;
 	uint32_t *pixel = nullptr;
 	for (size_t y = top; y < bottom; ++y) {
 		pixel = (uint32_t *)pixel_start;
@@ -1000,7 +1001,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	game_memory.permamem = winstate.gamemem;
-	game_memory.transmem = (uint8_t *)game_memory.permamem + game_memory.permamem_size;
+	game_memory.transmem = (unsigned char *)game_memory.permamem + game_memory.permamem_size;
 
 	for (uint8_t slot_index = 0; slot_index < WIN_REPLAY_MAX_SLOTS; ++slot_index) {
 		Win_ReplaySlot *replay_slot = &winstate.replay_slots[slot_index];
