@@ -100,7 +100,8 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f
 	}
 }
 
-static void game_bitmap_render_bitmap(Game_Bitmap *target, const Game_LoadedBitmap *const source,
+static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
+                                      const Game_LoadedBitmap *const restrict source,
                                       float offset_x_px_f, float offset_y_px_f)
 {
 	if (source && source->bottom_left_px) {
@@ -141,6 +142,29 @@ static void game_bitmap_render_bitmap(Game_Bitmap *target, const Game_LoadedBitm
 	}
 }
 
+/**
+ * @brief Finds the index of the first non-zero bit if there is one.
+ *
+ * @param value
+ * @param index
+ * @return uint8_t Non zero value if a non-zero value was found, 0 otherwise
+ */
+static uint8_t game_bit_scan_forward(uint32_t value, uint16_t *index)
+{
+	uint8_t was_found = 0U;
+
+	for (uint8_t test = 0; test < 32; ++test) {
+		if (value & (1U << test)) {
+			was_found = 1U;
+			*index = test;
+
+			break;
+		}
+	}
+
+	return was_found;
+}
+
 static Game_LoadedBitmap
 game_file_load_bitmap_debug(const char *const filename,
                             plat_file_read_debug_func *plat_file_read_debug_func,
@@ -155,15 +179,41 @@ game_file_load_bitmap_debug(const char *const filename,
 
 	Game_BitmapHeader *bitmap = (Game_BitmapHeader *)read_result.memory;
 
+	assert(bitmap->height_px >= 0);
+
 	result.bottom_left_px =
 		(uint32_t *)((unsigned char *)(read_result.memory) + bitmap->offset);
-	result.width_px = bitmap->width;
-	result.height_px = bitmap->height;
+	result.width_px = bitmap->width_px;
+	result.height_px = bitmap->height_px;
+
+	uint32_t alpha_mask = ~(bitmap->red_mask | bitmap->green_mask | bitmap->blue_mask);
+
+	uint16_t red_shift = 0;
+	uint16_t green_shift = 0;
+	uint16_t blue_shift = 0;
+	uint16_t alpha_shift = 0;
+
+	game_bit_scan_forward(bitmap->red_mask, &red_shift);
+	game_bit_scan_forward(bitmap->green_mask, &green_shift);
+	game_bit_scan_forward(bitmap->blue_mask, &blue_shift);
+	game_bit_scan_forward(alpha_mask, &alpha_shift);
+
+	uint32_t *pixel = result.bottom_left_px;
+	for (uint32_t i = 0; i < (uint32_t)(bitmap->width_px * bitmap->height_px); ++i) {
+		uint32_t alpha = ((*pixel & alpha_mask) >> alpha_shift) << 24U;
+		uint32_t red = ((*pixel & bitmap->red_mask) >> red_shift) << 16U;
+		uint32_t green = ((*pixel & bitmap->green_mask) >> green_shift) << 8U;
+		uint32_t blue = (*pixel & bitmap->blue_mask) >> blue_shift;
+		*pixel = alpha | red | green | blue;
+
+		++pixel;
+	}
 
 	return result;
 }
 
-void game_arena_init(Game_Arena *arena, size_t size, unsigned char *const base)
+void game_arena_init(Game_Arena *restrict arena, const size_t size,
+                     unsigned char *const restrict base)
 {
 	arena->size = size;
 	arena->base = base;

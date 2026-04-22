@@ -78,8 +78,8 @@ typedef struct Game_BitmapHeader {
 	 */
 	uint32_t header_size_byte;
 
-	int32_t width;
-	int32_t height;
+	int32_t width_px;
+	int32_t height_px;
 	uint16_t planes;
 
 	uint16_t bits_per_pixel;
@@ -115,6 +115,10 @@ typedef struct Game_Bitmap {
 	unsigned bytes_per_pixel;
 } Game_Bitmap;
 
+/**
+ * @brief (0,0) is on the top left corner.
+ * The byte order in a register (little endian) is AA RR GG BB
+ */
 typedef struct Game_LoadedBitmap {
 	// in pixels
 	int32_t width_px;
