@@ -3,8 +3,9 @@
 #ifndef WIN_HANDMADE_H
 #define WIN_HANDMADE_H
 
-#include "game.h"
 #include <windows.h>
+
+#include "game.h"
 
 #define WIN_STATE_MAX_FILE_PATH MAX_PATH
 #define WIN_REPLAY_MAX_SLOTS 4

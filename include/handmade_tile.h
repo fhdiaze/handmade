@@ -1,5 +1,5 @@
-#ifndef TILE_H
-#define TILE_H
+#ifndef HANDMADE_TILE_H
+#define HANDMADE_TILE_H
 
 #include <stdint.h>
 
@@ -85,4 +85,4 @@ typedef enum Tile_Type : uint32_t {
 	TILE_TYPE_STAIRS_DOWN = 4,
 } Tile_Type;
 
-#endif // TILE_H
+#endif // HANDMADE_TILE_H

@@ -1,8 +1,8 @@
 #include <assert.h>
 
 #include "game.h"
-#include "tile.h"
-#include "tix_math.h"
+#include "handmade_tile.h"
+#include "tix_lib.h"
 
 static inline uint8_t tile_map_correct_coord(uint32_t *tile, float *tile_rel)
 {
@@ -87,7 +87,7 @@ static uint8_t tile_map_is_point_walkable(Tile_Map *map, Tile_Position pos)
 	return is_walkable;
 }
 
-static void tile_map_set_tile_value(Tile_Map *map, Game_Arena *arena, uint32_t tile_x,
+static void tile_map_set_tile_value(Tile_Map *map, Plat_Arena *arena, uint32_t tile_x,
                                     uint32_t tile_y, uint32_t tile_z, uint32_t tile_value)
 {
 	Tile_ChunkPosition cpos = tile_map_get_chunk_pos(tile_x, tile_y, tile_z);
@@ -97,7 +97,7 @@ static void tile_map_set_tile_value(Tile_Map *map, Game_Arena *arena, uint32_t t
 
 	if (!tilechunk->tiles) {
 		tilechunk->tiles =
-			game_arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
+			Plat_Arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
 		for (uint32_t tile_idx = 0; tile_idx < CHUNK_SIZE_TL; ++tile_idx) {
 			tilechunk->tiles[tile_idx] = TILE_TYPE_EMPTY;
 		}

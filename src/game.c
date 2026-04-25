@@ -9,9 +9,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
-#include "tix_math.h"
+#include "handmade_intrinsics.h"
+#include "tix_lib.h"
 
-#include "tile.c"
+#include "handmade_tile.c"
 #include <stdlib.h>
 
 #define RANDOM_NUMS_COUNT 4096
@@ -101,7 +102,7 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f
 }
 
 static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
-                                      const Game_LoadedBitmap *const restrict source,
+                                      const Plat_LoadedBitmap *const restrict source,
                                       float offset_x_px_f, float offset_y_px_f)
 {
 	if (source && source->bottom_left_px) {
@@ -142,42 +143,19 @@ static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
 	}
 }
 
-/**
- * @brief Finds the index of the first non-zero bit if there is one.
- *
- * @param value
- * @param index
- * @return uint8_t Non zero value if a non-zero value was found, 0 otherwise
- */
-static uint8_t game_bit_scan_forward(uint32_t value, uint16_t *index)
-{
-	uint8_t was_found = 0U;
-
-	for (uint8_t test = 0; test < 32; ++test) {
-		if (value & (1U << test)) {
-			was_found = 1U;
-			*index = test;
-
-			break;
-		}
-	}
-
-	return was_found;
-}
-
-static Game_LoadedBitmap
+static Plat_LoadedBitmap
 game_file_load_bitmap_debug(const char *const filename,
                             plat_file_read_debug_func *plat_file_read_debug_func,
-                            Game_Thread *thread)
+                            Plat_ThreadContext *thread)
 {
-	Game_LoadedBitmap result = {};
+	Plat_LoadedBitmap result = {};
 
 	Plat_ReadFileResult read_result = plat_file_read_debug_func(filename, thread);
 	if (read_result.memory == nullptr) {
 		return result;
 	}
 
-	Game_BitmapHeader *bitmap = (Game_BitmapHeader *)read_result.memory;
+	Plat_BitmapHeader *bitmap = (Plat_BitmapHeader *)read_result.memory;
 
 	assert(bitmap->height_px >= 0);
 
@@ -188,22 +166,17 @@ game_file_load_bitmap_debug(const char *const filename,
 
 	uint32_t alpha_mask = ~(bitmap->red_mask | bitmap->green_mask | bitmap->blue_mask);
 
-	uint16_t red_shift = 0;
-	uint16_t green_shift = 0;
-	uint16_t blue_shift = 0;
-	uint16_t alpha_shift = 0;
-
-	game_bit_scan_forward(bitmap->red_mask, &red_shift);
-	game_bit_scan_forward(bitmap->green_mask, &green_shift);
-	game_bit_scan_forward(bitmap->blue_mask, &blue_shift);
-	game_bit_scan_forward(alpha_mask, &alpha_shift);
+	Tix_BitScanResult red_scan = tix_bit_find_least_significant_set_bit(bitmap->red_mask);
+	Tix_BitScanResult green_scan = tix_bit_find_least_significant_set_bit(bitmap->green_mask);
+	Tix_BitScanResult blue_scan = tix_bit_find_least_significant_set_bit(bitmap->blue_mask);
+	Tix_BitScanResult alpha_scan = tix_bit_find_least_significant_set_bit(alpha_mask);
 
 	uint32_t *pixel = result.bottom_left_px;
 	for (uint32_t i = 0; i < (uint32_t)(bitmap->width_px * bitmap->height_px); ++i) {
-		uint32_t alpha = ((*pixel & alpha_mask) >> alpha_shift) << 24U;
-		uint32_t red = ((*pixel & bitmap->red_mask) >> red_shift) << 16U;
-		uint32_t green = ((*pixel & bitmap->green_mask) >> green_shift) << 8U;
-		uint32_t blue = (*pixel & bitmap->blue_mask) >> blue_shift;
+		uint32_t alpha = ((*pixel & alpha_mask) >> alpha_scan.index) << 24U;
+		uint32_t red = ((*pixel & bitmap->red_mask) >> red_scan.index) << 16U;
+		uint32_t green = ((*pixel & bitmap->green_mask) >> green_scan.index) << 8U;
+		uint32_t blue = (*pixel & bitmap->blue_mask) >> blue_scan.index;
 		*pixel = alpha | red | green | blue;
 
 		++pixel;
@@ -212,7 +185,7 @@ game_file_load_bitmap_debug(const char *const filename,
 	return result;
 }
 
-void game_arena_init(Game_Arena *restrict arena, const size_t size,
+void Plat_Arena_init(Plat_Arena *restrict arena, const size_t size,
                      unsigned char *const restrict base)
 {
 	arena->size = size;
@@ -220,7 +193,7 @@ void game_arena_init(Game_Arena *restrict arena, const size_t size,
 	arena->used = 0;
 }
 
-void *game_arena_push_size(Game_Arena *arena, size_t size)
+void *Plat_Arena_push_size(Plat_Arena *arena, size_t size)
 {
 	assert(arena->size + size > arena->size);
 
@@ -230,35 +203,35 @@ void *game_arena_push_size(Game_Arena *arena, size_t size)
 	return result;
 }
 
-void *game_arena_push_array(Game_Arena *arena, size_t count, size_t size)
+void *Plat_Arena_push_array(Plat_Arena *arena, size_t count, size_t size)
 {
-	void *result = game_arena_push_size(arena, count * size);
+	void *result = Plat_Arena_push_size(arena, count * size);
 
 	return result;
 }
 
 GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
-	assert(sizeof(Game_State) <= game_memory->permamem_size);
+	assert(sizeof(Game_State) <= Plat_Memory->permamem_size);
 
 	float player_height_m = 1.4F;
 	float player_width_m = 0.75F * player_height_m;
 
-	Game_State *game_state = game_memory->permamem;
-	Game_Arena *arena = &game_state->arena;
+	Game_State *game_state = Plat_Memory->permamem;
+	Plat_Arena *arena = &game_state->arena;
 	Game_World *world = game_state->world;
 	Tile_Map *map = nullptr;
 
-	if (!game_memory->is_initialized) {
+	if (!Plat_Memory->is_initialized) {
 		game_state->backdrop = game_file_load_bitmap_debug(
-			"test/test_background.bmp", game_memory->plat_file_read_debug, thread);
+			"test/test_background.bmp", Plat_Memory->plat_file_read_debug, thread);
 		game_state->hero_head = game_file_load_bitmap_debug(
-			"test/test_hero_front_head.bmp", game_memory->plat_file_read_debug, thread);
+			"test/test_hero_front_head.bmp", Plat_Memory->plat_file_read_debug, thread);
 		game_state->hero_cape = game_file_load_bitmap_debug(
-			"test/test_hero_front_cape.bmp", game_memory->plat_file_read_debug, thread);
+			"test/test_hero_front_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
 		game_state->hero_torso =
 			game_file_load_bitmap_debug("test/test_hero_front_torso.bmp",
-		                                    game_memory->plat_file_read_debug, thread);
+		                                    Plat_Memory->plat_file_read_debug, thread);
 
 		game_state->playerpos.tile_x = 1;
 		game_state->playerpos.tile_y = 3;
@@ -267,18 +240,18 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		game_state->playerpos.offset_y_m = 0.0F;
 
 		size_t game_state_size = sizeof(*game_state);
-		game_arena_init(&game_state->arena, game_memory->permamem_size - game_state_size,
-		                (unsigned char *)game_memory->permamem + game_state_size);
+		Plat_Arena_init(&game_state->arena, Plat_Memory->permamem_size - game_state_size,
+		                (unsigned char *)Plat_Memory->permamem + game_state_size);
 
 		game_state->world =
-			game_arena_push_size(&game_state->arena, sizeof(*game_state->world));
+			Plat_Arena_push_size(&game_state->arena, sizeof(*game_state->world));
 		world = game_state->world;
 
-		world->map = game_arena_push_size(&game_state->arena, sizeof(*map));
+		world->map = Plat_Arena_push_size(&game_state->arena, sizeof(*map));
 		map = world->map;
 		arena = &game_state->arena;
 
-		map->chunks = (Tile_Chunk *)game_arena_push_array(arena, (size_t)MAP_SIZE_CHK,
+		map->chunks = (Tile_Chunk *)Plat_Arena_push_array(arena, (size_t)MAP_SIZE_CHK,
 		                                                  sizeof(Tile_Chunk));
 
 		uint32_t tiles_per_width = 17;
@@ -966,7 +939,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			is_top_door = 0U;
 		}
 
-		game_memory->is_initialized = 1U;
+		Plat_Memory->is_initialized = 1U;
 	}
 
 	map = world->map;

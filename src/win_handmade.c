@@ -2,7 +2,6 @@
 * Windows platform code
 */
 
-#include "tix_math.h"
 #undef TIX_LOG_LEVEL
 #define TIX_LOG_LEVEL TIX_LOG_LEVEL_DEBUG
 
@@ -11,7 +10,7 @@
 #include <stdio.h>
 #include <xinput.h>
 
-#include "tix_log.h"
+#include "tix_lib.h"
 #include "win_handmade.h"
 
 // globals
@@ -988,20 +987,20 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	int16_t *samples = (int16_t *)VirtualAlloc(nullptr, winsound.buffsize,
 	                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	Game_Memory game_memory = {
+	Plat_Memory Plat_Memory = {
 		.plat_file_free_debug = plat_file_free_debug,
 		.plat_file_read_debug = plat_file_read_debug,
 		.plat_file_write_debug = plat_file_write_debug,
 	};
-	game_memory.permamem_size = MB_TO_BYTES(64ULL);
-	game_memory.transmem_size = GB_TO_BYTES(1ULL);
+	Plat_Memory.permamem_size = MB_TO_BYTES(64ULL);
+	Plat_Memory.transmem_size = GB_TO_BYTES(1ULL);
 
-	winstate.gamemem_size = game_memory.permamem_size + game_memory.transmem_size;
+	winstate.gamemem_size = Plat_Memory.permamem_size + Plat_Memory.transmem_size;
 	winstate.gamemem = VirtualAlloc(BASE_ADDRESS, winstate.gamemem_size,
 	                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	game_memory.permamem = winstate.gamemem;
-	game_memory.transmem = (unsigned char *)game_memory.permamem + game_memory.permamem_size;
+	Plat_Memory.permamem = winstate.gamemem;
+	Plat_Memory.transmem = (unsigned char *)Plat_Memory.permamem + Plat_Memory.permamem_size;
 
 	for (uint8_t slot_index = 0; slot_index < WIN_REPLAY_MAX_SLOTS; ++slot_index) {
 		Win_ReplaySlot *replay_slot = &winstate.replay_slots[slot_index];
@@ -1020,7 +1019,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		                                    0, winstate.gamemem_size);
 	}
 
-	if (!samples || !game_memory.permamem || !game_memory.transmem) {
+	if (!samples || !Plat_Memory.permamem || !Plat_Memory.transmem) {
 		return EXIT_FAILURE;
 	}
 
@@ -1029,7 +1028,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.samples = samples,
 	};
 
-	Game_Thread thread = {};
+	Plat_ThreadContext thread = {};
 	Game_Bitmap bitmap = {};
 
 	Game_Input inputs[2] = {};
@@ -1219,7 +1218,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			win_input_playback(&winstate, new_input);
 		}
 		if (game_code.update_and_render) {
-			game_code.update_and_render(&bitmap, &thread, &game_memory, new_input);
+			game_code.update_and_render(&bitmap, &thread, &Plat_Memory, new_input);
 		}
 
 		unsigned bytes_to_write = 0;
@@ -1264,7 +1263,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			game_soundbuff.sample_count = bytes_to_write / winsound.bytes_per_sample;
 			if (game_code.sound_create_samples) {
 				game_code.sound_create_samples(&game_soundbuff, &thread,
-				                               &game_memory);
+				                               &Plat_Memory);
 			}
 #if 0
 			Win_DebugTimeMark *mark =

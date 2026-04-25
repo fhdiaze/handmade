@@ -1,13 +1,16 @@
 // clang-format Language: C
 
-#ifndef TIX_LOG_H
-#define TIX_LOG_H
+#ifndef TIX_LIB_H
+#define TIX_LIB_H
 
+#include <assert.h>
+#include <math.h>
 #include <stdint.h>
 #include <stdio.h> // IWYU pragma: keep
 #include <time.h>
 
 // Constants
+static constexpr float PIE = 3.14159265359F;
 #define TIX_LOG_TSTAMP_BUF_SIZE 32
 #define TIX_LOG_LEVEL_ALL 0UL
 #define TIX_LOG_LEVEL_TRACE 1UL
@@ -17,6 +20,41 @@
 #define TIX_LOG_LEVEL_ERROR 5UL
 #define TIX_LOG_LEVEL_FATAL 6UL
 #define TIX_LOG_LEVEL_OFF 7UL
+
+#define KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
+#define MB_TO_BYTES(_pr_v) (KB_TO_BYTES(_pr_v) * 1024)
+#define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
+#define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
+
+#define TOOLS_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
+#define TOOLS_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
+
+/**
+ * @brief Calculates the distance between two indexes in a ring buffer
+ */
+#define RING_DIFF(size, start, end) ((end) >= (start) ? (end) - (start) : (size) - (start) + (end))
+
+/**
+ * @brief Calculates the complement to the ring size for a value
+ */
+#define RING_COMPLEMENT(size, value) ((size) - (value))
+
+/**
+ * @brief Adds a positive offset to a index in a ring buffer
+ */
+#define RING_ADD(size, index, offset) (((index) + (offset)) % (size))
+
+/**
+ * @brief Subtracts a positive offset to a index in a ring buffer
+ */
+#define RING_SUB(size, index, offset) (((index) + RING_COMPLEMENT((size), (offset))) % (size))
+
+/**
+ * @brief Checks if an index is between start and end indexes in a ring buffer
+ */
+#define RING_BETWEEN(start, end, test)                               \
+	((end) >= (start) ? ((test) >= (start) && (test) <= (end)) : \
+	                    ((test) >= (start) || (test) <= (end)))
 
 // Defines what is the minimum priority of a message to be logged.
 // Anything with higher priority is going to be logged.
@@ -113,4 +151,50 @@
 #define TIX_LOGF(fmt, ...) TIX_LOG_MSG_NOOP()
 #endif // TIX_LOGF
 
-#endif // TIX_LOG_H
+/**
+ * @brief truncates a int64_t into a uint32_t.
+ *
+ * @param value
+ * @return uint32_t
+ */
+inline uint32_t tix_math_ll_to_ul(int64_t value)
+{
+	assert(value < INT32_MAX && value >= 0);
+
+	return (uint32_t)value;
+}
+
+inline int tix_math_int_min(int a, int b)
+{
+	return a < b ? a : b;
+}
+
+inline int tix_math_int_max(int a, int b)
+{
+	return a > b ? a : b;
+}
+
+/**
+ * @brief Rounds a float to the nearest biggest int: 0.5 -> 1
+ *
+ * @param value
+ * @return int
+ */
+inline int tix_math_float_round_to_int(float value)
+{
+	int result = (int)roundf(value);
+
+	return result;
+}
+
+inline float tix_math_float_floor(float value)
+{
+	return floorf(value);
+}
+
+inline unsigned tix_math_int_abs(int value)
+{
+	return (unsigned)(value < 0 ? -value : value);
+}
+
+#endif // TIX_LIB_H
