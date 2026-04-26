@@ -80,7 +80,7 @@ typedef struct Plat_BitmapHeader {
 #pragma pack(pop)
 
 /**
- * @brief (0,0) is on the top left corner.
+ * @brief (0,0) is on the bottom left corner.
  * The byte order in a register (little endian) is AA RR GG BB
  */
 typedef struct Plat_LoadedBitmap {
@@ -99,8 +99,8 @@ typedef struct Plat_ThreadContext {
 #ifdef DEBUG
 
 typedef struct Plat_ReadFileResult {
-	size_t size;
-	void *memory;
+	size_t size_byte;
+	void *base_address;
 } Plat_ReadFileResult;
 
 #define PLAT_FILE_READ_DEBUG(name) \
@@ -117,18 +117,12 @@ typedef PLAT_FILE_WRITE_DEBUG(plat_file_write_debug_func);
 
 #endif // DEBUG
 
-typedef struct Plat_Arena {
-	size_t size;
-	unsigned char *base;
-	size_t used;
-} Plat_Arena;
-
 typedef struct Plat_Memory {
-	size_t permamem_size; // permanent storage in bytes
-	void *permamem;       // This should be zero initialized
+	size_t permanent_storage_size_byte; // permanent storage in bytes
+	void *permanent_storage;            // This should be zero initialized
 
-	size_t transmem_size; // transient storage in bytes
-	void *transmem;       // This should be zero initialized
+	size_t transient_storage_size_byte; // transient storage in bytes
+	void *transient_storage;            // This should be zero initialized
 
 	plat_file_free_debug_func *plat_file_free_debug;
 	plat_file_read_debug_func *plat_file_read_debug;
@@ -137,10 +131,16 @@ typedef struct Plat_Memory {
 	uint8_t is_initialized;
 } Plat_Memory;
 
-void Plat_Arena_init(Plat_Arena *arena, size_t size, unsigned char *base);
+typedef struct Plat_Arena {
+	size_t capacity_byte;
+	unsigned char *base_address;
+	size_t used_byte;
+} Plat_Arena;
 
-void *Plat_Arena_push_size(Plat_Arena *arena, size_t size);
+void plat_arena_init(Plat_Arena *arena, size_t size, unsigned char *base);
 
-void *Plat_Arena_push_array(Plat_Arena *arena, size_t count, size_t size);
+void *plat_arena_push_size(Plat_Arena *arena, size_t size);
+
+void *plat_arena_push_array(Plat_Arena *arena, size_t count, size_t size);
 
 #endif // HANDMADE_PLATFORM_H

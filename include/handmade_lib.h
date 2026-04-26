@@ -1,7 +1,7 @@
 // clang-format Language: C
 
-#ifndef TIX_LIB_H
-#define TIX_LIB_H
+#ifndef HANDMADE_LIB_H
+#define HANDMADE_LIB_H
 
 #include <assert.h>
 #include <math.h>
@@ -11,15 +11,15 @@
 
 // Constants
 static constexpr float PIE = 3.14159265359F;
-#define TIX_LOG_TSTAMP_BUF_SIZE 32
-#define TIX_LOG_LEVEL_ALL 0UL
-#define TIX_LOG_LEVEL_TRACE 1UL
-#define TIX_LOG_LEVEL_DEBUG 2UL
-#define TIX_LOG_LEVEL_INFO 3UL
-#define TIX_LOG_LEVEL_WARN 4UL
-#define TIX_LOG_LEVEL_ERROR 5UL
-#define TIX_LOG_LEVEL_FATAL 6UL
-#define TIX_LOG_LEVEL_OFF 7UL
+#define LIB_LOG_TSTAMP_BUF_SIZE 32
+#define LIB_LOG_LEVEL_ALL 0UL
+#define LIB_LOG_LEVEL_TRACE 1UL
+#define LIB_LOG_LEVEL_DEBUG 2UL
+#define LIB_LOG_LEVEL_INFO 3UL
+#define LIB_LOG_LEVEL_WARN 4UL
+#define LIB_LOG_LEVEL_ERROR 5UL
+#define LIB_LOG_LEVEL_FATAL 6UL
+#define LIB_LOG_LEVEL_OFF 7UL
 
 #define KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
 #define MB_TO_BYTES(_pr_v) (KB_TO_BYTES(_pr_v) * 1024)
@@ -58,15 +58,15 @@ static constexpr float PIE = 3.14159265359F;
 
 // Defines what is the minimum priority of a message to be logged.
 // Anything with higher priority is going to be logged.
-#ifndef TIX_LOG_LEVEL
-#define TIX_LOG_LEVEL TIX_LOG_LEVEL_ALL
-#endif // TIX_LOG_LEVEL
+#ifndef LIB_LOG_LEVEL
+#define LIB_LOG_LEVEL LIB_LOG_LEVEL_ALL
+#endif // LIB_LOG_LEVEL
 
 #define STRINGIFY(n) #n
 #define STRGY(n) STRINGIFY(n)
 
 #ifdef DEBUG
-#define TIX_LOG_WRITE(fmt, ...)                                              \
+#define LIB_LOG_WRITE(fmt, ...)                                              \
 	do {                                                                 \
 		FILE *_pr_log_file = fopen("log.txt", "a+");                 \
 		if (_pr_log_file == nullptr) {                               \
@@ -77,12 +77,12 @@ static constexpr float PIE = 3.14159265359F;
 		(void)fclose(_pr_log_file);                                  \
 	} while (false)
 #else
-#define TIX_LOG_WRITE(fmt, ...) printf(fmt __VA_OPT__(, ) __VA_ARGS__)
+#define LIB_LOG_WRITE(fmt, ...) printf(fmt __VA_OPT__(, ) __VA_ARGS__)
 #endif
 
-#define TIX_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                     \
+#define LIB_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                     \
 	do {                                                                                    \
-		char _pr_tstamp_str[TIX_LOG_TSTAMP_BUF_SIZE];                                   \
+		char _pr_tstamp_str[LIB_LOG_TSTAMP_BUF_SIZE];                                   \
 		struct timespec _pr_ts;                                                         \
 		struct tm _pr_tm;                                                               \
                                                                                                 \
@@ -92,64 +92,64 @@ static constexpr float PIE = 3.14159265359F;
 		if (gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                        \
 			break;                                                                  \
 		}                                                                               \
-		if (strftime(_pr_tstamp_str, TIX_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm) == 0) { \
+		if (strftime(_pr_tstamp_str, LIB_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm) == 0) { \
 			break;                                                                  \
 		}                                                                               \
                                                                                                 \
-		TIX_LOG_WRITE("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str,   \
+		LIB_LOG_WRITE("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str,   \
 		              _pr_ts.tv_nsec, file_name, func_name,                             \
 		              STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);                   \
 	} while (false)
 
-#define TIX_LOG_MSG_NOOP(...) ((void)0)
+#define LIB_LOG_MSG_NOOP(...) ((void)0)
 
-// Logs a trace message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_TRACE
-// Usage: TIX_LOGD("Log trace: x=%d", x);
-#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_TRACE
-#define TIX_LOGT(fmt, ...) TIX_LOG_MSG('T', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+// Logs a trace message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_TRACE
+// Usage: LIB_LOGD("Log trace: x=%d", x);
+#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_TRACE
+#define LIB_LOGT(fmt, ...) LIB_LOG_MSG('T', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define TIX_LOGT(fmt, ...) TIX_LOG_MSG_NOOP()
+#define LIB_LOGT(fmt, ...) LIB_LOG_MSG_NOOP()
 #endif // logt
 
-// Logs a debug message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_DEBUG.
-// Usage: TIX_LOGD("log debug: x=%d", x);
-#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_DEBUG
-#define TIX_LOGD(fmt, ...) TIX_LOG_MSG('D', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+// Logs a debug message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_DEBUG.
+// Usage: LIB_LOGD("log debug: x=%d", x);
+#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_DEBUG
+#define LIB_LOGD(fmt, ...) LIB_LOG_MSG('D', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define TIX_LOGD(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // TIX_LOGD
+#define LIB_LOGD(fmt, ...) LIB_LOG_MSG_NOOP()
+#endif // LIB_LOGD
 
-// Logs an information message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_INFO
-// Usage: TIX_LOGI("Log info: x=%d", x);
-#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_INFO
-#define TIX_LOGI(fmt, ...) TIX_LOG_MSG('I', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+// Logs an information message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_INFO
+// Usage: LIB_LOGI("Log info: x=%d", x);
+#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_INFO
+#define LIB_LOGI(fmt, ...) LIB_LOG_MSG('I', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define TIX_LOGI(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // TIX_LOGI
+#define LIB_LOGI(fmt, ...) LIB_LOG_MSG_NOOP()
+#endif // LIB_LOGI
 
-// Logs a warning message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_WARN
-// Usage: TIX_LOGW("Log warn: x=%d", x);
-#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_WARN
-#define TIX_LOGW(fmt, ...) TIX_LOG_MSG('W', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+// Logs a warning message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_WARN
+// Usage: LIB_LOGW("Log warn: x=%d", x);
+#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_WARN
+#define LIB_LOGW(fmt, ...) LIB_LOG_MSG('W', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define TIX_LOGW(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // TIX_LOGW
+#define LIB_LOGW(fmt, ...) LIB_LOG_MSG_NOOP()
+#endif // LIB_LOGW
 
-// Logs an error message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_ERROR
-// Usage: TIX_LOGE("Log error: x=%d", x);
-#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_ERROR
-#define TIX_LOGE(fmt, ...) TIX_LOG_MSG('E', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+// Logs an error message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_ERROR
+// Usage: LIB_LOGE("Log error: x=%d", x);
+#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_ERROR
+#define LIB_LOGE(fmt, ...) LIB_LOG_MSG('E', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define TIX_LOGE(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // TIX_LOGE
+#define LIB_LOGE(fmt, ...) LIB_LOG_MSG_NOOP()
+#endif // LIB_LOGE
 
-// Logs a fatal message if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_FATAL
-// Usage: TIX_LOGF("Log fatal: x=%d", x);
-#if TIX_LOG_LEVEL <= TIX_LOG_LEVEL_FATAL
-#define TIX_LOGF(fmt, ...) TIX_LOG_MSG('F', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+// Logs a fatal message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_FATAL
+// Usage: LIB_LOGF("Log fatal: x=%d", x);
+#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_FATAL
+#define LIB_LOGF(fmt, ...) LIB_LOG_MSG('F', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
 #else
-#define TIX_LOGF(fmt, ...) TIX_LOG_MSG_NOOP()
-#endif // TIX_LOGF
+#define LIB_LOGF(fmt, ...) LIB_LOG_MSG_NOOP()
+#endif // LIB_LOGF
 
 /**
  * @brief truncates a int64_t into a uint32_t.
@@ -157,19 +157,19 @@ static constexpr float PIE = 3.14159265359F;
  * @param value
  * @return uint32_t
  */
-inline uint32_t tix_math_ll_to_ul(int64_t value)
+inline uint32_t lib_i64_to_u32(int64_t value)
 {
 	assert(value < INT32_MAX && value >= 0);
 
 	return (uint32_t)value;
 }
 
-inline int tix_math_int_min(int a, int b)
+inline int tix_int_min(int a, int b)
 {
 	return a < b ? a : b;
 }
 
-inline int tix_math_int_max(int a, int b)
+inline int lib_int_max(int a, int b)
 {
 	return a > b ? a : b;
 }
@@ -180,21 +180,36 @@ inline int tix_math_int_max(int a, int b)
  * @param value
  * @return int
  */
-inline int tix_math_float_round_to_int(float value)
+inline int lib_float_round_to_int(float value)
 {
 	int result = (int)roundf(value);
 
 	return result;
 }
 
-inline float tix_math_float_floor(float value)
+/**
+ * @brief Rounds a float to the nearest biggest unsigned int: 0.5 -> 1
+ *
+ * @param value
+ * @return int
+ */
+inline uint32_t lib_float_round_to_uint(float value)
+{
+	assert(value >= 0.0F);
+
+	uint32_t result = (uint32_t)(value + 0.5F);
+
+	return result;
+}
+
+inline float lib_float_floor(float value)
 {
 	return floorf(value);
 }
 
-inline unsigned tix_math_int_abs(int value)
+inline unsigned lib_int_abs(int value)
 {
 	return (unsigned)(value < 0 ? -value : value);
 }
 
-#endif // TIX_LIB_H
+#endif // HANDMADE_LIB_H

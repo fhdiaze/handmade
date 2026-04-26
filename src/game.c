@@ -4,16 +4,17 @@
 
 #include "game.h"
 
+#include "handmade_intrinsics.h"
 #include <assert.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
-
-#include "handmade_intrinsics.h"
-#include "tix_lib.h"
-
-#include "handmade_tile.c"
 #include <stdlib.h>
+
+#include "handmade_lib.h"
+
+#include "handmade_platform.c"
+#include "handmade_tile.c"
 
 #define RANDOM_NUMS_COUNT 4096
 
@@ -68,21 +69,19 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f
 {
 	assert(start_x_px_f <= end_x_px_f && start_y_px_f <= end_y_px_f);
 
-	unsigned min_x_px =
-		(unsigned)tix_math_int_max(tix_math_float_round_to_int(start_x_px_f), 0);
-	unsigned min_y_px =
-		(unsigned)tix_math_int_max(tix_math_float_round_to_int(start_y_px_f), 0);
-	unsigned max_x_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(end_x_px_f), 0);
-	unsigned max_y_px = (unsigned)tix_math_int_max(tix_math_float_round_to_int(end_y_px_f), 0);
+	unsigned min_x_px = (unsigned)lib_int_max(lib_float_round_to_int(start_x_px_f), 0);
+	unsigned min_y_px = (unsigned)lib_int_max(lib_float_round_to_int(start_y_px_f), 0);
+	unsigned max_x_px = (unsigned)lib_int_max(lib_float_round_to_int(end_x_px_f), 0);
+	unsigned max_y_px = (unsigned)lib_int_max(lib_float_round_to_int(end_y_px_f), 0);
 
 	min_x_px = TOOLS_MIN(min_x_px, bitmap->width_px);
 	min_y_px = TOOLS_MIN(min_y_px, bitmap->height_px);
 	max_x_px = TOOLS_MIN(max_x_px, bitmap->width_px);
 	max_y_px = TOOLS_MIN(max_y_px, bitmap->height_px);
 
-	uint32_t red_bits = (uint32_t)tix_math_float_round_to_int(red * 255.0F);
-	uint32_t green_bits = (uint32_t)tix_math_float_round_to_int(green * 255.0F);
-	uint32_t blue_bits = (uint32_t)tix_math_float_round_to_int(blue * 255.0F);
+	uint32_t red_bits = (uint32_t)lib_float_round_to_int(red * 255.0F);
+	uint32_t green_bits = (uint32_t)lib_float_round_to_int(green * 255.0F);
+	uint32_t blue_bits = (uint32_t)lib_float_round_to_int(blue * 255.0F);
 	uint32_t color = red_bits << 16UL | green_bits << 8UL | blue_bits;
 
 	unsigned char *pixel_first_byte_ptr = (unsigned char *)bitmap->top_left_px +
@@ -111,8 +110,8 @@ static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
 		assert(source->width_px >= 0);
 		assert(source->height_px >= 0);
 
-		unsigned offset_x_px = (unsigned)tix_math_float_round_to_int(offset_x_px_f);
-		unsigned offset_y_px = (unsigned)tix_math_float_round_to_int(offset_y_px_f);
+		unsigned offset_x_px = (unsigned)lib_float_round_to_int(offset_x_px_f);
+		unsigned offset_y_px = (unsigned)lib_float_round_to_int(offset_y_px_f);
 
 		assert(offset_x_px < target->width_px);
 		assert(offset_y_px < target->height_px);
@@ -134,7 +133,27 @@ static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
 			                (target_offset_y - y) * (size_t)(target->width_px);
 			source_px_ptr = source->bottom_left_px + y * (size_t)(source->width_px);
 			for (size_t x = 0; x < blit_width; ++x) {
-				*target_px_ptr = *source_px_ptr;
+				// Is the pixel more than 50% (128) opaque
+				uint32_t sa = *source_px_ptr >> 24U;
+				uint32_t sr = (*source_px_ptr >> 16U) & 0xFFU;
+				uint32_t sg = (*source_px_ptr >> 8U) & 0xFFU;
+				uint32_t sb = (*source_px_ptr) & 0xFFU;
+
+				uint32_t da = *target_px_ptr >> 24U;
+				uint32_t dr = (*target_px_ptr >> 16U) & 0xFFU;
+				uint32_t dg = (*target_px_ptr >> 8U) & 0xFFU;
+				uint32_t db = (*target_px_ptr) & 0xFFU;
+
+				float t = (float)sa / 255.0F;
+
+				uint32_t r = lib_float_round_to_uint(t * (float)sa +
+				                                     (1.0F - t) * (float)da);
+				uint32_t g = lib_float_round_to_uint(t * (float)sg +
+				                                     (1.0F - t) * (float)dg);
+				uint32_t b = lib_float_round_to_uint(t * (float)sb +
+				                                     (1.0F - t) * (float)db);
+
+				*target_px_ptr = (da << 24U) | (r << 16U) | (g << 8U) | b;
 
 				++target_px_ptr;
 				++source_px_ptr;
@@ -151,25 +170,26 @@ game_file_load_bitmap_debug(const char *const filename,
 	Plat_LoadedBitmap result = {};
 
 	Plat_ReadFileResult read_result = plat_file_read_debug_func(filename, thread);
-	if (read_result.memory == nullptr) {
+	if (read_result.base_address == nullptr) {
 		return result;
 	}
 
-	Plat_BitmapHeader *bitmap = (Plat_BitmapHeader *)read_result.memory;
+	Plat_BitmapHeader *bitmap = (Plat_BitmapHeader *)read_result.base_address;
 
 	assert(bitmap->height_px >= 0);
 
 	result.bottom_left_px =
-		(uint32_t *)((unsigned char *)(read_result.memory) + bitmap->offset);
+		(uint32_t *)((unsigned char *)(read_result.base_address) + bitmap->offset);
 	result.width_px = bitmap->width_px;
 	result.height_px = bitmap->height_px;
 
 	uint32_t alpha_mask = ~(bitmap->red_mask | bitmap->green_mask | bitmap->blue_mask);
 
-	Tix_BitScanResult red_scan = tix_bit_find_least_significant_set_bit(bitmap->red_mask);
-	Tix_BitScanResult green_scan = tix_bit_find_least_significant_set_bit(bitmap->green_mask);
-	Tix_BitScanResult blue_scan = tix_bit_find_least_significant_set_bit(bitmap->blue_mask);
-	Tix_BitScanResult alpha_scan = tix_bit_find_least_significant_set_bit(alpha_mask);
+	Intrs_BitScanResult red_scan = intrs_bit_find_least_significant_set_bit(bitmap->red_mask);
+	Intrs_BitScanResult green_scan =
+		intrs_bit_find_least_significant_set_bit(bitmap->green_mask);
+	Intrs_BitScanResult blue_scan = intrs_bit_find_least_significant_set_bit(bitmap->blue_mask);
+	Intrs_BitScanResult alpha_scan = intrs_bit_find_least_significant_set_bit(alpha_mask);
 
 	uint32_t *pixel = result.bottom_left_px;
 	for (uint32_t i = 0; i < (uint32_t)(bitmap->width_px * bitmap->height_px); ++i) {
@@ -185,39 +205,14 @@ game_file_load_bitmap_debug(const char *const filename,
 	return result;
 }
 
-void Plat_Arena_init(Plat_Arena *restrict arena, const size_t size,
-                     unsigned char *const restrict base)
-{
-	arena->size = size;
-	arena->base = base;
-	arena->used = 0;
-}
-
-void *Plat_Arena_push_size(Plat_Arena *arena, size_t size)
-{
-	assert(arena->size + size > arena->size);
-
-	void *result = arena->base + arena->used;
-	arena->used += size;
-
-	return result;
-}
-
-void *Plat_Arena_push_array(Plat_Arena *arena, size_t count, size_t size)
-{
-	void *result = Plat_Arena_push_size(arena, count * size);
-
-	return result;
-}
-
 GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
-	assert(sizeof(Game_State) <= Plat_Memory->permamem_size);
+	assert(sizeof(Game_State) <= Plat_Memory->permanent_storage_size_byte);
 
 	float player_height_m = 1.4F;
 	float player_width_m = 0.75F * player_height_m;
 
-	Game_State *game_state = Plat_Memory->permamem;
+	Game_State *game_state = Plat_Memory->permanent_storage;
 	Plat_Arena *arena = &game_state->arena;
 	Game_World *world = game_state->world;
 	Tile_Map *map = nullptr;
@@ -240,18 +235,19 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		game_state->playerpos.offset_y_m = 0.0F;
 
 		size_t game_state_size = sizeof(*game_state);
-		Plat_Arena_init(&game_state->arena, Plat_Memory->permamem_size - game_state_size,
-		                (unsigned char *)Plat_Memory->permamem + game_state_size);
+		plat_arena_init(&game_state->arena,
+		                Plat_Memory->permanent_storage_size_byte - game_state_size,
+		                (unsigned char *)Plat_Memory->permanent_storage + game_state_size);
 
 		game_state->world =
-			Plat_Arena_push_size(&game_state->arena, sizeof(*game_state->world));
+			plat_arena_push_size(&game_state->arena, sizeof(*game_state->world));
 		world = game_state->world;
 
-		world->map = Plat_Arena_push_size(&game_state->arena, sizeof(*map));
+		world->map = plat_arena_push_size(&game_state->arena, sizeof(*map));
 		map = world->map;
 		arena = &game_state->arena;
 
-		map->chunks = (Tile_Chunk *)Plat_Arena_push_array(arena, (size_t)MAP_SIZE_CHK,
+		map->chunks = (Tile_Chunk *)plat_arena_push_array(arena, (size_t)MAP_SIZE_CHK,
 		                                                  sizeof(Tile_Chunk));
 
 		uint32_t tiles_per_width = 17;
@@ -1111,8 +1107,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
 {
-	assert(sizeof(Game_State) <= memory->permamem_size);
+	assert(sizeof(Game_State) <= memory->permanent_storage_size_byte);
 
-	Game_State *game_state = memory->permamem;
+	Game_State *game_state = memory->permanent_storage;
 	game_sound_output(soundbuff, game_state, 400);
 }

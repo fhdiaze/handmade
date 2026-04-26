@@ -1,12 +1,12 @@
 #include <assert.h>
 
 #include "game.h"
+#include "handmade_lib.h"
 #include "handmade_tile.h"
-#include "tix_lib.h"
 
 static inline uint8_t tile_map_correct_coord(uint32_t *tile, float *tile_rel)
 {
-	int tile_offset = tix_math_float_round_to_int(*tile_rel / TILE_SIDE_M);
+	int tile_offset = lib_float_round_to_int(*tile_rel / TILE_SIDE_M);
 
 	// World is toroidal
 	*tile = (unsigned)((int)*tile + tile_offset);
@@ -97,7 +97,7 @@ static void tile_map_set_tile_value(Tile_Map *map, Plat_Arena *arena, uint32_t t
 
 	if (!tilechunk->tiles) {
 		tilechunk->tiles =
-			Plat_Arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
+			plat_arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
 		for (uint32_t tile_idx = 0; tile_idx < CHUNK_SIZE_TL; ++tile_idx) {
 			tilechunk->tiles[tile_idx] = TILE_TYPE_EMPTY;
 		}

@@ -9,10 +9,10 @@
 
 #include "handmade_platform.h"
 
-typedef struct Tix_BitScanResult {
+typedef struct Intrs_BitScanResult {
 	unsigned long index;
 	uint8_t was_found;
-} Tix_BitScanResult;
+} Intrs_BitScanResult;
 
 /**
  * @brief Finds the index of the first non-zero bit if there is one.
@@ -21,9 +21,9 @@ typedef struct Tix_BitScanResult {
  * @param index
  * @return uint8_t Non zero value if a non-zero value was found, 0 otherwise
  */
-Tix_BitScanResult tix_bit_find_least_significant_set_bit(uint32_t value)
+Intrs_BitScanResult intrs_bit_find_least_significant_set_bit(uint32_t value)
 {
-	Tix_BitScanResult result = {};
+	Intrs_BitScanResult result = {};
 
 #if COMPILER_MSVC
 	result.was_found = _BitScanForward(&result.index, value);

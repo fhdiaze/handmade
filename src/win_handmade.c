@@ -2,15 +2,15 @@
 * Windows platform code
 */
 
-#undef TIX_LOG_LEVEL
-#define TIX_LOG_LEVEL TIX_LOG_LEVEL_DEBUG
+#undef LIB_LOG_LEVEL
+#define LIB_LOG_LEVEL LIB_LOG_LEVEL_DEBUG
 
 #include <dsound.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <xinput.h>
 
-#include "tix_lib.h"
+#include "handmade_lib.h"
 #include "win_handmade.h"
 
 // globals
@@ -88,19 +88,20 @@ PLAT_FILE_READ_DEBUG(plat_file_read_debug)
 		goto error_cleanup;
 	}
 
-	uint32_t filesize = tix_math_ll_to_ul(filesize_struct.QuadPart);
-	result.memory = VirtualAlloc(nullptr, filesize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	if (!result.memory) {
+	uint32_t filesize = lib_i64_to_u32(filesize_struct.QuadPart);
+	result.base_address =
+		VirtualAlloc(nullptr, filesize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	if (!result.base_address) {
 		goto error_cleanup;
 	}
 
 	DWORD bytesread = 0;
-	if (!ReadFile(handle, result.memory, filesize, &bytesread, nullptr) ||
+	if (!ReadFile(handle, result.base_address, filesize, &bytesread, nullptr) ||
 	    bytesread != filesize) {
 		goto error_cleanup;
 	}
 
-	result.size = filesize;
+	result.size_byte = filesize;
 
 	CloseHandle(handle);
 
@@ -111,10 +112,10 @@ error_cleanup:
 		CloseHandle(handle);
 	}
 
-	plat_file_free_debug(thread, result.memory);
+	plat_file_free_debug(thread, result.base_address);
 
-	result.memory = nullptr;
-	result.size = 0;
+	result.base_address = nullptr;
+	result.size_byte = 0;
 
 	return result;
 }
@@ -149,7 +150,7 @@ static uint8_t win_file_get_exe_path(Win_State *winstate)
 	unsigned long exe_path_length =
 		GetModuleFileNameA(nullptr, winstate->exe_path, WIN_STATE_MAX_FILE_PATH);
 	if (exe_path_length == 0 || exe_path_length == WIN_STATE_MAX_FILE_PATH) {
-		TIX_LOGE("unable to get the executable path");
+		LIB_LOGE("unable to get the executable path");
 		return 0U;
 	}
 
@@ -185,7 +186,7 @@ static inline uint8_t win_file_get_last_write_time(const char *const filename, F
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
 	if (!GetFileAttributesExA(filename, GetFileExInfoStandard, &data)) {
-		TIX_LOGE("unable to check the timestamp of the dll");
+		LIB_LOGE("unable to check the timestamp of the dll");
 		return 0U;
 	}
 
@@ -204,7 +205,7 @@ static uint8_t win_code_load_game(const char *const gamedll_path, const char *co
 
 	if (!CopyFileA(gamedll_path, tmpdll_path, 0U)) {
 		DWORD error = GetLastError();
-		TIX_LOGE("unable to copy the dll: '%s', error: %lu", gamedll_path, error);
+		LIB_LOGE("unable to copy the dll: '%s', error: %lu", gamedll_path, error);
 		return 0U;
 	}
 
@@ -279,7 +280,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	HMODULE dsound_lib = LoadLibraryA("dsound.dll");
 	if (!dsound_lib) {
 		// TODO(fredy): diagnostic
-		TIX_LOGE("Error loading dsound.dll");
+		LIB_LOGE("Error loading dsound.dll");
 		return;
 	}
 
@@ -287,14 +288,14 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 		(direct_sound_create_func *)GetProcAddress(dsound_lib, "DirectSoundCreate");
 	if (!dsound_create) {
 		// TODO(fredy): diagnostic
-		TIX_LOGE("Error getting DirectSoundCreate function");
+		LIB_LOGE("Error getting DirectSoundCreate function");
 		return;
 	}
 
 	LPDIRECTSOUND direct_sound;
 	if (FAILED(dsound_create(nullptr, &direct_sound, nullptr))) {
 		// TODO(fredy): diagnostic
-		TIX_LOGE("Error creating the handler for direct sound");
+		LIB_LOGE("Error creating the handler for direct sound");
 		return;
 	}
 
@@ -311,7 +312,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 
 	if (FAILED(IDirectSound_SetCooperativeLevel(direct_sound, winhandle, DSSCL_PRIORITY))) {
 		// TODO(fredy): diagnostic
-		TIX_LOGE("Error setting the cooperative level for direct sound");
+		LIB_LOGE("Error setting the cooperative level for direct sound");
 	}
 
 	// NOTE(fredy): create the primary buffer
@@ -323,12 +324,12 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &primbufferdesc, &primbuffer,
 	                                          nullptr))) {
 		// TODO(fredy): diagnostic
-		TIX_LOGE("Error creating the primary buffer (handle for the sound card)");
+		LIB_LOGE("Error creating the primary buffer (handle for the sound card)");
 	}
 
 	if (FAILED(IDirectSoundBuffer_SetFormat(primbuffer, &waveformat))) {
 		// TODO(fredy): diagnostic
-		TIX_LOGE("Error setting the format for the primary buffer");
+		LIB_LOGE("Error setting the format for the primary buffer");
 	}
 
 	// NOTE(fredy): create the secondary buffer
@@ -340,7 +341,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &secbufferdesc, &secbuffer,
 	                                          nullptr))) {
 		// TODO(fredy): diagnostic
-		TIX_LOGE("Error creating the secondary buffer");
+		LIB_LOGE("Error creating the secondary buffer");
 	}
 }
 
@@ -915,7 +916,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	win_bitmap_resize_section(&global_bitmap, 960, 540);
 
 	if (!RegisterClassA(&winclass)) {
-		TIX_LOGE("error registering the window class");
+		LIB_LOGE("error registering the window class");
 		return EXIT_FAILURE;
 	}
 
@@ -924,7 +925,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	                                 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr,
 	                                 nullptr, hinstance, nullptr);
 	if (!winhandle) {
-		TIX_LOGE("error creating the window");
+		LIB_LOGE("error creating the window");
 		return EXIT_FAILURE;
 	}
 
@@ -953,7 +954,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	win_sound_clear_buffer(&winsound);
 
 	if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
-		TIX_LOGE("Error playing dsound secondary buffer");
+		LIB_LOGE("Error playing dsound secondary buffer");
 		return EXIT_FAILURE;
 	}
 
@@ -973,7 +974,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 				CIRCULAR_DIFF(play_cursor, write_cursor, soundout.buffsize);
 			size_t play_delta_bytes =
 				CIRCULAR_DIFF(previous_play_cursor, play_cursor, soundout.buffsize);
-			TIX_LOGD(
+			LIB_LOGD(
 				"PC: %lu, WC: %lu, CDT: %zu bytes (%zu samples), PDT: %zu bytes (%zu samples)",
 				play_cursor, write_cursor, cursor_delta_bytes,
 				cursor_delta_bytes / soundout.sample_size_bytes, play_delta_bytes,
@@ -992,15 +993,17 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.plat_file_read_debug = plat_file_read_debug,
 		.plat_file_write_debug = plat_file_write_debug,
 	};
-	Plat_Memory.permamem_size = MB_TO_BYTES(64ULL);
-	Plat_Memory.transmem_size = GB_TO_BYTES(1ULL);
+	Plat_Memory.permanent_storage_size_byte = MB_TO_BYTES(64ULL);
+	Plat_Memory.transient_storage_size_byte = GB_TO_BYTES(1ULL);
 
-	winstate.gamemem_size = Plat_Memory.permamem_size + Plat_Memory.transmem_size;
+	winstate.gamemem_size =
+		Plat_Memory.permanent_storage_size_byte + Plat_Memory.transient_storage_size_byte;
 	winstate.gamemem = VirtualAlloc(BASE_ADDRESS, winstate.gamemem_size,
 	                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	Plat_Memory.permamem = winstate.gamemem;
-	Plat_Memory.transmem = (unsigned char *)Plat_Memory.permamem + Plat_Memory.permamem_size;
+	Plat_Memory.permanent_storage = winstate.gamemem;
+	Plat_Memory.transient_storage = (unsigned char *)Plat_Memory.permanent_storage +
+	                                Plat_Memory.permanent_storage_size_byte;
 
 	for (uint8_t slot_index = 0; slot_index < WIN_REPLAY_MAX_SLOTS; ++slot_index) {
 		Win_ReplaySlot *replay_slot = &winstate.replay_slots[slot_index];
@@ -1019,7 +1022,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		                                    0, winstate.gamemem_size);
 	}
 
-	if (!samples || !Plat_Memory.permamem || !Plat_Memory.transmem) {
+	if (!samples || !Plat_Memory.permanent_storage || !Plat_Memory.transient_storage) {
 		return EXIT_FAILURE;
 	}
 
@@ -1251,7 +1254,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 					// Sound has high latency
 					write_cursor;
 
-			// TIX_LOGD("ET: %f secs, TTF: %f secs, BPF: %u, BTF: %u, FFB: %u, SFB: %u",
+			// LIB_LOGD("ET: %f secs, TTF: %f secs, BPF: %u, BTF: %u, FFB: %u, SFB: %u",
 			//          (double)secs_from_flip, (double)secs_to_flip, bytes_per_frame,
 			//          bytes_to_flip, frame_flip_byte, sound_flip_byte);
 
@@ -1281,7 +1284,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			                     (float)winsound.bytes_per_sample /
 			                     (float)winsound.samples_per_sec;
 
-			TIX_LOGD(
+			LIB_LOGD(
 				"Estimated - PC: %lu, WC: %lu, BTL: %u, TC: %u, BTW: %u - LAT: %zu (%f secs)",
 				play_cursor, write_cursor, byte_to_lock, target_cursor,
 				bytes_to_write, sound_latency_bytes, (double)sound_latency_secs);
@@ -1311,7 +1314,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			float test_secs_elapsed_for_frame =
 				win_clock_elapsed_secs(last_counter, win_clock_get_wall());
 			if (test_secs_elapsed_for_frame > target_secs_per_frame) {
-				TIX_LOGW("missed sleep: %f", (double)test_secs_elapsed_for_frame);
+				LIB_LOGW("missed sleep: %f", (double)test_secs_elapsed_for_frame);
 			}
 
 			while (secs_elapsed_for_frame < target_secs_per_frame) {
@@ -1320,7 +1323,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			}
 		} else {
 			// missed frame rate!
-			TIX_LOGW("missed frame rate: %f", (double)secs_elapsed_for_frame);
+			LIB_LOGW("missed frame rate: %f", (double)secs_elapsed_for_frame);
 		}
 
 		LARGE_INTEGER end_counter = win_clock_get_wall();
@@ -1352,7 +1355,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 					&debug_last_cursor_marks[debug_last_cursor_mark_index];
 				mark->flip_play_cursor = debug_play_cursor;
 				mark->flip_write_cursor = debug_write_cursor;
-				TIX_LOGD("After flip - PC: %lu, WC: %lu, DPC: %lu, DWC: %lu",
+				LIB_LOGD("After flip - PC: %lu, WC: %lu, DPC: %lu, DWC: %lu",
 				         play_cursor, write_cursor, debug_play_cursor,
 				         debug_write_cursor);
 			}
@@ -1371,7 +1374,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		float fps = 1000.0F / ms_per_frame;
 		float mega_cycles_per_frame = (float)cycles_elapsed / 1000000.0F;
 
-		TIX_LOGI("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
+		LIB_LOGI("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps,
 		         (double)mega_cycles_per_frame);
 #endif
 
