@@ -133,7 +133,7 @@ static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
 			                (target_offset_y - y) * (size_t)(target->width_px);
 			source_px_ptr = source->bottom_left_px + y * (size_t)(source->width_px);
 			for (size_t x = 0; x < blit_width; ++x) {
-				// Is the pixel more than 50% (128) opaque
+				// Linear alpha blending
 				uint32_t sa = *source_px_ptr >> 24U;
 				uint32_t sr = (*source_px_ptr >> 16U) & 0xFFU;
 				uint32_t sg = (*source_px_ptr >> 8U) & 0xFFU;
@@ -146,8 +146,8 @@ static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
 
 				float t = (float)sa / 255.0F;
 
-				uint32_t r = lib_float_round_to_uint(t * (float)sa +
-				                                     (1.0F - t) * (float)da);
+				uint32_t r = lib_float_round_to_uint(t * (float)sr +
+				                                     (1.0F - t) * (float)dr);
 				uint32_t g = lib_float_round_to_uint(t * (float)sg +
 				                                     (1.0F - t) * (float)dg);
 				uint32_t b = lib_float_round_to_uint(t * (float)sb +
@@ -177,6 +177,7 @@ game_file_load_bitmap_debug(const char *const filename,
 	Plat_BitmapHeader *bitmap = (Plat_BitmapHeader *)read_result.base_address;
 
 	assert(bitmap->height_px >= 0);
+	assert(bitmap->compression == 3);
 
 	result.bottom_left_px =
 		(uint32_t *)((unsigned char *)(read_result.base_address) + bitmap->offset);
@@ -1092,9 +1093,9 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float player_min_y_px = center_y - player_height_m * PIXELS_PER_METER;
 		float player_max_x_px = player_min_x_px + player_width_m * PIXELS_PER_METER;
 		float player_max_y_px = player_min_y_px + player_height_m * PIXELS_PER_METER;
-		// game_bitmap_render_rectangle(bitmap, player_min_x_px, player_min_y_px,
-		//                              player_max_x_px, player_max_y_px, player_red,
-		//                              player_green, player_blue);
+		game_bitmap_render_rectangle(bitmap, player_min_x_px, player_min_y_px,
+		                             player_max_x_px, player_max_y_px, player_red,
+		                             player_green, player_blue);
 
 		game_bitmap_render_bitmap(bitmap, &game_state->hero_head, player_min_x_px,
 		                          player_min_y_px);

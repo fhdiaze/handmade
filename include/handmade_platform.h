@@ -25,7 +25,6 @@
 
 #if COMPILER_MSVC
 #include <intrin.h>
-#pragma intrinsic(_BitScanForward)
 #endif
 
 #ifdef DEBUG
