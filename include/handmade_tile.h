@@ -72,10 +72,15 @@ typedef struct Tile_Position {
 
 	/**
 	 * @brief Y relative to the center of the tile in meters
-	 *
 	 */
 	float offset_y_m;
 } Tile_Position;
+
+typedef struct Tile_PositionDelta {
+	float delta_x_m;
+	float delta_y_m;
+	float delta_z_m;
+} Tile_PositionDelta;
 
 typedef enum Tile_Type : uint32_t {
 	TILE_TYPE_NONE = 0,

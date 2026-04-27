@@ -2,7 +2,7 @@
 * Game api implementation
 */
 
-#include "game.h"
+#include "handmade_game.h"
 
 #include "handmade_intrinsics.h"
 #include <assert.h>
@@ -102,62 +102,66 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f
 
 static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
                                       const Plat_LoadedBitmap *const restrict source,
-                                      float offset_x_px_f, float offset_y_px_f)
+                                      float offset_x_px_f, float offset_y_px_f, int32_t align_x_px,
+                                      int32_t align_y_px)
 {
-	if (source && source->bottom_left_px) {
-		assert(offset_x_px_f >= 0.0F);
-		assert(offset_y_px_f >= 0.0F);
-		assert(source->width_px >= 0);
-		assert(source->height_px >= 0);
+	if (!source || !source->bottom_left_px) {
+		return;
+	}
 
-		unsigned offset_x_px = (unsigned)lib_float_round_to_int(offset_x_px_f);
-		unsigned offset_y_px = (unsigned)lib_float_round_to_int(offset_y_px_f);
+	assert(offset_x_px_f >= 0.0F);
+	assert(offset_y_px_f >= 0.0F);
+	assert(source->width_px >= 0);
+	assert(source->height_px >= 0);
 
-		assert(offset_x_px < target->width_px);
-		assert(offset_y_px < target->height_px);
+	offset_x_px_f -= (float)align_x_px;
+	offset_y_px_f -= (float)align_y_px;
 
-		uint32_t *target_top_left_px_ptr = (uint32_t *)target->top_left_px + offset_x_px;
+	unsigned offset_x_px = (unsigned)lib_float_round_to_int(offset_x_px_f);
+	unsigned offset_y_px = (unsigned)lib_float_round_to_int(offset_y_px_f);
 
-		// Register order: AA RR GG BB. Bottom-up
-		uint32_t *source_px_ptr = nullptr;
-		// Register order: AA RR GG BB. Top-down
-		uint32_t *target_px_ptr = nullptr;
+	assert(offset_x_px < target->width_px);
+	assert(offset_y_px < target->height_px);
 
-		uint32_t blit_width =
-			min(target->width_px - offset_x_px, (uint32_t)source->width_px);
-		uint32_t blit_height =
-			min(target->height_px - offset_y_px, (uint32_t)source->height_px);
-		unsigned target_offset_y = offset_y_px + blit_height - 1;
-		for (size_t y = 0; y < blit_height; ++y) {
-			target_px_ptr = target_top_left_px_ptr +
-			                (target_offset_y - y) * (size_t)(target->width_px);
-			source_px_ptr = source->bottom_left_px + y * (size_t)(source->width_px);
-			for (size_t x = 0; x < blit_width; ++x) {
-				// Linear alpha blending
-				uint32_t sa = *source_px_ptr >> 24U;
-				uint32_t sr = (*source_px_ptr >> 16U) & 0xFFU;
-				uint32_t sg = (*source_px_ptr >> 8U) & 0xFFU;
-				uint32_t sb = (*source_px_ptr) & 0xFFU;
+	uint32_t *target_top_left_px_ptr = (uint32_t *)target->top_left_px + offset_x_px;
 
-				uint32_t da = *target_px_ptr >> 24U;
-				uint32_t dr = (*target_px_ptr >> 16U) & 0xFFU;
-				uint32_t dg = (*target_px_ptr >> 8U) & 0xFFU;
-				uint32_t db = (*target_px_ptr) & 0xFFU;
+	// Register order: AA RR GG BB. Bottom-up
+	uint32_t *source_px_ptr = nullptr;
+	// Register order: AA RR GG BB. Top-down
+	uint32_t *target_px_ptr = nullptr;
 
-				float t = (float)sa / 255.0F;
+	uint32_t blit_width = min(target->width_px - offset_x_px, (uint32_t)source->width_px);
+	uint32_t blit_height = min(target->height_px - offset_y_px, (uint32_t)source->height_px);
+	unsigned target_offset_y = offset_y_px + blit_height - 1;
+	for (size_t y = 0; y < blit_height; ++y) {
+		target_px_ptr =
+			target_top_left_px_ptr + (target_offset_y - y) * (size_t)(target->width_px);
+		source_px_ptr = source->bottom_left_px + y * (size_t)(source->width_px);
+		for (size_t x = 0; x < blit_width; ++x) {
+			// Linear alpha blending
+			uint32_t sa = *source_px_ptr >> 24U;
+			uint32_t sr = (*source_px_ptr >> 16U) & 0xFFU;
+			uint32_t sg = (*source_px_ptr >> 8U) & 0xFFU;
+			uint32_t sb = (*source_px_ptr) & 0xFFU;
 
-				uint32_t r = lib_float_round_to_uint(t * (float)sr +
-				                                     (1.0F - t) * (float)dr);
-				uint32_t g = lib_float_round_to_uint(t * (float)sg +
-				                                     (1.0F - t) * (float)dg);
-				uint32_t b = lib_float_round_to_uint(t * (float)sb +
-				                                     (1.0F - t) * (float)db);
+			uint32_t da = *target_px_ptr >> 24U;
+			uint32_t dr = (*target_px_ptr >> 16U) & 0xFFU;
+			uint32_t dg = (*target_px_ptr >> 8U) & 0xFFU;
+			uint32_t db = (*target_px_ptr) & 0xFFU;
 
-				*target_px_ptr = (da << 24U) | (r << 16U) | (g << 8U) | b;
+			float t = (float)sa / 255.0F;
 
-				++target_px_ptr;
-				++source_px_ptr;
-			}
+			uint32_t r =
+				lib_float_round_to_uint(t * (float)sr + (1.0F - t) * (float)dr);
+			uint32_t g =
+				lib_float_round_to_uint(t * (float)sg + (1.0F - t) * (float)dg);
+			uint32_t b =
+				lib_float_round_to_uint(t * (float)sb + (1.0F - t) * (float)db);
+
+			*target_px_ptr = (da << 24U) | (r << 16U) | (g << 8U) | b;
+
+			++target_px_ptr;
+			++source_px_ptr;
 		}
 	}
 }
@@ -221,19 +225,65 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	if (!Plat_Memory->is_initialized) {
 		game_state->backdrop = game_file_load_bitmap_debug(
 			"test/test_background.bmp", Plat_Memory->plat_file_read_debug, thread);
-		game_state->hero_head = game_file_load_bitmap_debug(
-			"test/test_hero_front_head.bmp", Plat_Memory->plat_file_read_debug, thread);
-		game_state->hero_cape = game_file_load_bitmap_debug(
-			"test/test_hero_front_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
-		game_state->hero_torso =
-			game_file_load_bitmap_debug("test/test_hero_front_torso.bmp",
-		                                    Plat_Memory->plat_file_read_debug, thread);
 
-		game_state->playerpos.tile_x = 1;
-		game_state->playerpos.tile_y = 3;
-		game_state->playerpos.tile_z = 0;
-		game_state->playerpos.offset_x_m = 0.0F;
-		game_state->playerpos.offset_y_m = 0.0F;
+		Game_HeroBitmaps *bitmaps = game_state->hero_bitmaps;
+		bitmaps->head = game_file_load_bitmap_debug(
+			"test/test_hero_right_head.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->cape = game_file_load_bitmap_debug(
+			"test/test_hero_right_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->torso = game_file_load_bitmap_debug("test/test_hero_right_torso.bmp",
+		                                             Plat_Memory->plat_file_read_debug,
+		                                             thread);
+		bitmaps->align_x_px = 72;
+		bitmaps->align_y_px = 182;
+
+		++bitmaps;
+
+		bitmaps->head = game_file_load_bitmap_debug(
+			"test/test_hero_back_head.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->cape = game_file_load_bitmap_debug(
+			"test/test_hero_back_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->torso = game_file_load_bitmap_debug(
+			"test/test_hero_back_torso.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->align_x_px = 72;
+		bitmaps->align_y_px = 182;
+
+		++bitmaps;
+
+		bitmaps->head = game_file_load_bitmap_debug(
+			"test/test_hero_left_head.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->cape = game_file_load_bitmap_debug(
+			"test/test_hero_left_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->torso = game_file_load_bitmap_debug(
+			"test/test_hero_left_torso.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->align_x_px = 72;
+		bitmaps->align_y_px = 182;
+
+		++bitmaps;
+
+		bitmaps->head = game_file_load_bitmap_debug(
+			"test/test_hero_front_head.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->cape = game_file_load_bitmap_debug(
+			"test/test_hero_front_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
+		bitmaps->torso = game_file_load_bitmap_debug("test/test_hero_front_torso.bmp",
+		                                             Plat_Memory->plat_file_read_debug,
+		                                             thread);
+		bitmaps->align_x_px = 72;
+		bitmaps->align_y_px = 182;
+
+		game_state->hero_facing_direction = 0;
+
+		game_state->hero_position.tile_x = 1;
+		game_state->hero_position.tile_y = 3;
+		game_state->hero_position.tile_z = 0;
+		game_state->hero_position.offset_x_m = 0.0F;
+		game_state->hero_position.offset_y_m = 0.0F;
+
+		game_state->camera_position.tile_x = 17 / 2;
+		game_state->camera_position.tile_y = 9 / 2;
+		game_state->camera_position.tile_z = 0;
+		game_state->camera_position.offset_x_m = 0.0F;
+		game_state->camera_position.offset_y_m = 0.0F;
 
 		size_t game_state_size = sizeof(*game_state);
 		plat_arena_init(&game_state->arena,
@@ -954,18 +1004,22 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			float mts_per_sec_player_y = 0.0F;
 
 			if (controller->moveup.ended_down) {
+				game_state->hero_facing_direction = 1;
 				mts_per_sec_player_y = 1.0F;
 			}
 
 			if (controller->movedown.ended_down) {
+				game_state->hero_facing_direction = 3;
 				mts_per_sec_player_y = -1.0F;
 			}
 
 			if (controller->moveleft.ended_down) {
+				game_state->hero_facing_direction = 2;
 				mts_per_sec_player_x = -1.0F;
 			}
 
 			if (controller->moveright.ended_down) {
+				game_state->hero_facing_direction = 0;
 				mts_per_sec_player_x = 1.0F;
 			}
 
@@ -977,12 +1031,12 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			mts_per_sec_player_x *= player_speed;
 			mts_per_sec_player_y *= player_speed;
 
-			float new_player_x = game_state->playerpos.offset_x_m +
+			float new_player_x = game_state->hero_position.offset_x_m +
 			                     input->secs_time_delta * mts_per_sec_player_x;
-			float new_player_y = game_state->playerpos.offset_y_m +
+			float new_player_y = game_state->hero_position.offset_y_m +
 			                     input->secs_time_delta * mts_per_sec_player_y;
 
-			Tile_Position new_player_pos = game_state->playerpos;
+			Tile_Position new_player_pos = game_state->hero_position;
 			new_player_pos.offset_x_m = new_player_x;
 			new_player_pos.offset_y_m = new_player_y;
 
@@ -1006,7 +1060,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			    tile_map_is_point_walkable(map, left_bottom_pos) &&
 			    tile_map_is_point_walkable(map, right_bottom_pos)) {
 				if (!TILE_MAP_ARE_SAME_TILE(new_player_pos,
-				                            game_state->playerpos)) {
+				                            game_state->hero_position)) {
 					uint32_t tile_value =
 						TILE_MAP_GET_TILE_VALUE_BY_POS(map, new_player_pos);
 					if (tile_value == TILE_TYPE_STAIRS_UP) {
@@ -1016,29 +1070,32 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 					}
 				}
 
-				game_state->playerpos = new_player_pos;
+				game_state->hero_position = new_player_pos;
 			} else {
 				continue;
 			}
 		}
 
 #if 1
-		game_bitmap_render_bitmap(bitmap, &game_state->backdrop, 0.0F, 0.0F);
+		game_bitmap_render_bitmap(bitmap, &game_state->backdrop, 0.0F, 0.0F, 0.0F, 0.0F);
 #else
 		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width_px,
 		                             (float)bitmap->height_px, 1.0F, 0.0F, 1.0F);
 #endif
 
-		float center_x = (float)bitmap->width_px * 0.5F;
-		float center_y = (float)bitmap->height_px * 0.5F;
+		float bitmap_center_x_px = (float)bitmap->width_px * 0.5F;
+		float bitmap_center_y_px = (float)bitmap->height_px * 0.5F;
+
+		Tile_Position *camera_position = &game_state->camera_position;
+
 		for (int32_t tile_row_offset = -10; tile_row_offset < 10; ++tile_row_offset) {
 			for (int32_t tile_col_offset = -20; tile_col_offset < 20;
 			     ++tile_col_offset) {
 				uint32_t col = (uint32_t)(tile_col_offset +
-				                          (int32_t)game_state->playerpos.tile_x);
+				                          (int32_t)camera_position->tile_x);
 				uint32_t row = (uint32_t)(tile_row_offset +
-				                          (int32_t)game_state->playerpos.tile_y);
-				uint32_t level = game_state->playerpos.tile_z;
+				                          (int32_t)camera_position->tile_y);
+				uint32_t level = camera_position->tile_z;
 
 				uint32_t tile_type_id =
 					tile_map_get_tile_value(map, col, row, level);
@@ -1063,20 +1120,19 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 					}
 
 					float min_x_px =
-						center_x - (float)TILE_RADIUS_PX +
+						bitmap_center_x_px - (float)TILE_RADIUS_PX +
 						(float)tile_col_offset * (float)TILE_SIDE_PX -
-						game_state->playerpos.offset_x_m * PIXELS_PER_METER;
+						camera_position->offset_x_m * PIXELS_PER_METER;
 					float min_y_px =
-						center_y - (float)TILE_SIDE_PX -
+						bitmap_center_y_px - (float)TILE_SIDE_PX -
 						(float)tile_row_offset * (float)TILE_SIDE_PX +
-						game_state->playerpos.offset_y_m *
-							PIXELS_PER_METER +
+						camera_position->offset_y_m * PIXELS_PER_METER +
 						(float)TILE_RADIUS_PX;
 					float max_x_px = min_x_px + (float)TILE_SIDE_PX;
 					float max_y_px = min_y_px + (float)TILE_SIDE_PX;
 
-					if (game_state->playerpos.tile_y == row &&
-					    game_state->playerpos.tile_x == col) {
+					if (game_state->hero_position.tile_y == row &&
+					    game_state->hero_position.tile_x == col) {
 						gray = 0.0F;
 					}
 					game_bitmap_render_rectangle(bitmap, min_x_px, min_y_px,
@@ -1086,23 +1142,40 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			}
 		}
 
+		Game_HeroBitmaps *hero_bitmaps =
+			&game_state->hero_bitmaps[game_state->hero_facing_direction];
+
+		Tile_Position *hero_position = &game_state->hero_position;
+
+		Tile_PositionDelta delta =
+			tile_map_substract_positions(hero_position, camera_position);
+
 		float player_red = 1.0F;
 		float player_green = 1.0F;
 		float player_blue = 0.0F;
-		float player_min_x_px = center_x - 0.5F * player_width_m * PIXELS_PER_METER;
-		float player_min_y_px = center_y - player_height_m * PIXELS_PER_METER;
+		float player_ground_point_x_px =
+			bitmap_center_x_px + delta.delta_x_m * PIXELS_PER_METER;
+		float player_ground_point_y_px =
+			bitmap_center_y_px + delta.delta_y_m * PIXELS_PER_METER;
+		float player_min_x_px =
+			player_ground_point_x_px - 0.5F * player_width_m * PIXELS_PER_METER;
+		float player_min_y_px =
+			player_ground_point_y_px - player_height_m * PIXELS_PER_METER;
 		float player_max_x_px = player_min_x_px + player_width_m * PIXELS_PER_METER;
 		float player_max_y_px = player_min_y_px + player_height_m * PIXELS_PER_METER;
 		game_bitmap_render_rectangle(bitmap, player_min_x_px, player_min_y_px,
 		                             player_max_x_px, player_max_y_px, player_red,
 		                             player_green, player_blue);
 
-		game_bitmap_render_bitmap(bitmap, &game_state->hero_head, player_min_x_px,
-		                          player_min_y_px);
-		// game_bitmap_render_bitmap(bitmap, &game_state->hero_cape, player_min_x_px,
-		//                           player_min_y_px);
-		// game_bitmap_render_bitmap(bitmap, &game_state->hero_torso, player_min_x_px,
-		//                           player_min_y_px);
+		game_bitmap_render_bitmap(bitmap, &hero_bitmaps->torso, player_ground_point_x_px,
+		                          player_ground_point_y_px, hero_bitmaps->align_x_px,
+		                          hero_bitmaps->align_y_px);
+		game_bitmap_render_bitmap(bitmap, &hero_bitmaps->cape, player_ground_point_x_px,
+		                          player_ground_point_y_px, hero_bitmaps->align_x_px,
+		                          hero_bitmaps->align_y_px);
+		game_bitmap_render_bitmap(bitmap, &hero_bitmaps->head, player_ground_point_x_px,
+		                          player_ground_point_y_px, hero_bitmaps->align_x_px,
+		                          hero_bitmaps->align_y_px);
 	}
 }
 

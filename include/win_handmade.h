@@ -5,7 +5,7 @@
 
 #include <windows.h>
 
-#include "game.h"
+#include "handmade_game.h"
 
 #define WIN_STATE_MAX_FILE_PATH MAX_PATH
 #define WIN_REPLAY_MAX_SLOTS 4

@@ -892,9 +892,9 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	char gamedll_path[WIN_STATE_MAX_FILE_PATH];
 	char tmpgamedll_path[WIN_STATE_MAX_FILE_PATH];
 
-	win_file_build_path(&winstate, "game.dll", sizeof(gamedll_path), gamedll_path);
+	win_file_build_path(&winstate, "handmade_game.dll", sizeof(gamedll_path), gamedll_path);
 
-	if (sprintf(tmpgamedll_filename, "game_tmp_%lu.dll", GetCurrentTime()) < 0) {
+	if (sprintf(tmpgamedll_filename, "handmade_game_tmp_%lu.dll", GetCurrentTime()) < 0) {
 		return EXIT_FAILURE;
 	}
 	win_file_build_path(&winstate, tmpgamedll_filename, sizeof(tmpgamedll_path),

@@ -97,15 +97,25 @@ typedef struct Game_World {
 	Tile_Map *map;
 } Game_World;
 
+typedef struct Game_HeroBitmaps {
+	int32_t align_x_px;
+	int32_t align_y_px;
+
+	Plat_LoadedBitmap head;
+	Plat_LoadedBitmap cape;
+	Plat_LoadedBitmap torso;
+} Game_HeroBitmaps;
+
 typedef struct Game_State {
 	Plat_Arena arena;
 	Game_World *world;
-	Tile_Position playerpos;
+	Tile_Position camera_position;
+	Tile_Position hero_position;
 
 	Plat_LoadedBitmap backdrop;
-	Plat_LoadedBitmap hero_head;
-	Plat_LoadedBitmap hero_cape;
-	Plat_LoadedBitmap hero_torso;
+
+	uint8_t hero_facing_direction;
+	Game_HeroBitmaps hero_bitmaps[4];
 } Game_State;
 
 // Utilities

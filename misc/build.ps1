@@ -16,7 +16,7 @@ param(
 
 # Setup
 $PlatformFile = ".\src\win_handmade.c"
-$GameFile = ".\src\game.c"
+$GameFile = ".\src\handmade_game.c"
 $Outdir = ".\bin"
 $Datadir = ".\data"
 $PlatformFileName = [System.IO.Path]::GetFileNameWithoutExtension($PlatformFile)
