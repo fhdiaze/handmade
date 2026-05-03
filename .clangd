@@ -14,7 +14,6 @@ Diagnostics:
   UnusedIncludes: Strict
 
 ---
-
 # Flags for .h files
 If:
   PathMatch: .*\.h
@@ -23,10 +22,12 @@ CompileFlags:
   Add: [-xc-header]
 
 ---
-
 # Flags for .c files
 If:
   PathMatch: .*\.c
 
 CompileFlags:
   Add: [-xc]
+
+Documentation:
+  CommentFormat: Doxygen

@@ -53,7 +53,17 @@ typedef struct Plat_BitmapHeader {
 	 */
 	uint32_t header_size_byte;
 
+	/**
+	 * @brief Width in pixels.
+	 * Negative height: Invalid. Kept for historical reasons.
+	 */
 	int32_t width_px;
+
+	/**
+	 * @brief Height in pixels.
+	 * Positive height: the bitmap is stored bottom-up (rows stored from bottom to top, the traditional BMP layout).
+	 * Negative height: the bitmap is stored top-down (rows stored from top to bottom).
+	 */
 	int32_t height_px;
 	uint16_t planes;
 
@@ -83,10 +93,15 @@ typedef struct Plat_BitmapHeader {
  * The byte order in a register (little endian) is AA RR GG BB
  */
 typedef struct Plat_LoadedBitmap {
-	// in pixels
-	int32_t width_px;
-	// in pixels
-	int32_t height_px;
+	/**
+	 * @brief Width in pixels.
+	 */
+	uint32_t width_px;
+
+	/**
+	 * @brief Height in pixels.
+	 */
+	uint32_t height_px;
 
 	uint32_t *bottom_left_px;
 } Plat_LoadedBitmap;

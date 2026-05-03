@@ -23,9 +23,15 @@
  */
 typedef struct Game_Bitmap {
 	void *top_left_px;
-	unsigned width_px;    // pixels
-	unsigned height_px;   // pixels
-	unsigned pitch_bytes; // size of a row in bytes
+
+	// width in pixels
+	unsigned width_px;
+
+	// Height in pixels
+	unsigned height_px;
+
+	// Size of a row in bytes
+	unsigned pitch_bytes;
 	unsigned bytes_per_pixel;
 } Game_Bitmap;
 
@@ -36,7 +42,7 @@ typedef struct Game_SoundBuffer {
 } Game_SoundBuffer;
 
 typedef struct Game_ButtonState {
-	// half transistion count per frame
+	// half transition count per frame
 	unsigned half_transition_count;
 	uint8_t ended_down;
 } Game_ButtonState;
@@ -98,7 +104,10 @@ typedef struct Game_World {
 } Game_World;
 
 typedef struct Game_HeroBitmaps {
+	// Top-left corner is the origin
 	int32_t align_x_px;
+
+	// Top-left corner is the origin
 	int32_t align_y_px;
 
 	Plat_LoadedBitmap head;

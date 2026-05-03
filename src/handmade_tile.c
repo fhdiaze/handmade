@@ -109,19 +109,19 @@ static void tile_map_set_tile_value(Tile_Map *map, Plat_Arena *arena, uint32_t t
 	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_value;
 }
 
-static Tile_PositionDelta tile_map_substract_positions(Tile_Position *position_a,
-                                                       Tile_Position *position_b)
+static Tile_PositionDelta tile_map_substract_positions(Tile_Position *start_position,
+                                                       Tile_Position *end_position)
 {
 	Tile_PositionDelta result = {};
 
-	float delta_tile_x = (float)position_b->tile_x - (float)position_a->tile_x;
-	float delta_tile_y = (float)position_b->tile_y - (float)position_a->tile_y;
-	float delta_tile_z = (float)position_b->tile_z - (float)position_a->tile_z;
+	float delta_tile_x = (float)end_position->tile_x - (float)start_position->tile_x;
+	float delta_tile_y = (float)end_position->tile_y - (float)start_position->tile_y;
+	float delta_tile_z = (float)end_position->tile_z - (float)start_position->tile_z;
 
 	result.delta_x_m =
-		delta_tile_x * TILE_SIDE_M + position_b->offset_x_m - position_a->offset_x_m;
+		delta_tile_x * TILE_SIDE_M + end_position->offset_x_m - start_position->offset_x_m;
 	result.delta_y_m =
-		delta_tile_y * TILE_SIDE_M + position_b->offset_y_m - position_a->offset_y_m;
+		delta_tile_y * TILE_SIDE_M + end_position->offset_y_m - start_position->offset_y_m;
 	result.delta_z_m = delta_tile_z * TILE_SIDE_M;
 
 	return result;

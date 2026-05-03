@@ -182,11 +182,18 @@ static void win_file_build_input_path(Win_State *winstate, unsigned slot_index, 
 	win_file_build_path(winstate, filename, dest_count, dest);
 }
 
-static inline uint8_t win_file_get_last_write_time(const char *const filename, FILETIME *result)
+/**
+ * @brief
+ *
+ * @param file_path
+ * @param result
+ * @return The result code, 0 if error
+ */
+static inline uint32_t win_file_get_last_write_time(const char *const file_path, FILETIME *result)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
-	if (!GetFileAttributesExA(filename, GetFileExInfoStandard, &data)) {
-		LIB_LOGE("unable to check the timestamp of the dll");
+	if (!GetFileAttributesExA(file_path, GetFileExInfoStandard, &data)) {
+		LIB_LOGE("unable to check the timestamp of the file: %s", file_path);
 		return 0U;
 	}
 
@@ -195,18 +202,35 @@ static inline uint8_t win_file_get_last_write_time(const char *const filename, F
 	return 1U;
 }
 
-static uint8_t win_code_load_game(const char *const gamedll_path, const char *const tmpdll_path,
-                                  Win_GameCode *game_code)
+/**
+ * @brief
+ *
+ * @param gamedll_path
+ * @param tmpdll_path
+ * @param game_code
+ * @return The result code, 0 if error
+ */
+static uint32_t win_code_load_game(Win_GameCode *game_code, const char *const gamedll_path,
+                                   const char *const tmpdll_path,
+                                   const char *const gamedll_lock_path)
 {
+	uint32_t result_code = 0U;
+
+	FILETIME dll_lock_last_write_time = {};
+	if (win_file_get_last_write_time(gamedll_lock_path, &dll_lock_last_write_time)) {
+		LIB_LOGE("unable to read the dll, waiting for pdb file");
+		return result_code;
+	}
+
 	FILETIME dll_last_write_time = {};
 	if (!win_file_get_last_write_time(gamedll_path, &dll_last_write_time)) {
-		return 0U;
+		return result_code;
 	}
 
 	if (!CopyFileA(gamedll_path, tmpdll_path, 0U)) {
 		DWORD error = GetLastError();
 		LIB_LOGE("unable to copy the dll: '%s', error: %lu", gamedll_path, error);
-		return 0U;
+		return result_code;
 	}
 
 	game_code->game_dll = LoadLibraryA(tmpdll_path);
@@ -225,7 +249,11 @@ static uint8_t win_code_load_game(const char *const gamedll_path, const char *co
 	if (!game_code->is_valid) {
 		game_code->sound_create_samples = nullptr;
 		game_code->update_and_render = nullptr;
+
+		LIB_LOGE("unable to load the dll: '%s'", gamedll_path);
 	}
+
+	assert(game_code->is_valid);
 
 	return game_code->is_valid;
 }
@@ -891,8 +919,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	char tmpgamedll_filename[WIN_STATE_MAX_FILE_PATH];
 	char gamedll_path[WIN_STATE_MAX_FILE_PATH];
 	char tmpgamedll_path[WIN_STATE_MAX_FILE_PATH];
+	char gamedll_lock_path[WIN_STATE_MAX_FILE_PATH];
 
 	win_file_build_path(&winstate, "handmade_game.dll", sizeof(gamedll_path), gamedll_path);
+	win_file_build_path(&winstate, "lock.tmp", sizeof(gamedll_lock_path), gamedll_lock_path);
 
 	if (sprintf(tmpgamedll_filename, "handmade_game_tmp_%lu.dll", GetCurrentTime()) < 0) {
 		return EXIT_FAILURE;
@@ -1051,7 +1081,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	Win_GameCode game_code = {};
 	FILETIME gamedll_last_write_time = {};
-	if (!win_code_load_game(gamedll_path, tmpgamedll_path, &game_code)) {
+	if (!win_code_load_game(&game_code, gamedll_path, tmpgamedll_path, gamedll_lock_path)) {
 		return EXIT_FAILURE;
 	}
 
@@ -1070,9 +1100,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			win_file_build_path(&winstate, tmpgamedll_filename, sizeof(tmpgamedll_path),
 			                    tmpgamedll_path);
 
-			if (!win_code_load_game(gamedll_path, tmpgamedll_path, &game_code)) {
-				return EXIT_FAILURE;
-			}
+			win_code_load_game(&game_code, gamedll_path, tmpgamedll_path,
+			                   gamedll_lock_path);
 		}
 
 		/**
@@ -1314,7 +1343,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			float test_secs_elapsed_for_frame =
 				win_clock_elapsed_secs(last_counter, win_clock_get_wall());
 			if (test_secs_elapsed_for_frame > target_secs_per_frame) {
-				LIB_LOGW("missed sleep: %f", (double)test_secs_elapsed_for_frame);
+				LIB_LOGW("missed sleep: %fs elapsed for frame",
+				         (double)test_secs_elapsed_for_frame);
 			}
 
 			while (secs_elapsed_for_frame < target_secs_per_frame) {
@@ -1323,7 +1353,8 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 			}
 		} else {
 			// missed frame rate!
-			LIB_LOGW("missed frame rate: %f", (double)secs_elapsed_for_frame);
+			LIB_LOGW("missed frame rate: %fs elapsed for frame",
+			         (double)secs_elapsed_for_frame);
 		}
 
 		LARGE_INTEGER end_counter = win_clock_get_wall();

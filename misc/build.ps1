@@ -24,22 +24,27 @@ $GameFileName = [System.IO.Path]::GetFileNameWithoutExtension($GameFile)
 $OutPlatform = Join-Path $Outdir "$PlatformFileName.exe"
 $OutGame = Join-Path $Outdir "$GameFileName.dll"
 
-# Clean
-Write-Host "Cleaning $Outdir..."
-
-if ($LiveBuild) {
-    Remove-Item $Outdir/*.txt -ErrorAction SilentlyContinue
-    Remove-Item $Outdir/*.pdb -ErrorAction SilentlyContinue
+# Create folders and Clean
+if (!(Test-Path $Outdir)) {
+    Write-Host "Creating $Outdir..."
+    New-Item -ItemType Directory -Path $Outdir | Out-Null
 } else {
-    Remove-Item -Path $Outdir -Recurse -Force -ErrorAction SilentlyContinue
+    Write-Host "Cleaning $Outdir..."
+
+    if ($LiveBuild) {
+        Remove-Item $Outdir/*.txt -ErrorAction SilentlyContinue
+        Remove-Item $Outdir/*.pdb -ErrorAction SilentlyContinue
+    } else {
+        Remove-Item $Outdir/* -Recurse -Force -ErrorAction SilentlyContinue
+    }
 }
 
 if (!(Test-Path $Datadir)) {
+    Write-Host "Creating $Datadir..."
     New-Item -ItemType Directory -Path $Datadir | Out-Null
-}
-
-if (!(Test-Path $Outdir)) {
-    New-Item -ItemType Directory -Path $Outdir | Out-Null
+} else {
+    Write-Host "Cleaning $Datadir..."
+    Remove-Item $Datadir/log.txt -ErrorAction SilentlyContinue
 }
 
 # Read flags from file
@@ -82,8 +87,6 @@ if ($BuildMode -eq "debug") {
     Write-Host "Building in RELEASE mode..."
 }
 
-Write-Host "Compiling $GameFile -> $OutGame"
-
 $random = Get-Random -Minimum 0 -Maximum 99999
 $GameFlags = $Flags + @(
     "-Wl,/MAP:$Outdir/$GameFileName.map,/MAPINFO:EXPORTS",
@@ -93,23 +96,30 @@ $GameFlags = $Flags + @(
     "-shared"
 )
 
-Write-Host "GameFlags: $($GameFlags -join ' ')"
+Write-Host "Building game dll..." -ForegroundColor Green
+Write-Host ""
+Write-Host "clang $($GameFlags -join ' ') $GameFile -o $OutGame"
+Write-Host ""
+"Waiting for pdb file" | Out-File -FilePath "$Outdir/lock.tmp" -Encoding UTF8
+Write-Host ""
 
 clang @GameFlags $GameFile -o $OutGame
 
+Remove-Item $Outdir/lock.tmp
+
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Game DLL build failed!" -ForegroundColor Red
+    Write-Host "Game dll build failed!" -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
-Write-Host "Game DLL build succeeded!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Game dll build succeeded!" -ForegroundColor Green
+Write-Host ""
 
 if ($LiveBuild) {
     Write-Host "Live build completed. Skipping platform build." -ForegroundColor Cyan
     return
 }
-
-Write-Host "Compiling $PlatformFile -> $OutPlatform"
 
 $PlatformFlags = $Flags + @(
     "-luser32",
@@ -119,13 +129,17 @@ $PlatformFlags = $Flags + @(
     "-Wl,/MAP:$Outdir/$PlatformFileName.map,/MAPINFO:EXPORTS"
 )
 
-Write-Host "PlatformFlags: $($PlatformFlags -join ' ')"
+Write-Host "Building platform exe..." -ForegroundColor Green
+Write-Host ""
+Write-Host "clang $($PlatformFlags -join ' ') $PlatformFile -o $OutPlatform"
+Write-Host ""
 
 clang @PlatformFlags $PlatformFile -o $OutPlatform
 
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Platform EXE build failed!" -ForegroundColor Red
+    Write-Host "Platform exe build failed!" -ForegroundColor Red
     exit $LASTEXITCODE
 }
 
-Write-Host "Platform EXE build succeeded!" -ForegroundColor Green
+Write-Host ""
+Write-Host "Platform exe build succeeded!" -ForegroundColor Green

@@ -21,13 +21,13 @@ static constexpr float PIE = 3.14159265359F;
 #define LIB_LOG_LEVEL_FATAL 6UL
 #define LIB_LOG_LEVEL_OFF 7UL
 
-#define KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
-#define MB_TO_BYTES(_pr_v) (KB_TO_BYTES(_pr_v) * 1024)
+#define HM_LIB_KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
+#define MB_TO_BYTES(_pr_v) (HM_LIB_KB_TO_BYTES(_pr_v) * 1024)
 #define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
 #define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
 
-#define TOOLS_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
-#define TOOLS_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
+#define LIB_MATH_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
+#define LIB_MATH_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
 
 /**
  * @brief Calculates the distance between two indexes in a ring buffer
