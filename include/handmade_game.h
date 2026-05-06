@@ -10,6 +10,7 @@
 #include <assert.h>
 #include <stdint.h>
 
+#include "handmade_lib.h"
 #include "handmade_platform.h"
 #include "handmade_tile.h"
 
@@ -129,8 +130,8 @@ typedef struct Game_State {
 
 // Utilities
 
-static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
-                                                              size_t controller_index)
+INTERNAL inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
+                                                                size_t controller_index)
 {
 	assert(controller_index < GAME_MAX_CONTROLLERS);
 

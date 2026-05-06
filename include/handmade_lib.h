@@ -9,8 +9,12 @@
 #include <stdio.h> // IWYU pragma: keep
 #include <time.h>
 
+#define GLOBAL_VARIABLE static
+#define INTERNAL static
+#define LOCAL_PERSIST static
+
 // Constants
-static constexpr float PIE = 3.14159265359F;
+GLOBAL_VARIABLE constexpr float PIE = 3.14159265359F;
 #define LIB_LOG_TSTAMP_BUF_SIZE 32
 #define LIB_LOG_LEVEL_ALL 0UL
 #define LIB_LOG_LEVEL_TRACE 1UL
@@ -65,7 +69,7 @@ static constexpr float PIE = 3.14159265359F;
 #define STRINGIFY(n) #n
 #define STRGY(n) STRINGIFY(n)
 
-#ifdef DEBUG
+#if DEBUG
 #define LIB_LOG_WRITE(fmt, ...)                                              \
 	do {                                                                 \
 		FILE *_pr_log_file = fopen("log.txt", "a+");                 \

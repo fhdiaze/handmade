@@ -27,7 +27,7 @@
 #include <intrin.h>
 #endif
 
-#ifdef DEBUG
+#if DEBUG
 #define BASE_ADDRESS ((void *)TB_TO_BYTES(2))
 #else
 #define BASE_ADDRESS (nullptr)
@@ -110,7 +110,7 @@ typedef struct Plat_ThreadContext {
 	unsigned placeholder;
 } Plat_ThreadContext;
 
-#ifdef DEBUG
+#if DEBUG
 
 typedef struct Plat_ReadFileResult {
 	size_t size_byte;
