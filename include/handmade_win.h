@@ -1,28 +1,29 @@
 // clang-format Language: C
 
-#ifndef WIN_HANDMADE_H
-#define WIN_HANDMADE_H
+#ifndef HM_WIN_H
+#define HM_WIN_H
 
-#include "handmade_game.h"
 #include <windows.h>
 
-#define WIN_STATE_MAX_FILE_PATH MAX_PATH
-#define WIN_REPLAY_MAX_SLOTS 4
-#define WIN_REPLAY_NO_SLOT UINT8_MAX
+#include "hm_game.h"
+
+#define HM_WIN__MAX_FILE_PATH MAX_PATH
+#define HM_WIN__REPLAY_MAX_SLOTS 4
+#define HM_WIN__REPLAY_NO_SLOT UINT8_MAX
 
 #define LODWORD(l) ((unsigned long)(((size_t)(l)) & 0xFFFFFFFF))
 #define HIDWORD(l) ((unsigned long)((((size_t)(l)) >> (sizeof(unsigned) * CHAR_BIT)) & 0xFFFFFFFF))
 
-typedef struct Win_WindowDimensions {
+typedef struct HmWin_WindowDimensions {
 	long width;
 	long height;
-} Win_WindowDimensions;
+} HmWin_WindowDimensions;
 
 /**
  * @brief (0,0) is on the top left corner.
  * The byte order in a register (little endian) is AA RR GG BB
  */
-typedef struct Win_Bitmap {
+typedef struct HmWin_Bitmap {
 	unsigned width;
 	unsigned height;
 	unsigned pitch_bytes; // size of a row in bytes
@@ -31,7 +32,7 @@ typedef struct Win_Bitmap {
 	BITMAPINFO info;
 } Win_Bitmap;
 
-typedef struct Win_SoundOutput {
+typedef struct HmWin_SoundOutput {
 	size_t running_sample_index;
 	unsigned samples_per_sec;
 	unsigned bytes_per_sample; // Size of the sample in bytes
@@ -39,7 +40,7 @@ typedef struct Win_SoundOutput {
 	unsigned safety_bytes;
 } Win_SoundOutput;
 
-typedef struct Win_DebugTimeMark {
+typedef struct HmWin_DebugTimeMark {
 	unsigned long output_play_cursor;
 	unsigned long output_write_cursor;
 
@@ -52,7 +53,7 @@ typedef struct Win_DebugTimeMark {
 	unsigned frame_flip_byte;
 } Win_DebugTimeMark;
 
-typedef struct Win_GameCode {
+typedef struct HmWin_GameCode {
 	HMODULE game_dll;
 
 	/**
@@ -70,32 +71,32 @@ typedef struct Win_GameCode {
 	uint8_t is_valid;
 } Win_GameCode;
 
-typedef struct Win_ReplaySlot {
+typedef struct HmWin_ReplaySlot {
 	HANDLE file_handle;
 	HANDLE file_map;
 	void *memory;
-	char filepath[WIN_STATE_MAX_FILE_PATH];
+	char filepath[HM_WIN__MAX_FILE_PATH];
 } Win_ReplaySlot;
 
-typedef enum Win_ReplayStatus : uint8_t {
+typedef enum HmWin_ReplayStatus : uint8_t {
 	WIN_REPLAY_NORMAL,
 	WIN_REPLAY_RECORD,
 	WIN_REPLAY_RECORDED,
 	WIN_REPLAY_PLAYBACK,
 } Win_ReplayStatus;
 
-typedef struct Win_State {
+typedef struct HmWin_State {
 	size_t gamemem_size;
 	void *gamemem;
 
-	Win_ReplaySlot replay_slots[WIN_REPLAY_MAX_SLOTS];
+	Win_ReplaySlot replay_slots[HM_WIN__REPLAY_MAX_SLOTS];
 	HANDLE replay_file_handle;
 
 	char *exe_path_last_slash;
-	char exe_path[WIN_STATE_MAX_FILE_PATH];
+	char exe_path[HM_WIN__MAX_FILE_PATH];
 
 	uint8_t replay_slot_index;
 	Win_ReplayStatus replay_status;
 } Win_State;
 
-#endif // WIN_HANDMADE_H
+#endif // HM_WIN_H

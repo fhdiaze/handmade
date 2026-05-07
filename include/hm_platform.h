@@ -1,36 +1,36 @@
 // clang-format Language: C
 
-#ifndef HANDMADE_PLATFORM_H
-#define HANDMADE_PLATFORM_H
+#ifndef HM_PLATFORM_H
+#define HM_PLATFORM_H
 
 #include <stdint.h>
 
-#ifndef COMPILER_MSVC
-#define COMPILER_MSVC 0
+#ifndef HM_PLAT__COMPILER_MSVC
+#define HM_PLAT__COMPILER_MSVC 0
 #endif
 
-#ifndef COMPILER_LLVM
-#define COMPILER_LLVM 0
+#ifndef HM_PLAT__COMPILER_LLVM
+#define HM_PLAT__COMPILER_LLVM 0
 #endif
 
-#if !COMPILER_MSVC && !COMPILER_LLVM
+#if !HM_PLAT__COMPILER_MSVC && !HM_PLAT__COMPILER_LLVM
 #ifdef _MSC_VER
-#undef COMPILER_MSVC
-#define COMPILER_MSVC 1
+#undef HM_PLAT__COMPILER_MSVC
+#define HM_PLAT__COMPILER_MSVC 1
 #else
-#undef COMPILER_LLVM
-#define COMPILER_LLVM 1
+#undef HM_PLAT__COMPILER_LLVM
+#define HM_PLAT__COMPILER_LLVM 1
 #endif
 #endif
 
-#if COMPILER_MSVC
+#if HM_PLAT__COMPILER_MSVC
 #include <intrin.h>
 #endif
 
 #if DEBUG
-#define BASE_ADDRESS ((void *)TB_TO_BYTES(2))
+#define HM_PLAT__BASE_ADDRESS ((void *)TB_TO_BYTES(2))
 #else
-#define BASE_ADDRESS (nullptr)
+#define HM_PLAT__BASE_ADDRESS (nullptr)
 #endif // DEBUG
 
 /**
@@ -39,7 +39,7 @@
  * The pixels order is bottom-up.
  */
 #pragma pack(push, 1)
-typedef struct Plat_BitmapHeader {
+typedef struct HmPlat_BitmapHeader {
 	uint16_t file_type;
 	uint32_t file_size;
 
@@ -85,7 +85,7 @@ typedef struct Plat_BitmapHeader {
 	uint32_t red_mask;
 	uint32_t green_mask;
 	uint32_t blue_mask;
-} Plat_BitmapHeader;
+} HmPlat_BitmapHeader;
 #pragma pack(pop)
 
 /**
@@ -157,4 +157,4 @@ void *plat_arena_push_size(Plat_Arena *arena, size_t size);
 
 void *plat_arena_push_array(Plat_Arena *arena, size_t count, size_t size);
 
-#endif // HANDMADE_PLATFORM_H
+#endif // HM_PLATFORM_H

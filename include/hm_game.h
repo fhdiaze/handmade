@@ -4,15 +4,14 @@
 * Game api definition
 */
 
-#ifndef GAME_H
-#define GAME_H
+#ifndef HM_GAME_H
+#define HM_GAME_H
 
 #include <assert.h>
 #include <stdint.h>
 
-#include "handmade_lib.h"
-#include "handmade_platform.h"
 #include "handmade_tile.h"
+#include "hm_platform.h"
 
 #define GAME_MAX_MOUSE_BUTTONS 5
 #define GAME_MAX_CONTROLLERS 5
@@ -130,8 +129,8 @@ typedef struct Game_State {
 
 // Utilities
 
-INTERNAL inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
-                                                                size_t controller_index)
+static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
+                                                              size_t controller_index)
 {
 	assert(controller_index < GAME_MAX_CONTROLLERS);
 
@@ -152,4 +151,4 @@ typedef GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render_func);
 	void name(Game_SoundBuffer *soundbuff, Plat_ThreadContext *thread, Plat_Memory *memory)
 typedef GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_func);
 
-#endif // GAME_H
+#endif // HM_GAME_H

@@ -11,15 +11,15 @@
 #include <xinput.h>
 
 #include "handmade_lib.h"
-#include "handmade_platform.h"
-#include "win_handmade.h"
+#include "handmade_win.h"
+#include "hm_platform.h"
 
 // globals
-GLOBAL_VARIABLE uint8_t is_global_running = 0U;
-GLOBAL_VARIABLE uint8_t is_global_pause = 0U;
-GLOBAL_VARIABLE Win_Bitmap global_bitmap;
-GLOBAL_VARIABLE LPDIRECTSOUNDBUFFER secbuffer;
-GLOBAL_VARIABLE int64_t global_perf_count_frequency;
+static uint8_t is_global_running = 0U;
+static uint8_t is_global_pause = 0U;
+static Win_Bitmap global_bitmap;
+static LPDIRECTSOUNDBUFFER secbuffer;
+static int64_t global_perf_count_frequency;
 
 // macros
 
@@ -31,7 +31,7 @@ XINPUT_GET_STATE(xinput_get_state_stub)
 {
 	return ERROR_DEVICE_NOT_CONNECTED;
 }
-GLOBAL_VARIABLE xinput_get_state_func *xinput_get_state = xinput_get_state_stub;
+static xinput_get_state_func *xinput_get_state = xinput_get_state_stub;
 #define XInputGetState xinput_get_state
 
 #define XINPUT_SET_STATE(name)                                    \
@@ -42,7 +42,7 @@ XINPUT_SET_STATE(xinput_set_state_stub)
 {
 	return ERROR_DEVICE_NOT_CONNECTED;
 }
-GLOBAL_VARIABLE xinput_set_state_func *xinput_set_state = xinput_set_state_stub;
+static xinput_set_state_func *xinput_set_state = xinput_set_state_stub;
 #define XInputSetState xinput_set_state
 
 #define DSOUND_CREATE(name) \
@@ -51,9 +51,9 @@ typedef DSOUND_CREATE(direct_sound_create_func);
 
 // util
 
-INTERNAL void tix_string_concat(const size_t one_count, const char *const restrict one,
-                                const size_t other_count, const char *const restrict other,
-                                const size_t destsize, char *const restrict dest)
+static void tix_string_concat(const size_t one_count, const char *const restrict one,
+                              const size_t other_count, const char *const restrict other,
+                              const size_t destsize, char *const restrict dest)
 {
 	for (unsigned i = 0; i < one_count; ++i) {
 		dest[i] = one[i];
@@ -146,11 +146,11 @@ error_cleanup:
 	return 0U;
 }
 
-INTERNAL uint8_t win_file_get_exe_path(Win_State *winstate)
+static uint8_t win_file_get_exe_path(Win_State *winstate)
 {
 	unsigned long exe_path_length =
-		GetModuleFileNameA(nullptr, winstate->exe_path, WIN_STATE_MAX_FILE_PATH);
-	if (exe_path_length == 0 || exe_path_length == WIN_STATE_MAX_FILE_PATH) {
+		GetModuleFileNameA(nullptr, winstate->exe_path, HM_WIN__MAX_FILE_PATH);
+	if (exe_path_length == 0 || exe_path_length == HM_WIN__MAX_FILE_PATH) {
 		LIB_LOGE("unable to get the executable path");
 		return 0U;
 	}
@@ -166,17 +166,17 @@ INTERNAL uint8_t win_file_get_exe_path(Win_State *winstate)
 	return 1U;
 }
 
-INTERNAL void win_file_build_path(Win_State *winstate, const char *const filename,
-                                  const unsigned dest_count, char *dest)
+static void win_file_build_path(Win_State *winstate, const char *const filename,
+                                const unsigned dest_count, char *dest)
 {
 	tix_string_concat((size_t)(winstate->exe_path_last_slash - winstate->exe_path + 1),
 	                  winstate->exe_path, strlen(filename), filename, dest_count, dest);
 }
 
-INTERNAL void win_file_build_input_path(Win_State *winstate, unsigned slot_index,
-                                        unsigned dest_count, char *dest)
+static void win_file_build_input_path(Win_State *winstate, unsigned slot_index, unsigned dest_count,
+                                      char *dest)
 {
-	assert(slot_index < WIN_REPLAY_MAX_SLOTS);
+	assert(slot_index < HM_WIN__REPLAY_MAX_SLOTS);
 
 	char filename[64];
 	sprintf(filename, "loopedit_%d.hmi", slot_index);
@@ -190,7 +190,7 @@ INTERNAL void win_file_build_input_path(Win_State *winstate, unsigned slot_index
  * @param result
  * @return The result code, 0 if error
  */
-INTERNAL inline uint32_t win_file_get_last_write_time(const char *const file_path, FILETIME *result)
+static inline uint32_t win_file_get_last_write_time(const char *const file_path, FILETIME *result)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
 	if (!GetFileAttributesExA(file_path, GetFileExInfoStandard, &data)) {
@@ -211,9 +211,9 @@ INTERNAL inline uint32_t win_file_get_last_write_time(const char *const file_pat
  * @param game_code
  * @return The result code, 0 if error
  */
-INTERNAL uint32_t win_code_load_game(Win_GameCode *game_code, const char *const gamedll_path,
-                                     const char *const tmpdll_path,
-                                     const char *const gamedll_lock_path)
+static uint32_t win_code_load_game(Win_GameCode *game_code, const char *const gamedll_path,
+                                   const char *const tmpdll_path,
+                                   const char *const gamedll_lock_path)
 {
 	uint32_t result_code = 0U;
 
@@ -259,7 +259,7 @@ INTERNAL uint32_t win_code_load_game(Win_GameCode *game_code, const char *const 
 	return game_code->is_valid;
 }
 
-INTERNAL uint8_t win_code_unload_game(Win_GameCode *game_code)
+static uint8_t win_code_unload_game(Win_GameCode *game_code)
 {
 	if (game_code->game_dll) {
 		if (!FreeLibrary(game_code->game_dll)) {
@@ -275,7 +275,7 @@ INTERNAL uint8_t win_code_unload_game(Win_GameCode *game_code)
 	return 1U;
 }
 
-INTERNAL void win_xinput_load(void)
+static void win_xinput_load(void)
 {
 	HMODULE xinput_lib = LoadLibraryA("xinput1_4.dll");
 
@@ -304,7 +304,7 @@ INTERNAL void win_xinput_load(void)
 /*
 * TODO(fredy): it looks like direct sound is deprecated
 */
-INTERNAL void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffersize)
+static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffersize)
 {
 	HMODULE dsound_lib = LoadLibraryA("dsound.dll");
 	if (!dsound_lib) {
@@ -374,7 +374,7 @@ INTERNAL void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buff
 	}
 }
 
-INTERNAL void win_sound_clear_buffer(Win_SoundOutput *sound_output)
+static void win_sound_clear_buffer(Win_SoundOutput *sound_output)
 {
 	void *region_one = nullptr;
 	DWORD region_one_size = 0;
@@ -414,8 +414,8 @@ INTERNAL void win_sound_clear_buffer(Win_SoundOutput *sound_output)
  * @param bytes_to_write
  * @param soundbuff game sound buffer
  */
-INTERNAL void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock,
-                                    size_t bytes_to_write, Game_SoundBuffer *soundbuff)
+static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock,
+                                  size_t bytes_to_write, Game_SoundBuffer *soundbuff)
 {
 	void *region_one;
 	unsigned long region_one_size;
@@ -460,7 +460,7 @@ INTERNAL void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lo
 	}
 }
 
-INTERNAL void win_keyboard_process_message(Game_ButtonState *newstate, uint8_t is_down)
+static void win_keyboard_process_message(Game_ButtonState *newstate, uint8_t is_down)
 {
 	if (newstate->ended_down != is_down) {
 		newstate->ended_down = is_down;
@@ -475,7 +475,7 @@ INTERNAL void win_keyboard_process_message(Game_ButtonState *newstate, uint8_t i
  * @param dead_zone
  * @return float
  */
-INTERNAL float win_xinput_process_stick_value(short value, short dead_zone)
+static float win_xinput_process_stick_value(short value, short dead_zone)
 {
 	if (value < -dead_zone) {
 		return (float)value / 32768.0f;
@@ -495,14 +495,14 @@ INTERNAL float win_xinput_process_stick_value(short value, short dead_zone)
  * @param buttonbit
  * @param newstate
  */
-INTERNAL void win_xinput_process_button(DWORD xinput_button_state, Game_ButtonState *oldstate,
-                                        DWORD buttonbit, Game_ButtonState *newstate)
+static void win_xinput_process_button(DWORD xinput_button_state, Game_ButtonState *oldstate,
+                                      DWORD buttonbit, Game_ButtonState *newstate)
 {
 	newstate->ended_down = (xinput_button_state & buttonbit) == buttonbit;
 	newstate->half_transition_count = oldstate->ended_down != newstate->ended_down;
 }
 
-INTERNAL void win_input_begin_recording(Win_State *winstate)
+static void win_input_begin_recording(Win_State *winstate)
 {
 	Win_ReplaySlot *replay_slot = &winstate->replay_slots[winstate->replay_slot_index];
 
@@ -521,13 +521,13 @@ INTERNAL void win_input_begin_recording(Win_State *winstate)
 	winstate->replay_status = WIN_REPLAY_RECORD;
 }
 
-INTERNAL void win_input_end_recording(Win_State *winstate)
+static void win_input_end_recording(Win_State *winstate)
 {
 	assert(winstate->replay_file_handle);
 	winstate->replay_status = WIN_REPLAY_RECORDED;
 }
 
-INTERNAL void win_input_begin_playback(Win_State *winstate)
+static void win_input_begin_playback(Win_State *winstate)
 {
 	Win_ReplaySlot *replay_slot = &winstate->replay_slots[winstate->replay_slot_index];
 
@@ -546,20 +546,20 @@ INTERNAL void win_input_begin_playback(Win_State *winstate)
 	winstate->replay_status = WIN_REPLAY_PLAYBACK;
 }
 
-INTERNAL void win_input_end_playback(Win_State *winstate)
+static void win_input_end_playback(Win_State *winstate)
 {
 	assert(winstate->replay_file_handle);
 	winstate->replay_status = WIN_REPLAY_NORMAL;
 }
 
-INTERNAL void win_input_record(Win_State *winstate, Game_Input *input)
+static void win_input_record(Win_State *winstate, Game_Input *input)
 {
 	assert(winstate->replay_file_handle);
 	unsigned long bytes_written = 0;
 	WriteFile(winstate->replay_file_handle, input, sizeof(*input), &bytes_written, nullptr);
 }
 
-INTERNAL void win_input_playback(Win_State *winstate, Game_Input *input)
+static void win_input_playback(Win_State *winstate, Game_Input *input)
 {
 	assert(winstate->replay_file_handle);
 
@@ -577,8 +577,7 @@ INTERNAL void win_input_playback(Win_State *winstate, Game_Input *input)
 	assert(bytes_read == sizeof(*input));
 }
 
-INTERNAL void win_window_pump_messages(Win_State *winstate,
-                                       Game_ControllerInput *keyboard_controller)
+static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *keyboard_controller)
 {
 	MSG msg;
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -670,9 +669,9 @@ INTERNAL void win_window_pump_messages(Win_State *winstate,
 	}
 }
 
-INTERNAL Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
+static HmWin_WindowDimensions win_window_get_dimensions(HWND winhandle)
 {
-	Win_WindowDimensions result;
+	HmWin_WindowDimensions result;
 	RECT client_rec;
 	GetClientRect(winhandle, &client_rec);
 	result.width = client_rec.right - client_rec.left;
@@ -684,7 +683,7 @@ INTERNAL Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 /*
  * dib: device independent bitmap
  */
-INTERNAL void win_bitmap_resize_section(Win_Bitmap *buffer, unsigned win_width, unsigned win_height)
+static void win_bitmap_resize_section(Win_Bitmap *buffer, unsigned win_width, unsigned win_height)
 {
 	if (buffer->top_left_px) {
 		VirtualFree(buffer->top_left_px, 0, MEM_RELEASE);
@@ -710,8 +709,8 @@ INTERNAL void win_bitmap_resize_section(Win_Bitmap *buffer, unsigned win_width, 
 	buffer->pitch_bytes = buffer->width * buffer->bytes_per_pixel;
 }
 
-INTERNAL void win_window_display_bitmap(Win_Bitmap *bitmap, HDC dchandle, long win_width,
-                                        long win_height)
+static void win_window_display_bitmap(Win_Bitmap *bitmap, HDC dchandle, long win_width,
+                                      long win_height)
 {
 	int offset_x = 10;
 	int offset_y = 10;
@@ -726,9 +725,9 @@ INTERNAL void win_window_display_bitmap(Win_Bitmap *bitmap, HDC dchandle, long w
 	              DIB_RGB_COLORS, SRCCOPY);
 }
 
-INTERNAL LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unused__]] UINT msg,
-                                                     [[__maybe_unused__]] WPARAM wparam,
-                                                     [[__maybe_unused__]] LPARAM lparam)
+static LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unused__]] UINT msg,
+                                                   [[__maybe_unused__]] WPARAM wparam,
+                                                   [[__maybe_unused__]] LPARAM lparam)
 {
 	LRESULT result = 0;
 
@@ -751,7 +750,7 @@ INTERNAL LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_u
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
 		HDC dchandle = BeginPaint(winhandle, &paint);
-		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
+		HmWin_WindowDimensions windim = win_window_get_dimensions(winhandle);
 		win_window_display_bitmap(&global_bitmap, dchandle, windim.width, windim.height);
 		EndPaint(winhandle, &paint);
 	} break;
@@ -764,7 +763,7 @@ INTERNAL LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_u
 	return result;
 }
 
-INTERNAL inline LARGE_INTEGER win_clock_get_wall(void)
+static inline LARGE_INTEGER win_clock_get_wall(void)
 {
 	LARGE_INTEGER counter;
 	QueryPerformanceCounter(&counter);
@@ -772,7 +771,7 @@ INTERNAL inline LARGE_INTEGER win_clock_get_wall(void)
 	return counter;
 }
 
-INTERNAL inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER end)
+static inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER end)
 {
 	return (float)(end.QuadPart - start.QuadPart) / (float)global_perf_count_frequency;
 }
@@ -785,8 +784,8 @@ INTERNAL inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER 
  * @param top pixel index
  * @param bottom pixel index
  */
-INTERNAL void win_bitmap_draw_vertical_debug(Win_Bitmap *bitmap, unsigned x, unsigned top,
-                                             unsigned bottom, unsigned color)
+static void win_bitmap_draw_vertical_debug(Win_Bitmap *bitmap, unsigned x, unsigned top,
+                                           unsigned bottom, unsigned color)
 {
 	assert(x >= 0 && x < bitmap->width);
 	assert(bottom >= 0 && bottom < bitmap->height);
@@ -804,11 +803,11 @@ INTERNAL void win_bitmap_draw_vertical_debug(Win_Bitmap *bitmap, unsigned x, uns
 	}
 }
 
-INTERNAL inline void win_bitmap_draw_sound_buffer_mark_debug(Win_Bitmap *bitmap_buffer,
-                                                             Win_SoundOutput *soundout,
-                                                             float pixels_per_byte, unsigned padx,
-                                                             unsigned top, unsigned bottom,
-                                                             unsigned value, uint32_t color)
+static inline void win_bitmap_draw_sound_buffer_mark_debug(Win_Bitmap *bitmap_buffer,
+                                                           Win_SoundOutput *soundout,
+                                                           float pixels_per_byte, unsigned padx,
+                                                           unsigned top, unsigned bottom,
+                                                           unsigned value, uint32_t color)
 {
 	assert(value < soundout->buffsize);
 	unsigned x = padx + (unsigned)(pixels_per_byte * (float)value);
@@ -824,11 +823,10 @@ INTERNAL inline void win_bitmap_draw_sound_buffer_mark_debug(Win_Bitmap *bitmap_
  * @param soundout
  * @param target_secs_per_frame
  */
-INTERNAL void win_bitmap_draw_sound_sync_debug(Win_Bitmap *bitmap_buffer,
-                                               unsigned last_cursors_marks_size,
-                                               Win_DebugTimeMark *last_cursors_marks,
-                                               unsigned current_mark_index,
-                                               Win_SoundOutput *winsound)
+static void win_bitmap_draw_sound_sync_debug(Win_Bitmap *bitmap_buffer,
+                                             unsigned last_cursors_marks_size,
+                                             Win_DebugTimeMark *last_cursors_marks,
+                                             unsigned current_mark_index, Win_SoundOutput *winsound)
 {
 	unsigned pad_x = 16;
 	unsigned pad_y = 16;
@@ -919,10 +917,10 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	win_file_get_exe_path(&winstate);
 
-	char tmpgamedll_filename[WIN_STATE_MAX_FILE_PATH];
-	char gamedll_path[WIN_STATE_MAX_FILE_PATH];
-	char tmpgamedll_path[WIN_STATE_MAX_FILE_PATH];
-	char gamedll_lock_path[WIN_STATE_MAX_FILE_PATH];
+	char tmpgamedll_filename[HM_WIN__MAX_FILE_PATH];
+	char gamedll_path[HM_WIN__MAX_FILE_PATH];
+	char tmpgamedll_path[HM_WIN__MAX_FILE_PATH];
+	char gamedll_lock_path[HM_WIN__MAX_FILE_PATH];
 
 	win_file_build_path(&winstate, "handmade_game.dll", sizeof(gamedll_path), gamedll_path);
 	win_file_build_path(&winstate, "lock.tmp", sizeof(gamedll_lock_path), gamedll_lock_path);
@@ -943,6 +941,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
 		.lpfnWndProc = win_window_handle_callback,
 		.hInstance = hinstance,
+		.hCursor = LoadCursorA(nullptr, IDC_CROSS),
 		.lpszClassName = "HandmadeHeroWindowClass",
 	};
 
@@ -1031,14 +1030,14 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	winstate.gamemem_size =
 		Plat_Memory.permanent_storage_size_byte + Plat_Memory.transient_storage_size_byte;
-	winstate.gamemem = VirtualAlloc(BASE_ADDRESS, winstate.gamemem_size,
+	winstate.gamemem = VirtualAlloc(HM_PLAT__BASE_ADDRESS, winstate.gamemem_size,
 	                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	Plat_Memory.permanent_storage = winstate.gamemem;
 	Plat_Memory.transient_storage = (unsigned char *)Plat_Memory.permanent_storage +
 	                                Plat_Memory.permanent_storage_size_byte;
 
-	for (uint8_t slot_index = 0; slot_index < WIN_REPLAY_MAX_SLOTS; ++slot_index) {
+	for (uint8_t slot_index = 0; slot_index < HM_WIN__REPLAY_MAX_SLOTS; ++slot_index) {
 		Win_ReplaySlot *replay_slot = &winstate.replay_slots[slot_index];
 
 		win_file_build_input_path(&winstate, slot_index, sizeof(replay_slot->filepath),
@@ -1364,7 +1363,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		float ms_per_frame = 1000.0F * win_clock_elapsed_secs(last_counter, end_counter);
 		last_counter = end_counter;
 
-		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
+		HmWin_WindowDimensions windim = win_window_get_dimensions(winhandle);
 
 #if 0
  		win_bitmap_draw_sound_sync_debug(&global_bitmap, debug_last_cursor_marks_size,

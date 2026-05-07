@@ -7,7 +7,7 @@
 
 #include <stdint.h>
 
-#include "handmade_platform.h"
+#include "hm_platform.h"
 
 typedef struct Intrs_BitScanResult {
 	unsigned long index;
@@ -25,7 +25,7 @@ Intrs_BitScanResult intrs_bit_find_least_significant_set_bit(uint32_t value)
 {
 	Intrs_BitScanResult result = {};
 
-#if COMPILER_MSVC
+#if HM_PLAT__COMPILER_MSVC
 	result.was_found = _BitScanForward(&result.index, value);
 #else
 	for (uint8_t test = 0; test < 32; ++test) {

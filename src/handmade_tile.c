@@ -1,10 +1,10 @@
 #include <assert.h>
 
 #include "handmade_lib.h"
-#include "handmade_platform.h"
 #include "handmade_tile.h"
+#include "hm_platform.h"
 
-INTERNAL inline uint8_t tile_map_correct_coord(uint32_t *tile, float *tile_rel)
+static inline uint8_t tile_map_correct_coord(uint32_t *tile, float *tile_rel)
 {
 	int tile_offset = lib_float_round_to_int(*tile_rel / TILE_SIDE_M);
 
@@ -19,8 +19,8 @@ INTERNAL inline uint8_t tile_map_correct_coord(uint32_t *tile, float *tile_rel)
 	return 1U;
 }
 
-INTERNAL inline Tile_ChunkPosition tile_map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y,
-                                                          uint32_t tile_z)
+static inline Tile_ChunkPosition tile_map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y,
+                                                        uint32_t tile_z)
 {
 	Tile_ChunkPosition result;
 
@@ -33,8 +33,8 @@ INTERNAL inline Tile_ChunkPosition tile_map_get_chunk_pos(uint32_t tile_x, uint3
 	return result;
 }
 
-INTERNAL inline Tile_Chunk *tile_map_get_chunk(Tile_Map *map, uint32_t chunk_x, uint32_t chunk_y,
-                                               uint32_t chunk_z)
+static inline Tile_Chunk *tile_map_get_chunk(Tile_Map *map, uint32_t chunk_x, uint32_t chunk_y,
+                                             uint32_t chunk_z)
 {
 	Tile_Chunk *result = nullptr;
 
@@ -46,8 +46,8 @@ INTERNAL inline Tile_Chunk *tile_map_get_chunk(Tile_Map *map, uint32_t chunk_x, 
 	return result;
 }
 
-INTERNAL inline uint32_t tile_map_get_tile_value(Tile_Map *map, uint32_t tile_x, uint32_t tile_y,
-                                                 uint32_t tile_z)
+static inline uint32_t tile_map_get_tile_value(Tile_Map *map, uint32_t tile_x, uint32_t tile_y,
+                                               uint32_t tile_z)
 {
 	uint32_t tile_value = 0;
 
@@ -66,7 +66,7 @@ INTERNAL inline uint32_t tile_map_get_tile_value(Tile_Map *map, uint32_t tile_x,
 	return tile_value;
 }
 
-INTERNAL uint8_t tile_map_correct_position(Tile_Position *pos)
+static uint8_t tile_map_correct_position(Tile_Position *pos)
 {
 	uint8_t was_success = tile_map_correct_coord(&pos->tile_x, &pos->offset_x_m);
 	if (!was_success) {
@@ -78,7 +78,7 @@ INTERNAL uint8_t tile_map_correct_position(Tile_Position *pos)
 	return was_success;
 }
 
-INTERNAL uint8_t tile_map_is_point_walkable(Tile_Map *map, Tile_Position pos)
+static uint8_t tile_map_is_point_walkable(Tile_Map *map, Tile_Position pos)
 {
 	uint32_t tile_value = tile_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
 	uint8_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
@@ -87,8 +87,8 @@ INTERNAL uint8_t tile_map_is_point_walkable(Tile_Map *map, Tile_Position pos)
 	return is_walkable;
 }
 
-INTERNAL void tile_map_set_tile_value(Tile_Map *map, Plat_Arena *arena, uint32_t tile_x,
-                                      uint32_t tile_y, uint32_t tile_z, uint32_t tile_value)
+static void tile_map_set_tile_value(Tile_Map *map, Plat_Arena *arena, uint32_t tile_x,
+                                    uint32_t tile_y, uint32_t tile_z, uint32_t tile_value)
 {
 	Tile_ChunkPosition cpos = tile_map_get_chunk_pos(tile_x, tile_y, tile_z);
 	Tile_Chunk *tilechunk = tile_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
@@ -109,8 +109,8 @@ INTERNAL void tile_map_set_tile_value(Tile_Map *map, Plat_Arena *arena, uint32_t
 	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_value;
 }
 
-INTERNAL Tile_PositionDelta tile_map_substract_positions(Tile_Position *start_position,
-                                                         Tile_Position *end_position)
+static Tile_PositionDelta tile_map_substract_positions(Tile_Position *start_position,
+                                                       Tile_Position *end_position)
 {
 	Tile_PositionDelta result = {};
 

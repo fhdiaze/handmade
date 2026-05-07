@@ -9,12 +9,8 @@
 #include <stdio.h> // IWYU pragma: keep
 #include <time.h>
 
-#define GLOBAL_VARIABLE static
-#define INTERNAL static
-#define LOCAL_PERSIST static
-
 // Constants
-GLOBAL_VARIABLE constexpr float PIE = 3.14159265359F;
+static constexpr float PIE = 3.14159265359F;
 #define LIB_LOG_TSTAMP_BUF_SIZE 32
 #define LIB_LOG_LEVEL_ALL 0UL
 #define LIB_LOG_LEVEL_TRACE 1UL

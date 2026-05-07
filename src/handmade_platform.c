@@ -1,6 +1,6 @@
 #include <assert.h>
 
-#include "handmade_platform.h"
+#include "hm_platform.h"
 
 void plat_arena_init(Plat_Arena *restrict arena, const size_t size,
                      unsigned char *const restrict base)

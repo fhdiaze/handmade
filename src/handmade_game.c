@@ -2,7 +2,7 @@
 * Game api implementation
 */
 
-#include "handmade_game.h"
+#include "hm_game.h"
 
 #include "handmade_intrinsics.h"
 #include <assert.h>
@@ -24,7 +24,7 @@
  * @param buffer
  * @param samples
  */
-INTERNAL void game_sound_output(Game_SoundBuffer *buffer, Game_State *game_state, unsigned tonehz)
+static void game_sound_output(Game_SoundBuffer *buffer, Game_State *game_state, unsigned tonehz)
 {
 	float tone_volume = 3000;
 	size_t wave_period = buffer->samples_per_sec / tonehz;
@@ -63,9 +63,9 @@ INTERNAL void game_sound_output(Game_SoundBuffer *buffer, Game_State *game_state
  * @param green
  * @param blue
  */
-INTERNAL void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f,
-                                           float start_y_px_f, float end_x_px_f, float end_y_px_f,
-                                           float red, float green, float blue)
+static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f,
+                                         float start_y_px_f, float end_x_px_f, float end_y_px_f,
+                                         float red, float green, float blue)
 {
 	assert(start_x_px_f <= end_x_px_f && start_y_px_f <= end_y_px_f);
 
@@ -110,10 +110,10 @@ INTERNAL void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px
  * @param source_offset_x_px_f
  * @param source_offset_y_px_f
  */
-INTERNAL void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
-                                        float target_offset_x_px_f, float target_offset_y_px_f,
-                                        const Plat_LoadedBitmap *const restrict source,
-                                        float source_offset_x_px_f, float source_offset_y_px_f)
+static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
+                                      float target_offset_x_px_f, float target_offset_y_px_f,
+                                      const Plat_LoadedBitmap *const restrict source,
+                                      float source_offset_x_px_f, float source_offset_y_px_f)
 {
 	assert(source);
 	assert(source->bottom_left_px);
@@ -186,9 +186,10 @@ INTERNAL void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
 /**
  *
  */
-INTERNAL Plat_LoadedBitmap game_file_load_bitmap_debug(
-	const char *const filename, plat_file_read_debug_func *plat_file_read_debug_func,
-	Plat_ThreadContext *thread)
+static Plat_LoadedBitmap
+game_file_load_bitmap_debug(const char *const filename,
+                            plat_file_read_debug_func *plat_file_read_debug_func,
+                            Plat_ThreadContext *thread)
 {
 	Plat_LoadedBitmap result = {};
 
@@ -197,7 +198,7 @@ INTERNAL Plat_LoadedBitmap game_file_load_bitmap_debug(
 		return result;
 	}
 
-	Plat_BitmapHeader *bitmap = (Plat_BitmapHeader *)read_result.base_address;
+	HmPlat_BitmapHeader *bitmap = (HmPlat_BitmapHeader *)read_result.base_address;
 
 	assert(bitmap->width_px >= 0);
 	assert(bitmap->height_px >= 0);
@@ -328,7 +329,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		uint32_t random_choice = 0;
 		uint32_t options = 3;
 		uint32_t random_num_idx = 0;
-		GLOBAL_VARIABLE uint32_t random_nums[RANDOM_NUMS_COUNT] = {
+		static uint32_t random_nums[RANDOM_NUMS_COUNT] = {
 			0x05b1c37, 0x3baa3eb, 0x19060ac, 0x425390a, 0x027ef7d, 0x2675adc, 0x32867b1,
 			0x484c647, 0x4ed169f, 0x5601a89, 0x5795773, 0x36b68be, 0x1b074a5, 0x5b0e0d5,
 			0x4f155b5, 0x4b48001, 0x33ad06c, 0x191922d, 0x23868e6, 0x4828556, 0x2cdb6d7,
