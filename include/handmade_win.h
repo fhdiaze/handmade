@@ -14,16 +14,16 @@
 #define LODWORD(l) ((unsigned long)(((size_t)(l)) & 0xFFFFFFFF))
 #define HIDWORD(l) ((unsigned long)((((size_t)(l)) >> (sizeof(unsigned) * CHAR_BIT)) & 0xFFFFFFFF))
 
-typedef struct HmWin_WindowDimensions {
+typedef struct Win_WindowDimensions {
 	long width;
 	long height;
-} HmWin_WindowDimensions;
+} Win_WindowDimensions;
 
 /**
  * @brief (0,0) is on the top left corner.
  * The byte order in a register (little endian) is AA RR GG BB
  */
-typedef struct HmWin_Bitmap {
+typedef struct Win_Bitmap {
 	unsigned width;
 	unsigned height;
 	unsigned pitch_bytes; // size of a row in bytes
@@ -32,7 +32,7 @@ typedef struct HmWin_Bitmap {
 	BITMAPINFO info;
 } Win_Bitmap;
 
-typedef struct HmWin_SoundOutput {
+typedef struct Win_SoundOutput {
 	size_t running_sample_index;
 	unsigned samples_per_sec;
 	unsigned bytes_per_sample; // Size of the sample in bytes
@@ -40,7 +40,7 @@ typedef struct HmWin_SoundOutput {
 	unsigned safety_bytes;
 } Win_SoundOutput;
 
-typedef struct HmWin_DebugTimeMark {
+typedef struct Win_DebugTimeMark {
 	unsigned long output_play_cursor;
 	unsigned long output_write_cursor;
 
@@ -53,7 +53,7 @@ typedef struct HmWin_DebugTimeMark {
 	unsigned frame_flip_byte;
 } Win_DebugTimeMark;
 
-typedef struct HmWin_GameCode {
+typedef struct Win_GameCode {
 	HMODULE game_dll;
 
 	/**
@@ -71,21 +71,21 @@ typedef struct HmWin_GameCode {
 	uint8_t is_valid;
 } Win_GameCode;
 
-typedef struct HmWin_ReplaySlot {
+typedef struct Win_ReplaySlot {
 	HANDLE file_handle;
 	HANDLE file_map;
 	void *memory;
 	char filepath[HM_WIN__MAX_FILE_PATH];
 } Win_ReplaySlot;
 
-typedef enum HmWin_ReplayStatus : uint8_t {
+typedef enum Win_ReplayStatus : uint8_t {
 	WIN_REPLAY_NORMAL,
 	WIN_REPLAY_RECORD,
 	WIN_REPLAY_RECORDED,
 	WIN_REPLAY_PLAYBACK,
 } Win_ReplayStatus;
 
-typedef struct HmWin_State {
+typedef struct Win_State {
 	size_t gamemem_size;
 	void *gamemem;
 

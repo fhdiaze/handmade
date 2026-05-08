@@ -39,7 +39,7 @@
  * The pixels order is bottom-up.
  */
 #pragma pack(push, 1)
-typedef struct HmPlat_BitmapHeader {
+typedef struct Plat_BitmapHeader {
 	uint16_t file_type;
 	uint32_t file_size;
 
@@ -85,7 +85,7 @@ typedef struct HmPlat_BitmapHeader {
 	uint32_t red_mask;
 	uint32_t green_mask;
 	uint32_t blue_mask;
-} HmPlat_BitmapHeader;
+} Plat_BitmapHeader;
 #pragma pack(pop)
 
 /**

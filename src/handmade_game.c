@@ -198,7 +198,7 @@ game_file_load_bitmap_debug(const char *const filename,
 		return result;
 	}
 
-	HmPlat_BitmapHeader *bitmap = (HmPlat_BitmapHeader *)read_result.base_address;
+	Plat_BitmapHeader *bitmap = (Plat_BitmapHeader *)read_result.base_address;
 
 	assert(bitmap->width_px >= 0);
 	assert(bitmap->height_px >= 0);

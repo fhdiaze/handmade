@@ -15,11 +15,15 @@
 #include "hm_platform.h"
 
 // globals
-static uint8_t is_global_running = 0U;
-static uint8_t is_global_pause = 0U;
-static Win_Bitmap global_bitmap;
-static LPDIRECTSOUNDBUFFER secbuffer;
-static int64_t global_perf_count_frequency;
+static uint32_t g_is_running = 0U;
+static uint32_t g_is_pause = 0U;
+static Win_Bitmap g_win_bitmap;
+static LPDIRECTSOUNDBUFFER g_secbuffer;
+static int64_t g_perf_count_frequency;
+static uint32_t g_show_cursor_debug;
+static WINDOWPLACEMENT g_window_position = {
+	.length = sizeof(g_window_position),
+};
 
 // macros
 
@@ -67,6 +71,33 @@ static void tix_string_concat(const size_t one_count, const char *const restrict
 }
 
 // services
+
+static void win_window_toggle_fullscreen(HWND winhandle)
+{
+	uint32_t window_style = GetWindowLong(winhandle, GWL_STYLE);
+	if (window_style & WS_OVERLAPPEDWINDOW) {
+		MONITORINFO monitor_info = {
+			.cbSize = sizeof(monitor_info),
+		};
+		if (GetWindowPlacement(winhandle, &g_window_position) &&
+		    GetMonitorInfo(MonitorFromWindow(winhandle, MONITOR_DEFAULTTOPRIMARY),
+		                   &monitor_info)) {
+			SetWindowLong(winhandle, GWL_STYLE,
+			              (int32_t)(window_style & ~(uint32_t)WS_OVERLAPPEDWINDOW));
+			SetWindowPos(winhandle, HWND_TOP, monitor_info.rcMonitor.left,
+			             monitor_info.rcMonitor.top,
+			             monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
+			             monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
+			             SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
+		}
+	} else {
+		SetWindowLong(winhandle, GWL_STYLE, (int32_t)(window_style | WS_OVERLAPPEDWINDOW));
+		SetWindowPlacement(winhandle, &g_window_position);
+		SetWindowPos(winhandle, nullptr, 0, 0, 0, 0,
+		             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER |
+		                     SWP_FRAMECHANGED);
+	}
+}
 
 PLAT_FILE_FREE_DEBUG(plat_file_free_debug)
 {
@@ -367,7 +398,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 		.dwBufferBytes = (DWORD)buffersize,
 		.lpwfxFormat = &waveformat,
 	};
-	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &secbufferdesc, &secbuffer,
+	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &secbufferdesc, &g_secbuffer,
 	                                          nullptr))) {
 		// TODO(fredy): diagnostic
 		LIB_LOGE("Error creating the secondary buffer");
@@ -380,7 +411,7 @@ static void win_sound_clear_buffer(Win_SoundOutput *sound_output)
 	DWORD region_one_size = 0;
 	void *region_two = nullptr;
 	DWORD region_two_size = 0;
-	if (FAILED(IDirectSoundBuffer_Lock(secbuffer, 0, sound_output->buffsize, &region_one,
+	if (FAILED(IDirectSoundBuffer_Lock(g_secbuffer, 0, sound_output->buffsize, &region_one,
 	                                   &region_one_size, &region_two, &region_two_size, 0))) {
 		OutputDebugStringA("Error locking dsound secondary buffer");
 		return;
@@ -400,7 +431,7 @@ static void win_sound_clear_buffer(Win_SoundOutput *sound_output)
 		++byte_out;
 	}
 
-	if (FAILED(IDirectSoundBuffer_Unlock(secbuffer, region_one, region_one_size, region_two,
+	if (FAILED(IDirectSoundBuffer_Unlock(g_secbuffer, region_one, region_one_size, region_two,
 	                                     region_two_size))) {
 		OutputDebugStringA("Error unlocking dsound secondary buffer");
 	}
@@ -422,7 +453,7 @@ static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock
 	void *region_two;
 	unsigned long region_two_size;
 
-	if (FAILED(IDirectSoundBuffer_Lock(secbuffer, byte_to_lock, bytes_to_write, &region_one,
+	if (FAILED(IDirectSoundBuffer_Lock(g_secbuffer, byte_to_lock, bytes_to_write, &region_one,
 	                                   &region_one_size, &region_two, &region_two_size, 0))) {
 		OutputDebugStringA("Error locking dsound secondary buffer");
 	}
@@ -454,16 +485,16 @@ static void win_sound_fill_buffer(Win_SoundOutput *soundout, size_t byte_to_lock
 		++soundout->running_sample_index;
 	}
 
-	if (FAILED(IDirectSoundBuffer_Unlock(secbuffer, region_one, region_one_size, region_two,
+	if (FAILED(IDirectSoundBuffer_Unlock(g_secbuffer, region_one, region_one_size, region_two,
 	                                     region_two_size))) {
 		OutputDebugStringA("Error unlocking dsound secondary buffer");
 	}
 }
 
-static void win_keyboard_process_message(Game_ButtonState *newstate, uint8_t is_down)
+static void win_keyboard_process_message(Game_ButtonState *newstate, uint32_t is_down)
 {
 	if (newstate->ended_down != is_down) {
-		newstate->ended_down = is_down;
+		newstate->ended_down = (uint8_t)is_down;
 		++newstate->half_transition_count;
 	}
 }
@@ -583,7 +614,7 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
 		switch (msg.message) {
 		case WM_QUIT: {
-			is_global_running = 0U;
+			g_is_running = 0U;
 		} break;
 		case WM_SYSKEYDOWN:
 		case WM_SYSKEYUP:
@@ -591,8 +622,8 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 		case WM_KEYUP: {
 			size_t vk_code = (size_t)msg.wParam;
 			size_t key_stroke_info = (size_t)msg.lParam;
-			uint8_t was_down = (key_stroke_info & (1UL << 30UL)) != 0;
-			uint8_t is_down = (key_stroke_info & (1UL << 31UL)) == 0;
+			uint32_t was_down = (key_stroke_info & (1U << 30U)) != 0;
+			uint32_t is_down = (key_stroke_info & (1UL << 31UL)) == 0;
 
 			if (was_down != is_down) {
 				if (vk_code == 'K') {
@@ -635,7 +666,7 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 #if DEBUG
 				else if (vk_code == 'P') {
 					if (is_down) {
-						is_global_pause = !is_global_pause;
+						g_is_pause = !g_is_pause;
 					}
 				} else if (vk_code == 'L') {
 					if (is_down) {
@@ -654,9 +685,18 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 					}
 #endif
 				}
-				uint8_t was_alt_key_down = (key_stroke_info & (1UL << 29UL)) != 0;
-				if ((vk_code == VK_F4) && was_alt_key_down) {
-					is_global_running = 0U;
+
+				if (is_down) {
+					uint32_t was_alt_key_down = key_stroke_info & (1U << 29U);
+					if ((vk_code == VK_F4) && was_alt_key_down) {
+						g_is_running = 0;
+					}
+
+					if (vk_code == VK_F11 && was_alt_key_down) {
+						if (msg.hwnd) {
+							win_window_toggle_fullscreen(msg.hwnd);
+						}
+					}
 				}
 			}
 			break;
@@ -669,9 +709,9 @@ static void win_window_pump_messages(Win_State *winstate, Game_ControllerInput *
 	}
 }
 
-static HmWin_WindowDimensions win_window_get_dimensions(HWND winhandle)
+static Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 {
-	HmWin_WindowDimensions result;
+	Win_WindowDimensions result;
 	RECT client_rec;
 	GetClientRect(winhandle, &client_rec);
 	result.width = client_rec.right - client_rec.left;
@@ -733,13 +773,20 @@ static LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unu
 
 	switch (msg) {
 	case WM_CLOSE: {
-		is_global_running = 0U;
+		g_is_running = 0U;
+	} break;
+	case WM_SETCURSOR: {
+		if (g_show_cursor_debug) {
+			result = DefWindowProcA(winhandle, msg, wparam, lparam);
+		} else {
+			SetCursor(nullptr);
+		}
 	} break;
 	case WM_ACTIVATEAPP: {
 		OutputDebugStringA("WM_ACTIVATEAPP\n");
 	} break;
 	case WM_DESTROY: {
-		is_global_running = 0U;
+		g_is_running = 0U;
 	} break;
 	case WM_SYSKEYDOWN:
 	case WM_SYSKEYUP:
@@ -750,8 +797,8 @@ static LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unu
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
 		HDC dchandle = BeginPaint(winhandle, &paint);
-		HmWin_WindowDimensions windim = win_window_get_dimensions(winhandle);
-		win_window_display_bitmap(&global_bitmap, dchandle, windim.width, windim.height);
+		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
+		win_window_display_bitmap(&g_win_bitmap, dchandle, windim.width, windim.height);
 		EndPaint(winhandle, &paint);
 	} break;
 	default: {
@@ -773,7 +820,7 @@ static inline LARGE_INTEGER win_clock_get_wall(void)
 
 static inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER end)
 {
-	return (float)(end.QuadPart - start.QuadPart) / (float)global_perf_count_frequency;
+	return (float)(end.QuadPart - start.QuadPart) / (float)g_perf_count_frequency;
 }
 
 /**
@@ -913,7 +960,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
-	global_perf_count_frequency = perf_count_frequency_result.QuadPart;
+	g_perf_count_frequency = perf_count_frequency_result.QuadPart;
 
 	win_file_get_exe_path(&winstate);
 
@@ -937,15 +984,19 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	win_xinput_load();
 
+#if DEBUG
+	g_show_cursor_debug = 1U;
+#endif
+
 	WNDCLASSA winclass = {
 		.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
 		.lpfnWndProc = win_window_handle_callback,
 		.hInstance = hinstance,
-		.hCursor = LoadCursorA(nullptr, IDC_CROSS),
+		.hCursor = LoadCursorA(nullptr, IDC_ARROW),
 		.lpszClassName = "HandmadeHeroWindowClass",
 	};
 
-	win_bitmap_resize_section(&global_bitmap, 960, 540);
+	win_bitmap_resize_section(&g_win_bitmap, 960, 540);
 
 	if (!RegisterClassA(&winclass)) {
 		LIB_LOGE("error registering the window class");
@@ -985,12 +1036,12 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	win_sound_init(winhandle, winsound.samples_per_sec, winsound.buffsize);
 	win_sound_clear_buffer(&winsound);
 
-	if (FAILED(IDirectSoundBuffer_Play(secbuffer, 0, 0, DSBPLAY_LOOPING))) {
+	if (FAILED(IDirectSoundBuffer_Play(g_secbuffer, 0, 0, DSBPLAY_LOOPING))) {
 		LIB_LOGE("Error playing dsound secondary buffer");
 		return EXIT_FAILURE;
 	}
 
-	is_global_running = 1U;
+	g_is_running = 1U;
 
 #if 0
 	{
@@ -1088,7 +1139,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	}
 
 	size_t last_cycle_count = __rdtsc();
-	while (is_global_running) {
+	while (g_is_running) {
 		OutputDebugStringA("LPCSTR lpOutputString");
 		new_input->secs_time_delta = target_secs_per_frame;
 
@@ -1124,7 +1175,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		win_window_pump_messages(&winstate, new_keyboard_controller);
 
-		if (is_global_pause) {
+		if (g_is_pause) {
 			continue;
 		}
 
@@ -1238,11 +1289,11 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		 * @brief Update and rendering
 		 */
 
-		bitmap.top_left_px = global_bitmap.top_left_px;
-		bitmap.width_px = global_bitmap.width;
-		bitmap.height_px = global_bitmap.height;
-		bitmap.pitch_bytes = global_bitmap.pitch_bytes;
-		bitmap.bytes_per_pixel = global_bitmap.bytes_per_pixel;
+		bitmap.top_left_px = g_win_bitmap.top_left_px;
+		bitmap.width_px = g_win_bitmap.width;
+		bitmap.height_px = g_win_bitmap.height;
+		bitmap.pitch_bytes = g_win_bitmap.pitch_bytes;
+		bitmap.bytes_per_pixel = g_win_bitmap.bytes_per_pixel;
 
 		if (winstate.replay_status == WIN_REPLAY_RECORD) {
 			win_input_record(&winstate, new_input);
@@ -1259,7 +1310,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 		unsigned long play_cursor;
 		unsigned long write_cursor;
-		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(secbuffer, &play_cursor,
+		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(g_secbuffer, &play_cursor,
 		                                                    &write_cursor))) {
 			if (!is_sound_valid) {
 				winsound.running_sample_index =
@@ -1363,7 +1414,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 		float ms_per_frame = 1000.0F * win_clock_elapsed_secs(last_counter, end_counter);
 		last_counter = end_counter;
 
-		HmWin_WindowDimensions windim = win_window_get_dimensions(winhandle);
+		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
 
 #if 0
  		win_bitmap_draw_sound_sync_debug(&global_bitmap, debug_last_cursor_marks_size,
@@ -1372,7 +1423,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 #endif
 
 		// Flip the frame
-		win_window_display_bitmap(&global_bitmap, dchandle, windim.width, windim.height);
+		win_window_display_bitmap(&g_win_bitmap, dchandle, windim.width, windim.height);
 
 		flip_wall_clock = win_clock_get_wall();
 
