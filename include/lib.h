@@ -174,8 +174,8 @@ static constexpr float PIE = 3.14159265359F;
 #endif // LIB_LOGF
 
 static void string_concat(const size_t one_count, const char *const restrict one,
-                              const size_t other_count, const char *const restrict other,
-                              const size_t destsize, char *const restrict dest)
+                          const size_t other_count, const char *const restrict other,
+                          const size_t destsize, char *const restrict dest)
 {
 	for (unsigned i = 0; i < one_count; ++i) {
 		dest[i] = one[i];

@@ -274,7 +274,7 @@ static void win_file_build_path(WinState *winstate, const char *const filename,
                                 const unsigned dest_count, char *dest)
 {
 	string_concat((size_t)(winstate->exe_path_last_slash - winstate->exe_path + 1),
-	                  winstate->exe_path, strlen(filename), filename, dest_count, dest);
+	              winstate->exe_path, strlen(filename), filename, dest_count, dest);
 }
 
 static void win_file_build_input_path(WinState *winstate, unsigned slot_index, unsigned dest_count,
@@ -1150,22 +1150,22 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 	int16_t *samples = (int16_t *)VirtualAlloc(nullptr, winsound.buffsize,
 	                                           MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	PlatMemory PlatMemory = {
+	GameMemory GameMemory = {
 		.plat_file_free_debug = plat_file_free_debug,
 		.plat_file_read_debug = plat_file_read_debug,
 		.file_write_debug = file_write_debug,
 	};
-	PlatMemory.permanent_storage_size_byte = MB_TO_BYTES(64ULL);
-	PlatMemory.transient_storage_size_byte = GB_TO_BYTES(1ULL);
+	GameMemory.permanent_storage_size_byte = MB_TO_BYTES(64ULL);
+	GameMemory.transient_storage_size_byte = GB_TO_BYTES(1ULL);
 
 	winstate.gamemem_size =
-		PlatMemory.permanent_storage_size_byte + PlatMemory.transient_storage_size_byte;
+		GameMemory.permanent_storage_size_byte + GameMemory.transient_storage_size_byte;
 	winstate.gamemem = VirtualAlloc(PLAT_BASE_ADDRESS, winstate.gamemem_size,
 	                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	PlatMemory.permanent_storage = winstate.gamemem;
-	PlatMemory.transient_storage = (unsigned char *)PlatMemory.permanent_storage +
-	                                PlatMemory.permanent_storage_size_byte;
+	GameMemory.permanent_storage = winstate.gamemem;
+	GameMemory.transient_storage = (unsigned char *)GameMemory.permanent_storage +
+	                               GameMemory.permanent_storage_size_byte;
 
 	for (uint8_t slot_index = 0; slot_index < REPLAY_MAX_SLOTS; ++slot_index) {
 		ReplaySlot *replay_slot = &winstate.replay_slots[slot_index];
@@ -1184,7 +1184,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 		                                    0, winstate.gamemem_size);
 	}
 
-	if (!samples || !PlatMemory.permanent_storage || !PlatMemory.transient_storage) {
+	if (!samples || !GameMemory.permanent_storage || !GameMemory.transient_storage) {
 		return EXIT_FAILURE;
 	}
 
@@ -1239,10 +1239,8 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 		/**
 		* @brief Gather input
 		*/
-		ControllerState *old_keyboard_controller =
-			game_input_get_controller(old_input, 0);
-		ControllerState *new_keyboard_controller =
-			game_input_get_controller(new_input, 0);
+		ControllerState *old_keyboard_controller = game_input_get_controller(old_input, 0);
+		ControllerState *new_keyboard_controller = game_input_get_controller(new_input, 0);
 		ControllerState zero_controller = {};
 		*new_keyboard_controller = zero_controller;
 		new_keyboard_controller->is_connected = 1U;
@@ -1382,7 +1380,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 			win_input_playback(&winstate, new_input);
 		}
 		if (game_code.update_and_render) {
-			game_code.update_and_render(&bitmap, &thread, &PlatMemory, new_input);
+			game_code.update_and_render(&bitmap, &thread, &GameMemory, new_input);
 		}
 
 		unsigned bytes_to_write = 0;
@@ -1427,7 +1425,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 			game_soundbuff.sample_count = bytes_to_write / winsound.bytes_per_sample;
 			if (game_code.sound_create_samples) {
 				game_code.sound_create_samples(&game_soundbuff, &thread,
-				                               &PlatMemory);
+				                               &GameMemory);
 			}
 #if 0
 			DebugTimeMark *mark =

@@ -96,21 +96,20 @@ typedef struct ReadFileResult {
 	void *base_address;
 } ReadFileResult;
 
-#define FILE_READ_DEBUG(name) \
-	ReadFileResult name(const char *const filename, ThreadContext *thread)
+#define FILE_READ_DEBUG(name) ReadFileResult name(const char *const filename, ThreadContext *thread)
 typedef FILE_READ_DEBUG(file_read_debug_func);
 
 #define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
 typedef FILE_FREE_DEBUG(file_free_debug_func);
 
-#define FILE_WRITE_DEBUG(name)                                               \
+#define FILE_WRITE_DEBUG(name)                                                    \
 	uint8_t name(const char *const filename, size_t memorysize, void *memory, \
 	             ThreadContext *thread)
 typedef FILE_WRITE_DEBUG(file_write_debug_func);
 
 #endif // DEBUG
 
-typedef struct PlatMemory {
+typedef struct GameMemory {
 	size_t permanent_storage_size_byte; // permanent storage in bytes
 	void *permanent_storage;            // This should be zero initialized
 
@@ -122,7 +121,7 @@ typedef struct PlatMemory {
 	file_write_debug_func *file_write_debug;
 
 	uint8_t is_initialized;
-} PlatMemory;
+} GameMemory;
 
 typedef struct Arena {
 	size_t capacity_byte;
@@ -130,8 +129,7 @@ typedef struct Arena {
 	size_t used_byte;
 } Arena;
 
-void arena_init(Arena *restrict arena, const size_t size,
-                     unsigned char *const restrict base)
+void arena_init(Arena *restrict arena, const size_t size, unsigned char *const restrict base)
 {
 	arena->capacity_byte = size;
 	arena->base_address = base;

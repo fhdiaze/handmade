@@ -58,9 +58,9 @@ static void game_sound_output(GameSoundBuffer *buffer, GameState *game_state, un
  * @param green
  * @param blue
  */
-static void game_bitmap_render_rectangle(GameBitmap *bitmap, float start_x_px_f,
-                                         float start_y_px_f, float end_x_px_f, float end_y_px_f,
-                                         float red, float green, float blue)
+static void game_bitmap_render_rectangle(GameBitmap *bitmap, float start_x_px_f, float start_y_px_f,
+                                         float end_x_px_f, float end_y_px_f, float red, float green,
+                                         float blue)
 {
 	assert(start_x_px_f <= end_x_px_f && start_y_px_f <= end_y_px_f);
 
@@ -105,8 +105,8 @@ static void game_bitmap_render_rectangle(GameBitmap *bitmap, float start_x_px_f,
  * @param source_offset_x_px_f
  * @param source_offset_y_px_f
  */
-static void game_bitmap_render_bitmap(GameBitmap *const restrict target,
-                                      float target_offset_x_px_f, float target_offset_y_px_f,
+static void game_bitmap_render_bitmap(GameBitmap *const restrict target, float target_offset_x_px_f,
+                                      float target_offset_y_px_f,
                                       const LoadedBitmap *const restrict source,
                                       float source_offset_x_px_f, float source_offset_y_px_f)
 {
@@ -181,10 +181,9 @@ static void game_bitmap_render_bitmap(GameBitmap *const restrict target,
 /**
  *
  */
-static LoadedBitmap
-game_file_load_bitmap_debug(const char *const filename,
-                            file_read_debug_func *file_read_debug_func,
-                            ThreadContext *thread)
+static LoadedBitmap game_file_load_bitmap_debug(const char *const filename,
+                                                file_read_debug_func *file_read_debug_func,
+                                                ThreadContext *thread)
 {
 	LoadedBitmap result = {};
 
@@ -228,62 +227,60 @@ game_file_load_bitmap_debug(const char *const filename,
 
 GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
-	assert(sizeof(GameState) <= PlatMemory->permanent_storage_size_byte);
+	assert(sizeof(GameState) <= GameMemory->permanent_storage_size_byte);
 
 	float player_height_m = 1.4F;
 	float player_width_m = 0.75F * player_height_m;
 
-	GameState *game_state = PlatMemory->permanent_storage;
+	GameState *game_state = GameMemory->permanent_storage;
 	Arena *arena = &game_state->arena;
 	World *world = game_state->world;
 	Map *map = nullptr;
 
-	if (!PlatMemory->is_initialized) {
+	if (!GameMemory->is_initialized) {
 		game_state->backdrop = game_file_load_bitmap_debug(
-			"test/test_background.bmp", PlatMemory->plat_file_read_debug, thread);
+			"test/test_background.bmp", GameMemory->plat_file_read_debug, thread);
 
 		HeroBitmaps *bitmaps = game_state->hero_bitmaps;
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_right_head.bmp", PlatMemory->plat_file_read_debug, thread);
+			"test/test_hero_right_head.bmp", GameMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_right_cape.bmp", PlatMemory->plat_file_read_debug, thread);
-		bitmaps->torso = game_file_load_bitmap_debug("test/test_hero_right_torso.bmp",
-		                                             PlatMemory->plat_file_read_debug,
-		                                             thread);
-		bitmaps->align_x_px = 72;
-		bitmaps->align_y_px = 182;
-
-		++bitmaps;
-
-		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_back_head.bmp", PlatMemory->plat_file_read_debug, thread);
-		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_back_cape.bmp", PlatMemory->plat_file_read_debug, thread);
+			"test/test_hero_right_cape.bmp", GameMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_back_torso.bmp", PlatMemory->plat_file_read_debug, thread);
+			"test/test_hero_right_torso.bmp", GameMemory->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_left_head.bmp", PlatMemory->plat_file_read_debug, thread);
+			"test/test_hero_back_head.bmp", GameMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_left_cape.bmp", PlatMemory->plat_file_read_debug, thread);
+			"test/test_hero_back_cape.bmp", GameMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_left_torso.bmp", PlatMemory->plat_file_read_debug, thread);
+			"test/test_hero_back_torso.bmp", GameMemory->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_front_head.bmp", PlatMemory->plat_file_read_debug, thread);
+			"test/test_hero_left_head.bmp", GameMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_front_cape.bmp", PlatMemory->plat_file_read_debug, thread);
-		bitmaps->torso = game_file_load_bitmap_debug("test/test_hero_front_torso.bmp",
-		                                             PlatMemory->plat_file_read_debug,
-		                                             thread);
+			"test/test_hero_left_cape.bmp", GameMemory->plat_file_read_debug, thread);
+		bitmaps->torso = game_file_load_bitmap_debug(
+			"test/test_hero_left_torso.bmp", GameMemory->plat_file_read_debug, thread);
+		bitmaps->align_x_px = 72;
+		bitmaps->align_y_px = 182;
+
+		++bitmaps;
+
+		bitmaps->head = game_file_load_bitmap_debug(
+			"test/test_hero_front_head.bmp", GameMemory->plat_file_read_debug, thread);
+		bitmaps->cape = game_file_load_bitmap_debug(
+			"test/test_hero_front_cape.bmp", GameMemory->plat_file_read_debug, thread);
+		bitmaps->torso = game_file_load_bitmap_debug(
+			"test/test_hero_front_torso.bmp", GameMemory->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
@@ -303,11 +300,10 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		size_t game_state_size = sizeof(*game_state);
 		arena_init(&game_state->arena,
-		                PlatMemory->permanent_storage_size_byte - game_state_size,
-		                (unsigned char *)PlatMemory->permanent_storage + game_state_size);
+		           GameMemory->permanent_storage_size_byte - game_state_size,
+		           (unsigned char *)GameMemory->permanent_storage + game_state_size);
 
-		game_state->world =
-			arena_push_size(&game_state->arena, sizeof(*game_state->world));
+		game_state->world = arena_push_size(&game_state->arena, sizeof(*game_state->world));
 		world = game_state->world;
 
 		world->map = arena_push_size(&game_state->arena, sizeof(*map));
@@ -315,7 +311,7 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		arena = &game_state->arena;
 
 		map->chunks = (TilesChunk *)arena_push_array(arena, (size_t)MAP_SIZE_CHK,
-		                                                       sizeof(TilesChunk));
+		                                             sizeof(TilesChunk));
 
 		uint32_t tiles_per_width = 17;
 		uint32_t tiles_per_height = 9;
@@ -1002,7 +998,7 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			is_top_door = 0U;
 		}
 
-		PlatMemory->is_initialized = 1U;
+		GameMemory->is_initialized = 1U;
 	}
 
 	map = world->map;
@@ -1075,8 +1071,7 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			if (game_map_is_point_walkable(map, new_player_pos) &&
 			    game_map_is_point_walkable(map, left_bottom_pos) &&
 			    game_map_is_point_walkable(map, right_bottom_pos)) {
-				if (!MAP_ARE_SAME_TILE(new_player_pos,
-				                            game_state->hero_position)) {
+				if (!MAP_ARE_SAME_TILE(new_player_pos, game_state->hero_position)) {
 					uint32_t tile_value =
 						MAP_GET_TILE_VALUE_BY_POS(map, new_player_pos);
 					if (tile_value == TILE_TYPE_STAIRS_UP) {
@@ -1186,8 +1181,7 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		Position *hero_position = &game_state->hero_position;
 
 		// Vector to move from the camera to the hero position in the map
-		PositionDelta delta =
-			game_map_substract_positions(camera_position, hero_position);
+		PositionDelta delta = game_map_substract_positions(camera_position, hero_position);
 
 		float player_red = 1.0F;
 		float player_green = 1.0F;

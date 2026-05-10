@@ -10,8 +10,8 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "platform.h"
 #include "lib.h"
+#include "platform.h"
 
 #define GAME_DLL_NAME "game.dll"
 
@@ -47,9 +47,9 @@
 #define MAP_GET_TILE_VALUE_BY_POS(map, pos) \
 	game_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
 
-#define MAP_ARE_SAME_TILE(one_position, other_position) \
-	(one_position.tile_x == other_position.tile_x &&     \
-	 one_position.tile_y == other_position.tile_y &&     \
+#define MAP_ARE_SAME_TILE(one_position, other_position)  \
+	(one_position.tile_x == other_position.tile_x && \
+	 one_position.tile_y == other_position.tile_y && \
 	 one_position.tile_z == other_position.tile_z)
 
 #define MAX_MOUSE_BUTTONS 5
@@ -251,8 +251,7 @@ typedef struct GameState {
 
 // Utilities
 
-static inline ControllerState *game_input_get_controller(GameInput *input,
-                                                              size_t controller_index)
+static inline ControllerState *game_input_get_controller(GameInput *input, size_t controller_index)
 {
 	assert(controller_index < MAX_CONTROLLERS);
 
@@ -277,7 +276,7 @@ static inline uint8_t game_map_correct_coord(uint32_t *tile, float *tile_rel)
 }
 
 static inline ChunkPosition game_map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y,
-                                                        uint32_t tile_z)
+                                                   uint32_t tile_z)
 {
 	ChunkPosition result;
 
@@ -291,7 +290,7 @@ static inline ChunkPosition game_map_get_chunk_pos(uint32_t tile_x, uint32_t til
 }
 
 static inline TilesChunk *game_map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y,
-                                                  uint32_t chunk_z)
+                                             uint32_t chunk_z)
 {
 	TilesChunk *result = nullptr;
 
@@ -344,18 +343,16 @@ static uint8_t game_map_is_point_walkable(Map *map, Position pos)
 	return is_walkable;
 }
 
-static void game_map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x,
-                                    uint32_t tile_y, uint32_t tile_z, uint32_t tile_value)
+static void game_map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t tile_y,
+                                    uint32_t tile_z, uint32_t tile_value)
 {
 	ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
-	TilesChunk *tilechunk =
-		game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+	TilesChunk *tilechunk = game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	assert(tilechunk);
 
 	if (!tilechunk->tiles) {
-		tilechunk->tiles =
-			arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
+		tilechunk->tiles = arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
 		for (uint32_t tile_idx = 0; tile_idx < CHUNK_SIZE_TL; ++tile_idx) {
 			tilechunk->tiles[tile_idx] = TILE_TYPE_EMPTY;
 		}
@@ -367,8 +364,7 @@ static void game_map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x,
 	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_value;
 }
 
-static PositionDelta game_map_substract_positions(Position *start_position,
-                                                       Position *end_position)
+static PositionDelta game_map_substract_positions(Position *start_position, Position *end_position)
 {
 	PositionDelta result = {};
 
@@ -388,13 +384,13 @@ static PositionDelta game_map_substract_positions(Position *start_position,
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_UPDATE_AND_RENDER(name)                                                  \
-	void name(GameBitmap *bitmap, ThreadContext *thread, PlatMemory *PlatMemory, \
+#define GAME_UPDATE_AND_RENDER(name)                                                 \
+	void name(GameBitmap *bitmap, ThreadContext *thread, GameMemory *GameMemory, \
 	          GameInput *input)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 
 #define SOUND_CREATE_SAMPLES(name) \
-	void name(GameSoundBuffer *soundbuff, ThreadContext *thread, PlatMemory *memory)
+	void name(GameSoundBuffer *soundbuff, ThreadContext *thread, GameMemory *memory)
 typedef SOUND_CREATE_SAMPLES(sound_create_samples_func);
 
 #endif // GAME_H
