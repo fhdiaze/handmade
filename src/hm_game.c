@@ -2,16 +2,14 @@
 * Game api implementation
 */
 
-#include "hm_game.h"
-
-#include "hm_intrinsics.h"
 #include <assert.h>
 #include <limits.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "handmade_lib.h"
+#include "hm_game.h"
+#include "hm_lib.h"
 
 #define RANDOM_NUMS_COUNT 4096
 
@@ -195,7 +193,7 @@ game_file_load_bitmap_debug(const char *const filename,
 		return result;
 	}
 
-	Plat_BitmapHeader *bitmap = (Plat_BitmapHeader *)read_result.base_address;
+	HmBitmapHeader *bitmap = (HmBitmapHeader *)read_result.base_address;
 
 	assert(bitmap->width_px >= 0);
 	assert(bitmap->height_px >= 0);
@@ -316,8 +314,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		map = world->map;
 		arena = &game_state->arena;
 
-		map->chunks = (Tile_Chunk *)plat_arena_push_array(arena, (size_t)MAP_SIZE_CHK,
-		                                                  sizeof(Tile_Chunk));
+		map->chunks = (Game_TilesChunk *)plat_arena_push_array(arena, (size_t)MAP_SIZE_CHK,
+		                                                       sizeof(Game_TilesChunk));
 
 		uint32_t tiles_per_width = 17;
 		uint32_t tiles_per_height = 9;
@@ -974,7 +972,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 						tile_value = TILE_TYPE_STAIRS_DOWN;
 					}
 
-					tile_map_set_tile_value(map, &game_state->arena, tile_x,
+					game_map_set_tile_value(map, &game_state->arena, tile_x,
 					                        tile_y, tile_z, tile_value);
 				}
 			}
@@ -1054,33 +1052,33 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			float new_player_y = game_state->hero_position.offset_y_m +
 			                     input->secs_time_delta * mts_per_sec_player_y;
 
-			Tile_Position new_player_pos = game_state->hero_position;
+			Game_Position new_player_pos = game_state->hero_position;
 			new_player_pos.offset_x_m = new_player_x;
 			new_player_pos.offset_y_m = new_player_y;
 
-			if (!tile_map_correct_position(&new_player_pos)) {
+			if (!game_map_correct_position(&new_player_pos)) {
 				continue;
 			}
 
-			Tile_Position left_bottom_pos = new_player_pos;
+			Game_Position left_bottom_pos = new_player_pos;
 			left_bottom_pos.offset_x_m -= player_width_m * 0.5F;
-			if (!tile_map_correct_position(&left_bottom_pos)) {
+			if (!game_map_correct_position(&left_bottom_pos)) {
 				continue;
 			}
 
-			Tile_Position right_bottom_pos = new_player_pos;
+			Game_Position right_bottom_pos = new_player_pos;
 			right_bottom_pos.offset_x_m += player_width_m * 0.5F;
-			if (!tile_map_correct_position(&right_bottom_pos)) {
+			if (!game_map_correct_position(&right_bottom_pos)) {
 				continue;
 			}
 
-			if (tile_map_is_point_walkable(map, new_player_pos) &&
-			    tile_map_is_point_walkable(map, left_bottom_pos) &&
-			    tile_map_is_point_walkable(map, right_bottom_pos)) {
-				if (!TILE_MAP_ARE_SAME_TILE(new_player_pos,
+			if (game_map_is_point_walkable(map, new_player_pos) &&
+			    game_map_is_point_walkable(map, left_bottom_pos) &&
+			    game_map_is_point_walkable(map, right_bottom_pos)) {
+				if (!GAME_MAP_ARE_SAME_TILE(new_player_pos,
 				                            game_state->hero_position)) {
 					uint32_t tile_value =
-						TILE_MAP_GET_TILE_VALUE_BY_POS(map, new_player_pos);
+						GAME_MAP_GET_TILE_VALUE_BY_POS(map, new_player_pos);
 					if (tile_value == TILE_TYPE_STAIRS_UP) {
 						++new_player_pos.tile_z;
 					} else if (tile_value == TILE_TYPE_STAIRS_DOWN) {
@@ -1090,7 +1088,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 				game_state->hero_position = new_player_pos;
 
-				Tile_PositionDelta delta = tile_map_substract_positions(
+				Game_PositionDelta delta = game_map_substract_positions(
 					&game_state->camera_position, &game_state->hero_position);
 
 				if (delta.delta_x_m <= -9.0F * TILE_SIDE_M) {
@@ -1125,7 +1123,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float bitmap_center_x_px = (float)bitmap->width_px * 0.5F;
 		float bitmap_center_y_px = (float)bitmap->height_px * 0.5F;
 
-		Tile_Position *camera_position = &game_state->camera_position;
+		Game_Position *camera_position = &game_state->camera_position;
 
 		for (int32_t tile_row_offset = -10; tile_row_offset < 10; ++tile_row_offset) {
 			for (int32_t tile_col_offset = -20; tile_col_offset < 20;
@@ -1137,7 +1135,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				uint32_t level = camera_position->tile_z;
 
 				uint32_t tile_type_id =
-					tile_map_get_tile_value(map, col, row, level);
+					game_map_get_tile_value(map, col, row, level);
 
 				if (tile_type_id > TILE_TYPE_EMPTY) {
 					float gray = 0.0F; // Walkable
@@ -1185,11 +1183,11 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		Game_HeroBitmaps *hero_bitmaps =
 			&game_state->hero_bitmaps[game_state->hero_facing_direction];
 
-		Tile_Position *hero_position = &game_state->hero_position;
+		Game_Position *hero_position = &game_state->hero_position;
 
 		// Vector to move from the camera to the hero position in the map
-		Tile_PositionDelta delta =
-			tile_map_substract_positions(camera_position, hero_position);
+		Game_PositionDelta delta =
+			game_map_substract_positions(camera_position, hero_position);
 
 		float player_red = 1.0F;
 		float player_green = 1.0F;

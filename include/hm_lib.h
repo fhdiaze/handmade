@@ -9,6 +9,28 @@
 #include <stdio.h> // IWYU pragma: keep
 #include <time.h>
 
+#ifndef LIB_COMPILER_MSVC
+#define LIB_COMPILER_MSVC 0
+#endif
+
+#ifndef LIB_COMPILER_LLVM
+#define LIB_COMPILER_LLVM 0
+#endif
+
+#if !LIB_COMPILER_MSVC && !LIB_COMPILER_LLVM
+#ifdef _MSC_VER
+#undef LIB_COMPILER_MSVC
+#define LIB_COMPILER_MSVC 1
+#else
+#undef LIB_COMPILER_LLVM
+#define LIB_COMPILER_LLVM 1
+#endif
+#endif
+
+#if LIB_COMPILER_MSVC
+#include <intrin.h>
+#endif
+
 // Constants
 static constexpr float PIE = 3.14159265359F;
 #define LIB_LOG_TSTAMP_BUF_SIZE 32
@@ -21,8 +43,8 @@ static constexpr float PIE = 3.14159265359F;
 #define LIB_LOG_LEVEL_FATAL 6UL
 #define LIB_LOG_LEVEL_OFF 7UL
 
-#define HM_LIB_KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
-#define MB_TO_BYTES(_pr_v) (HM_LIB_KB_TO_BYTES(_pr_v) * 1024)
+#define LIB_KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
+#define MB_TO_BYTES(_pr_v) (LIB_KB_TO_BYTES(_pr_v) * 1024)
 #define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
 #define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
 
@@ -210,6 +232,38 @@ inline float lib_float_floor(float value)
 inline unsigned lib_int_abs(int value)
 {
 	return (unsigned)(value < 0 ? -value : value);
+}
+
+typedef struct Intrs_BitScanResult {
+	unsigned long index;
+	uint8_t was_found;
+} Intrs_BitScanResult;
+
+/**
+ * @brief Finds the index of the first non-zero bit if there is one.
+ *
+ * @param value
+ * @param index
+ * @return uint8_t Non zero value if a non-zero value was found, 0 otherwise
+ */
+Intrs_BitScanResult intrs_bit_find_least_significant_set_bit(uint32_t value)
+{
+	Intrs_BitScanResult result = {};
+
+#if LIB_COMPILER_MSVC
+	result.was_found = _BitScanForward(&result.index, value);
+#else
+	for (uint8_t test = 0; test < 32; ++test) {
+		if (value & (1U << test)) {
+			result.was_found = 1U;
+			result.index = test;
+
+			break;
+		}
+	}
+#endif
+
+	return result;
 }
 
 #endif // HM_LIB_H

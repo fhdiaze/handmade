@@ -10,8 +10,8 @@
 #include <assert.h>
 #include <stdint.h>
 
-#include "handmade_lib.h"
 #include "hm_platform.h"
+#include "hm_lib.h"
 
 #define HM_GAME_DLL_NAME "hm_game.dll"
 
@@ -44,17 +44,19 @@
 #define MAP_SIZE_XY_CHK (MAP_SIDE_Y_CHK * MAP_SIDE_X_CHK)
 #define MAP_SIZE_CHK (MAP_SIZE_XY_CHK * MAP_SIDE_Z_CHK)
 
-#define TILE_MAP_GET_TILE_VALUE_BY_POS(map, pos) \
-	tile_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
+#define GAME_MAP_GET_TILE_VALUE_BY_POS(map, pos) \
+	game_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
 
-#define TILE_MAP_ARE_SAME_TILE(one, other) \
-	(one.tile_x == other.tile_x && one.tile_y == other.tile_y && one.tile_z == other.tile_z)
+#define GAME_MAP_ARE_SAME_TILE(one_position, other_position) \
+	(one_position.tile_x == other_position.tile_x &&     \
+	 one_position.tile_y == other_position.tile_y &&     \
+	 one_position.tile_z == other_position.tile_z)
 
 #define GAME_MAX_MOUSE_BUTTONS 5
 #define GAME_MAX_CONTROLLERS 5
 #define GAME_MAX_CONTROLLER_BUTTONS 12
 
-typedef struct Tile_ChunkPosition {
+typedef struct Game_ChunkPosition {
 	/**
 	 * @brief Increases towards the right of the screen
 	 */
@@ -79,11 +81,11 @@ typedef struct Tile_ChunkPosition {
 	 * @brief Y tile relative to the chunk
 	 */
 	uint32_t tile_y;
-} Tile_ChunkPosition;
+} Game_ChunkPosition;
 
-typedef struct Tile_Chunk {
+typedef struct Game_TilesChunk {
 	uint32_t *tiles;
-} Tile_Chunk;
+} Game_TilesChunk;
 
 /**
  * @brief Origin of the map is bottom-left corner of the screen
@@ -92,10 +94,10 @@ typedef struct Game_Map {
 	/**
 	 * @brief Chunks are laid out in memory with z as the outermost dimension, then y, then x
 	 */
-	Tile_Chunk *chunks;
+	Game_TilesChunk *chunks;
 } Game_Map;
 
-typedef struct Tile_Position {
+typedef struct Game_Position {
 	/**
 	 * @brief Increases towards the right of the screen
 	 */
@@ -120,22 +122,22 @@ typedef struct Tile_Position {
 	 * @brief Y relative to the center of the tile in meters
 	 */
 	float offset_y_m;
-} Tile_Position;
+} Game_Position;
 
-typedef struct Tile_PositionDelta {
+typedef struct Game_PositionDelta {
 	// Delta on x axis in meters
 	float delta_x_m;
 	float delta_y_m;
 	float delta_z_m;
-} Tile_PositionDelta;
+} Game_PositionDelta;
 
-typedef enum Tile_Type : uint32_t {
+typedef enum Game_TileType : uint32_t {
 	TILE_TYPE_NONE = 0,
 	TILE_TYPE_EMPTY = 1,
 	TILE_TYPE_WALL = 2,
 	TILE_TYPE_STAIRS_UP = 3,
 	TILE_TYPE_STAIRS_DOWN = 4,
-} Tile_Type;
+} Game_TileType;
 
 /**
  * @brief (0,0) is on the top left corner.
@@ -238,8 +240,8 @@ typedef struct Game_HeroBitmaps {
 typedef struct Game_State {
 	Plat_Arena arena;
 	Game_World *world;
-	Tile_Position camera_position;
-	Tile_Position hero_position;
+	Game_Position camera_position;
+	Game_Position hero_position;
 
 	Plat_LoadedBitmap backdrop;
 
@@ -259,7 +261,7 @@ static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
 
 // Game services
 
-static inline uint8_t tile_map_correct_coord(uint32_t *tile, float *tile_rel)
+static inline uint8_t game_map_correct_coord(uint32_t *tile, float *tile_rel)
 {
 	int tile_offset = lib_float_round_to_int(*tile_rel / TILE_SIDE_M);
 
@@ -274,10 +276,10 @@ static inline uint8_t tile_map_correct_coord(uint32_t *tile, float *tile_rel)
 	return 1U;
 }
 
-static inline Tile_ChunkPosition tile_map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y,
+static inline Game_ChunkPosition game_map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y,
                                                         uint32_t tile_z)
 {
-	Tile_ChunkPosition result;
+	Game_ChunkPosition result;
 
 	result.chunk_x = tile_x >> CHUNK_SHIFT_BIT;
 	result.chunk_y = tile_y >> CHUNK_SHIFT_BIT;
@@ -288,10 +290,10 @@ static inline Tile_ChunkPosition tile_map_get_chunk_pos(uint32_t tile_x, uint32_
 	return result;
 }
 
-static inline Tile_Chunk *tile_map_get_chunk(Game_Map *map, uint32_t chunk_x, uint32_t chunk_y,
-                                             uint32_t chunk_z)
+static inline Game_TilesChunk *game_map_get_chunk(Game_Map *map, uint32_t chunk_x, uint32_t chunk_y,
+                                                  uint32_t chunk_z)
 {
-	Tile_Chunk *result = nullptr;
+	Game_TilesChunk *result = nullptr;
 
 	if (chunk_x < MAP_SIDE_X_CHK && chunk_y < MAP_SIDE_Y_CHK && chunk_z < MAP_SIDE_Z_CHK) {
 		result =
@@ -301,13 +303,13 @@ static inline Tile_Chunk *tile_map_get_chunk(Game_Map *map, uint32_t chunk_x, ui
 	return result;
 }
 
-static inline uint32_t tile_map_get_tile_value(Game_Map *map, uint32_t tile_x, uint32_t tile_y,
+static inline uint32_t game_map_get_tile_value(Game_Map *map, uint32_t tile_x, uint32_t tile_y,
                                                uint32_t tile_z)
 {
 	uint32_t tile_value = 0;
 
-	Tile_ChunkPosition cpos = tile_map_get_chunk_pos(tile_x, tile_y, tile_z);
-	Tile_Chunk *chunk = tile_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+	Game_ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
+	Game_TilesChunk *chunk = game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	if (!chunk || !chunk->tiles) {
 		return tile_value;
@@ -321,32 +323,33 @@ static inline uint32_t tile_map_get_tile_value(Game_Map *map, uint32_t tile_x, u
 	return tile_value;
 }
 
-static uint8_t tile_map_correct_position(Tile_Position *pos)
+static uint8_t game_map_correct_position(Game_Position *pos)
 {
-	uint8_t was_success = tile_map_correct_coord(&pos->tile_x, &pos->offset_x_m);
+	uint8_t was_success = game_map_correct_coord(&pos->tile_x, &pos->offset_x_m);
 	if (!was_success) {
 		return was_success;
 	}
 
-	was_success = tile_map_correct_coord(&pos->tile_y, &pos->offset_y_m);
+	was_success = game_map_correct_coord(&pos->tile_y, &pos->offset_y_m);
 
 	return was_success;
 }
 
-static uint8_t tile_map_is_point_walkable(Game_Map *map, Tile_Position pos)
+static uint8_t game_map_is_point_walkable(Game_Map *map, Game_Position pos)
 {
-	uint32_t tile_value = tile_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
+	uint32_t tile_value = game_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
 	uint8_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
 	                      tile_value == TILE_TYPE_STAIRS_DOWN;
 
 	return is_walkable;
 }
 
-static void tile_map_set_tile_value(Game_Map *map, Plat_Arena *arena, uint32_t tile_x,
+static void game_map_set_tile_value(Game_Map *map, Plat_Arena *arena, uint32_t tile_x,
                                     uint32_t tile_y, uint32_t tile_z, uint32_t tile_value)
 {
-	Tile_ChunkPosition cpos = tile_map_get_chunk_pos(tile_x, tile_y, tile_z);
-	Tile_Chunk *tilechunk = tile_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+	Game_ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
+	Game_TilesChunk *tilechunk =
+		game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	assert(tilechunk);
 
@@ -364,10 +367,10 @@ static void tile_map_set_tile_value(Game_Map *map, Plat_Arena *arena, uint32_t t
 	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_value;
 }
 
-static Tile_PositionDelta tile_map_substract_positions(Tile_Position *start_position,
-                                                       Tile_Position *end_position)
+static Game_PositionDelta game_map_substract_positions(Game_Position *start_position,
+                                                       Game_Position *end_position)
 {
-	Tile_PositionDelta result = {};
+	Game_PositionDelta result = {};
 
 	float delta_tile_x = (float)end_position->tile_x - (float)start_position->tile_x;
 	float delta_tile_y = (float)end_position->tile_y - (float)start_position->tile_y;

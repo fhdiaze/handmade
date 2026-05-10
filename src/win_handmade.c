@@ -11,7 +11,7 @@
 #include <xinput.h>
 
 #include "hm_game.h"
-#include "handmade_lib.h"
+#include "hm_lib.h"
 #include "hm_platform.h"
 
 // macros

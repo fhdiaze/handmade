@@ -6,28 +6,6 @@
 #include <assert.h>
 #include <stdint.h>
 
-#ifndef HM_PLAT_COMPILER_MSVC
-#define HM_PLAT_COMPILER_MSVC 0
-#endif
-
-#ifndef HM_PLAT_COMPILER_LLVM
-#define HM_PLAT_COMPILER_LLVM 0
-#endif
-
-#if !HM_PLAT_COMPILER_MSVC && !HM_PLAT_COMPILER_LLVM
-#ifdef _MSC_VER
-#undef HM_PLAT_COMPILER_MSVC
-#define HM_PLAT_COMPILER_MSVC 1
-#else
-#undef HM_PLAT_COMPILER_LLVM
-#define HM_PLAT_COMPILER_LLVM 1
-#endif
-#endif
-
-#if HM_PLAT_COMPILER_MSVC
-#include <intrin.h>
-#endif
-
 #if DEBUG
 #define HM_PLAT_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
 #else
@@ -40,7 +18,7 @@
  * The pixels order is bottom-up.
  */
 #pragma pack(push, 1)
-typedef struct Plat_BitmapHeader {
+typedef struct HmBitmapHeader {
 	uint16_t file_type;
 	uint32_t file_size;
 
@@ -86,7 +64,7 @@ typedef struct Plat_BitmapHeader {
 	uint32_t red_mask;
 	uint32_t green_mask;
 	uint32_t blue_mask;
-} Plat_BitmapHeader;
+} HmBitmapHeader;
 #pragma pack(pop)
 
 /**
