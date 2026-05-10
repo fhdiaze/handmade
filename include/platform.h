@@ -71,7 +71,7 @@ typedef struct HmBitmapHeader {
  * @brief (0,0) is on the bottom left corner.
  * The byte order in a register (little endian) is AA RR GG BB
  */
-typedef struct HmLoadedBitmap {
+typedef struct LoadedBitmap {
 	/**
 	 * @brief Width in pixels.
 	 */
@@ -83,54 +83,54 @@ typedef struct HmLoadedBitmap {
 	uint32_t height_px;
 
 	uint32_t *bottom_left_px;
-} HmLoadedBitmap;
+} LoadedBitmap;
 
-typedef struct HmThreadContext {
+typedef struct ThreadContext {
 	unsigned placeholder;
-} HmThreadContext;
+} ThreadContext;
 
 #if DEBUG
 
-typedef struct HmReadFileResult {
+typedef struct ReadFileResult {
 	size_t size_byte;
 	void *base_address;
-} HmReadFileResult;
+} ReadFileResult;
 
-#define PLAT_FILE_READ_DEBUG(name) \
-	HmReadFileResult name(const char *const filename, HmThreadContext *thread)
-typedef PLAT_FILE_READ_DEBUG(plat_file_read_debug_func);
+#define FILE_READ_DEBUG(name) \
+	ReadFileResult name(const char *const filename, ThreadContext *thread)
+typedef FILE_READ_DEBUG(file_read_debug_func);
 
-#define PLAT_FILE_FREE_DEBUG(name) void name(void *memory, HmThreadContext *thread)
-typedef PLAT_FILE_FREE_DEBUG(plat_file_free_debug_func);
+#define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
+typedef FILE_FREE_DEBUG(file_free_debug_func);
 
-#define PLAT_FILE_WRITE_DEBUG(name)                                               \
+#define FILE_WRITE_DEBUG(name)                                               \
 	uint8_t name(const char *const filename, size_t memorysize, void *memory, \
-	             HmThreadContext *thread)
-typedef PLAT_FILE_WRITE_DEBUG(plat_file_write_debug_func);
+	             ThreadContext *thread)
+typedef FILE_WRITE_DEBUG(file_write_debug_func);
 
 #endif // DEBUG
 
-typedef struct HmMemory {
+typedef struct PlatMemory {
 	size_t permanent_storage_size_byte; // permanent storage in bytes
 	void *permanent_storage;            // This should be zero initialized
 
 	size_t transient_storage_size_byte; // transient storage in bytes
 	void *transient_storage;            // This should be zero initialized
 
-	plat_file_free_debug_func *plat_file_free_debug;
-	plat_file_read_debug_func *plat_file_read_debug;
-	plat_file_write_debug_func *plat_file_write_debug;
+	file_free_debug_func *plat_file_free_debug;
+	file_read_debug_func *plat_file_read_debug;
+	file_write_debug_func *file_write_debug;
 
 	uint8_t is_initialized;
-} HmMemory;
+} PlatMemory;
 
-typedef struct Plat_Arena {
+typedef struct Arena {
 	size_t capacity_byte;
 	unsigned char *base_address;
 	size_t used_byte;
-} Plat_Arena;
+} Arena;
 
-void plat_arena_init(Plat_Arena *restrict arena, const size_t size,
+void arena_init(Arena *restrict arena, const size_t size,
                      unsigned char *const restrict base)
 {
 	arena->capacity_byte = size;
@@ -138,7 +138,7 @@ void plat_arena_init(Plat_Arena *restrict arena, const size_t size,
 	arena->used_byte = 0;
 }
 
-void *plat_arena_push_size(Plat_Arena *arena, size_t size)
+void *arena_push_size(Arena *arena, size_t size)
 {
 	assert(arena->used_byte + size <= arena->capacity_byte);
 
@@ -148,9 +148,9 @@ void *plat_arena_push_size(Plat_Arena *arena, size_t size)
 	return result;
 }
 
-void *plat_arena_push_array(Plat_Arena *arena, size_t count, size_t size)
+void *arena_push_array(Arena *arena, size_t count, size_t size)
 {
-	void *result = plat_arena_push_size(arena, count * size);
+	void *result = arena_push_size(arena, count * size);
 
 	return result;
 }

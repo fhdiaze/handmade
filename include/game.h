@@ -44,19 +44,19 @@
 #define MAP_SIZE_XY_CHK (MAP_SIDE_Y_CHK * MAP_SIDE_X_CHK)
 #define MAP_SIZE_CHK (MAP_SIZE_XY_CHK * MAP_SIDE_Z_CHK)
 
-#define GAME_MAP_GET_TILE_VALUE_BY_POS(map, pos) \
+#define MAP_GET_TILE_VALUE_BY_POS(map, pos) \
 	game_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
 
-#define GAME_MAP_ARE_SAME_TILE(one_position, other_position) \
+#define MAP_ARE_SAME_TILE(one_position, other_position) \
 	(one_position.tile_x == other_position.tile_x &&     \
 	 one_position.tile_y == other_position.tile_y &&     \
 	 one_position.tile_z == other_position.tile_z)
 
-#define GAME_MAX_MOUSE_BUTTONS 5
-#define GAME_MAX_CONTROLLERS 5
-#define GAME_MAX_CONTROLLER_BUTTONS 12
+#define MAX_MOUSE_BUTTONS 5
+#define MAX_CONTROLLERS 5
+#define MAX_CONTROLLER_BUTTONS 12
 
-typedef struct Game_ChunkPosition {
+typedef struct ChunkPosition {
 	/**
 	 * @brief Increases towards the right of the screen
 	 */
@@ -81,23 +81,23 @@ typedef struct Game_ChunkPosition {
 	 * @brief Y tile relative to the chunk
 	 */
 	uint32_t tile_y;
-} Game_ChunkPosition;
+} ChunkPosition;
 
-typedef struct Game_TilesChunk {
+typedef struct TilesChunk {
 	uint32_t *tiles;
-} Game_TilesChunk;
+} TilesChunk;
 
 /**
  * @brief Origin of the map is bottom-left corner of the screen
  */
-typedef struct Game_Map {
+typedef struct Map {
 	/**
 	 * @brief Chunks are laid out in memory with z as the outermost dimension, then y, then x
 	 */
-	Game_TilesChunk *chunks;
-} Game_Map;
+	TilesChunk *chunks;
+} Map;
 
-typedef struct Game_Position {
+typedef struct Position {
 	/**
 	 * @brief Increases towards the right of the screen
 	 */
@@ -122,28 +122,28 @@ typedef struct Game_Position {
 	 * @brief Y relative to the center of the tile in meters
 	 */
 	float offset_y_m;
-} Game_Position;
+} Position;
 
-typedef struct Game_PositionDelta {
+typedef struct PositionDelta {
 	// Delta on x axis in meters
 	float delta_x_m;
 	float delta_y_m;
 	float delta_z_m;
-} Game_PositionDelta;
+} PositionDelta;
 
-typedef enum Game_TileType : uint32_t {
+typedef enum TileType : uint32_t {
 	TILE_TYPE_NONE = 0,
 	TILE_TYPE_EMPTY = 1,
 	TILE_TYPE_WALL = 2,
 	TILE_TYPE_STAIRS_UP = 3,
 	TILE_TYPE_STAIRS_DOWN = 4,
-} Game_TileType;
+} TileType;
 
 /**
  * @brief (0,0) is on the top left corner.
  * The byte order in a register (little endian) is AA RR GG BB
  */
-typedef struct Game_Bitmap {
+typedef struct GameBitmap {
 	void *top_left_px;
 
 	// width in pixels
@@ -155,51 +155,51 @@ typedef struct Game_Bitmap {
 	// Size of a row in bytes
 	unsigned pitch_bytes;
 	unsigned bytes_per_pixel;
-} Game_Bitmap;
+} GameBitmap;
 
-typedef struct Game_SoundBuffer {
+typedef struct GameSoundBuffer {
 	unsigned samples_per_sec;
 	unsigned sample_count;
 	int16_t *samples;
-} Game_SoundBuffer;
+} GameSoundBuffer;
 
-typedef struct Game_ButtonState {
+typedef struct ButtonState {
 	// half transition count per frame
 	unsigned half_transition_count;
 	uint8_t ended_down;
-} Game_ButtonState;
+} ButtonState;
 
-typedef struct Game_ControllerInput {
+typedef struct ControllerState {
 	float stick_avg_x;
 	float stick_avg_y;
 
 	union {
-		Game_ButtonState buttons[GAME_MAX_CONTROLLER_BUTTONS];
+		ButtonState buttons[MAX_CONTROLLER_BUTTONS];
 		struct {
-			Game_ButtonState moveup;
-			Game_ButtonState movedown;
-			Game_ButtonState moveleft;
-			Game_ButtonState moveright;
+			ButtonState moveup;
+			ButtonState movedown;
+			ButtonState moveleft;
+			ButtonState moveright;
 
-			Game_ButtonState actionup;
-			Game_ButtonState actiondown;
-			Game_ButtonState actionleft;
-			Game_ButtonState actionright;
+			ButtonState actionup;
+			ButtonState actiondown;
+			ButtonState actionleft;
+			ButtonState actionright;
 
-			Game_ButtonState left_shoulder;
-			Game_ButtonState right_shoulder;
+			ButtonState left_shoulder;
+			ButtonState right_shoulder;
 
-			Game_ButtonState start;
-			Game_ButtonState back;
+			ButtonState start;
+			ButtonState back;
 		};
 	};
 
 	// TODO(fredy): bools in structs are suspicious
 	uint8_t is_analog;
 	uint8_t is_connected;
-} Game_ControllerInput;
+} ControllerState;
 
-typedef struct Game_Input {
+typedef struct GameInput {
 	unsigned mouse_x;
 	unsigned mouse_y;
 	unsigned mouse_z; // mouse wheel
@@ -207,54 +207,54 @@ typedef struct Game_Input {
 	float secs_time_delta;
 
 	union {
-		Game_ButtonState mouse_buttons[GAME_MAX_MOUSE_BUTTONS];
+		ButtonState mouse_buttons[MAX_MOUSE_BUTTONS];
 
 		struct {
-			Game_ButtonState mouse_main;
-			Game_ButtonState mouse_middle;
-			Game_ButtonState mouse_secondary;
-			Game_ButtonState mouse_back;
-			Game_ButtonState mouse_forward;
+			ButtonState mouse_main;
+			ButtonState mouse_middle;
+			ButtonState mouse_secondary;
+			ButtonState mouse_back;
+			ButtonState mouse_forward;
 		};
 	};
 
-	Game_ControllerInput controllers[GAME_MAX_CONTROLLERS];
-} Game_Input;
+	ControllerState controllers[MAX_CONTROLLERS];
+} GameInput;
 
-typedef struct Game_World {
-	Game_Map *map;
-} Game_World;
+typedef struct World {
+	Map *map;
+} World;
 
-typedef struct Game_HeroBitmaps {
+typedef struct HeroBitmaps {
 	// Top-left corner is the origin
 	int32_t align_x_px;
 
 	// Top-left corner is the origin
 	int32_t align_y_px;
 
-	HmLoadedBitmap head;
-	HmLoadedBitmap cape;
-	HmLoadedBitmap torso;
-} Game_HeroBitmaps;
+	LoadedBitmap head;
+	LoadedBitmap cape;
+	LoadedBitmap torso;
+} HeroBitmaps;
 
-typedef struct Game_State {
-	Plat_Arena arena;
-	Game_World *world;
-	Game_Position camera_position;
-	Game_Position hero_position;
+typedef struct GameState {
+	Arena arena;
+	World *world;
+	Position camera_position;
+	Position hero_position;
 
-	HmLoadedBitmap backdrop;
+	LoadedBitmap backdrop;
 
 	uint8_t hero_facing_direction;
-	Game_HeroBitmaps hero_bitmaps[4];
-} Game_State;
+	HeroBitmaps hero_bitmaps[4];
+} GameState;
 
 // Utilities
 
-static inline Game_ControllerInput *game_input_get_controller(Game_Input *input,
+static inline ControllerState *game_input_get_controller(GameInput *input,
                                                               size_t controller_index)
 {
-	assert(controller_index < GAME_MAX_CONTROLLERS);
+	assert(controller_index < MAX_CONTROLLERS);
 
 	return &input->controllers[controller_index];
 }
@@ -276,10 +276,10 @@ static inline uint8_t game_map_correct_coord(uint32_t *tile, float *tile_rel)
 	return 1U;
 }
 
-static inline Game_ChunkPosition game_map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y,
+static inline ChunkPosition game_map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y,
                                                         uint32_t tile_z)
 {
-	Game_ChunkPosition result;
+	ChunkPosition result;
 
 	result.chunk_x = tile_x >> CHUNK_SHIFT_BIT;
 	result.chunk_y = tile_y >> CHUNK_SHIFT_BIT;
@@ -290,10 +290,10 @@ static inline Game_ChunkPosition game_map_get_chunk_pos(uint32_t tile_x, uint32_
 	return result;
 }
 
-static inline Game_TilesChunk *game_map_get_chunk(Game_Map *map, uint32_t chunk_x, uint32_t chunk_y,
+static inline TilesChunk *game_map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y,
                                                   uint32_t chunk_z)
 {
-	Game_TilesChunk *result = nullptr;
+	TilesChunk *result = nullptr;
 
 	if (chunk_x < MAP_SIDE_X_CHK && chunk_y < MAP_SIDE_Y_CHK && chunk_z < MAP_SIDE_Z_CHK) {
 		result =
@@ -303,13 +303,13 @@ static inline Game_TilesChunk *game_map_get_chunk(Game_Map *map, uint32_t chunk_
 	return result;
 }
 
-static inline uint32_t game_map_get_tile_value(Game_Map *map, uint32_t tile_x, uint32_t tile_y,
+static inline uint32_t game_map_get_tile_value(Map *map, uint32_t tile_x, uint32_t tile_y,
                                                uint32_t tile_z)
 {
 	uint32_t tile_value = 0;
 
-	Game_ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
-	Game_TilesChunk *chunk = game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+	ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
+	TilesChunk *chunk = game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	if (!chunk || !chunk->tiles) {
 		return tile_value;
@@ -323,7 +323,7 @@ static inline uint32_t game_map_get_tile_value(Game_Map *map, uint32_t tile_x, u
 	return tile_value;
 }
 
-static uint8_t game_map_correct_position(Game_Position *pos)
+static uint8_t game_map_correct_position(Position *pos)
 {
 	uint8_t was_success = game_map_correct_coord(&pos->tile_x, &pos->offset_x_m);
 	if (!was_success) {
@@ -335,7 +335,7 @@ static uint8_t game_map_correct_position(Game_Position *pos)
 	return was_success;
 }
 
-static uint8_t game_map_is_point_walkable(Game_Map *map, Game_Position pos)
+static uint8_t game_map_is_point_walkable(Map *map, Position pos)
 {
 	uint32_t tile_value = game_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
 	uint8_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
@@ -344,18 +344,18 @@ static uint8_t game_map_is_point_walkable(Game_Map *map, Game_Position pos)
 	return is_walkable;
 }
 
-static void game_map_set_tile_value(Game_Map *map, Plat_Arena *arena, uint32_t tile_x,
+static void game_map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x,
                                     uint32_t tile_y, uint32_t tile_z, uint32_t tile_value)
 {
-	Game_ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
-	Game_TilesChunk *tilechunk =
+	ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
+	TilesChunk *tilechunk =
 		game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	assert(tilechunk);
 
 	if (!tilechunk->tiles) {
 		tilechunk->tiles =
-			plat_arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
+			arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
 		for (uint32_t tile_idx = 0; tile_idx < CHUNK_SIZE_TL; ++tile_idx) {
 			tilechunk->tiles[tile_idx] = TILE_TYPE_EMPTY;
 		}
@@ -367,10 +367,10 @@ static void game_map_set_tile_value(Game_Map *map, Plat_Arena *arena, uint32_t t
 	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_value;
 }
 
-static Game_PositionDelta game_map_substract_positions(Game_Position *start_position,
-                                                       Game_Position *end_position)
+static PositionDelta game_map_substract_positions(Position *start_position,
+                                                       Position *end_position)
 {
-	Game_PositionDelta result = {};
+	PositionDelta result = {};
 
 	float delta_tile_x = (float)end_position->tile_x - (float)start_position->tile_x;
 	float delta_tile_y = (float)end_position->tile_y - (float)start_position->tile_y;
@@ -388,13 +388,13 @@ static Game_PositionDelta game_map_substract_positions(Game_Position *start_posi
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_BITMAP_UPDATE_AND_RENDER(name)                                                  \
-	void name(Game_Bitmap *bitmap, HmThreadContext *thread, HmMemory *HmMemory, \
-	          Game_Input *input)
-typedef GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render_func);
+#define GAME_UPDATE_AND_RENDER(name)                                                  \
+	void name(GameBitmap *bitmap, ThreadContext *thread, PlatMemory *PlatMemory, \
+	          GameInput *input)
+typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 
-#define GAME_SOUND_CREATE_SAMPLES(name) \
-	void name(Game_SoundBuffer *soundbuff, HmThreadContext *thread, HmMemory *memory)
-typedef GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_func);
+#define SOUND_CREATE_SAMPLES(name) \
+	void name(GameSoundBuffer *soundbuff, ThreadContext *thread, PlatMemory *memory)
+typedef SOUND_CREATE_SAMPLES(sound_create_samples_func);
 
 #endif // GAME_H

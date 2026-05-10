@@ -19,7 +19,7 @@
  * @param buffer
  * @param samples
  */
-static void game_sound_output(Game_SoundBuffer *buffer, Game_State *game_state, unsigned tonehz)
+static void game_sound_output(GameSoundBuffer *buffer, GameState *game_state, unsigned tonehz)
 {
 	float tone_volume = 3000;
 	size_t wave_period = buffer->samples_per_sec / tonehz;
@@ -58,7 +58,7 @@ static void game_sound_output(Game_SoundBuffer *buffer, Game_State *game_state, 
  * @param green
  * @param blue
  */
-static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f,
+static void game_bitmap_render_rectangle(GameBitmap *bitmap, float start_x_px_f,
                                          float start_y_px_f, float end_x_px_f, float end_y_px_f,
                                          float red, float green, float blue)
 {
@@ -105,9 +105,9 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f
  * @param source_offset_x_px_f
  * @param source_offset_y_px_f
  */
-static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
+static void game_bitmap_render_bitmap(GameBitmap *const restrict target,
                                       float target_offset_x_px_f, float target_offset_y_px_f,
-                                      const HmLoadedBitmap *const restrict source,
+                                      const LoadedBitmap *const restrict source,
                                       float source_offset_x_px_f, float source_offset_y_px_f)
 {
 	assert(source);
@@ -181,14 +181,14 @@ static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
 /**
  *
  */
-static HmLoadedBitmap
+static LoadedBitmap
 game_file_load_bitmap_debug(const char *const filename,
-                            plat_file_read_debug_func *plat_file_read_debug_func,
-                            HmThreadContext *thread)
+                            file_read_debug_func *file_read_debug_func,
+                            ThreadContext *thread)
 {
-	HmLoadedBitmap result = {};
+	LoadedBitmap result = {};
 
-	HmReadFileResult read_result = plat_file_read_debug_func(filename, thread);
+	ReadFileResult read_result = file_read_debug_func(filename, thread);
 	if (read_result.base_address == nullptr) {
 		return result;
 	}
@@ -226,29 +226,29 @@ game_file_load_bitmap_debug(const char *const filename,
 	return result;
 }
 
-GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
+GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
-	assert(sizeof(Game_State) <= HmMemory->permanent_storage_size_byte);
+	assert(sizeof(GameState) <= PlatMemory->permanent_storage_size_byte);
 
 	float player_height_m = 1.4F;
 	float player_width_m = 0.75F * player_height_m;
 
-	Game_State *game_state = HmMemory->permanent_storage;
-	Plat_Arena *arena = &game_state->arena;
-	Game_World *world = game_state->world;
-	Game_Map *map = nullptr;
+	GameState *game_state = PlatMemory->permanent_storage;
+	Arena *arena = &game_state->arena;
+	World *world = game_state->world;
+	Map *map = nullptr;
 
-	if (!HmMemory->is_initialized) {
+	if (!PlatMemory->is_initialized) {
 		game_state->backdrop = game_file_load_bitmap_debug(
-			"test/test_background.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_background.bmp", PlatMemory->plat_file_read_debug, thread);
 
-		Game_HeroBitmaps *bitmaps = game_state->hero_bitmaps;
+		HeroBitmaps *bitmaps = game_state->hero_bitmaps;
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_right_head.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_right_head.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_right_cape.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_right_cape.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug("test/test_hero_right_torso.bmp",
-		                                             HmMemory->plat_file_read_debug,
+		                                             PlatMemory->plat_file_read_debug,
 		                                             thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
@@ -256,33 +256,33 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		++bitmaps;
 
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_back_head.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_back_head.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_back_cape.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_back_cape.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_back_torso.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_back_torso.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_left_head.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_left_head.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_left_cape.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_left_cape.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_left_torso.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_left_torso.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_front_head.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_front_head.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_front_cape.bmp", HmMemory->plat_file_read_debug, thread);
+			"test/test_hero_front_cape.bmp", PlatMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug("test/test_hero_front_torso.bmp",
-		                                             HmMemory->plat_file_read_debug,
+		                                             PlatMemory->plat_file_read_debug,
 		                                             thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
@@ -302,20 +302,20 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		game_state->camera_position.offset_y_m = 0.0F;
 
 		size_t game_state_size = sizeof(*game_state);
-		plat_arena_init(&game_state->arena,
-		                HmMemory->permanent_storage_size_byte - game_state_size,
-		                (unsigned char *)HmMemory->permanent_storage + game_state_size);
+		arena_init(&game_state->arena,
+		                PlatMemory->permanent_storage_size_byte - game_state_size,
+		                (unsigned char *)PlatMemory->permanent_storage + game_state_size);
 
 		game_state->world =
-			plat_arena_push_size(&game_state->arena, sizeof(*game_state->world));
+			arena_push_size(&game_state->arena, sizeof(*game_state->world));
 		world = game_state->world;
 
-		world->map = plat_arena_push_size(&game_state->arena, sizeof(*map));
+		world->map = arena_push_size(&game_state->arena, sizeof(*map));
 		map = world->map;
 		arena = &game_state->arena;
 
-		map->chunks = (Game_TilesChunk *)plat_arena_push_array(arena, (size_t)MAP_SIZE_CHK,
-		                                                       sizeof(Game_TilesChunk));
+		map->chunks = (TilesChunk *)arena_push_array(arena, (size_t)MAP_SIZE_CHK,
+		                                                       sizeof(TilesChunk));
 
 		uint32_t tiles_per_width = 17;
 		uint32_t tiles_per_height = 9;
@@ -1002,13 +1002,13 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			is_top_door = 0U;
 		}
 
-		HmMemory->is_initialized = 1U;
+		PlatMemory->is_initialized = 1U;
 	}
 
 	map = world->map;
 
-	for (size_t controller_idx = 0; controller_idx < GAME_MAX_CONTROLLERS; ++controller_idx) {
-		Game_ControllerInput *controller = game_input_get_controller(input, controller_idx);
+	for (size_t controller_idx = 0; controller_idx < MAX_CONTROLLERS; ++controller_idx) {
+		ControllerState *controller = game_input_get_controller(input, controller_idx);
 
 		if (!controller->is_connected) {
 			continue;
@@ -1052,7 +1052,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			float new_player_y = game_state->hero_position.offset_y_m +
 			                     input->secs_time_delta * mts_per_sec_player_y;
 
-			Game_Position new_player_pos = game_state->hero_position;
+			Position new_player_pos = game_state->hero_position;
 			new_player_pos.offset_x_m = new_player_x;
 			new_player_pos.offset_y_m = new_player_y;
 
@@ -1060,13 +1060,13 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				continue;
 			}
 
-			Game_Position left_bottom_pos = new_player_pos;
+			Position left_bottom_pos = new_player_pos;
 			left_bottom_pos.offset_x_m -= player_width_m * 0.5F;
 			if (!game_map_correct_position(&left_bottom_pos)) {
 				continue;
 			}
 
-			Game_Position right_bottom_pos = new_player_pos;
+			Position right_bottom_pos = new_player_pos;
 			right_bottom_pos.offset_x_m += player_width_m * 0.5F;
 			if (!game_map_correct_position(&right_bottom_pos)) {
 				continue;
@@ -1075,10 +1075,10 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			if (game_map_is_point_walkable(map, new_player_pos) &&
 			    game_map_is_point_walkable(map, left_bottom_pos) &&
 			    game_map_is_point_walkable(map, right_bottom_pos)) {
-				if (!GAME_MAP_ARE_SAME_TILE(new_player_pos,
+				if (!MAP_ARE_SAME_TILE(new_player_pos,
 				                            game_state->hero_position)) {
 					uint32_t tile_value =
-						GAME_MAP_GET_TILE_VALUE_BY_POS(map, new_player_pos);
+						MAP_GET_TILE_VALUE_BY_POS(map, new_player_pos);
 					if (tile_value == TILE_TYPE_STAIRS_UP) {
 						++new_player_pos.tile_z;
 					} else if (tile_value == TILE_TYPE_STAIRS_DOWN) {
@@ -1088,7 +1088,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 				game_state->hero_position = new_player_pos;
 
-				Game_PositionDelta delta = game_map_substract_positions(
+				PositionDelta delta = game_map_substract_positions(
 					&game_state->camera_position, &game_state->hero_position);
 
 				if (delta.delta_x_m <= -9.0F * TILE_SIDE_M) {
@@ -1123,7 +1123,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		float bitmap_center_x_px = (float)bitmap->width_px * 0.5F;
 		float bitmap_center_y_px = (float)bitmap->height_px * 0.5F;
 
-		Game_Position *camera_position = &game_state->camera_position;
+		Position *camera_position = &game_state->camera_position;
 
 		for (int32_t tile_row_offset = -10; tile_row_offset < 10; ++tile_row_offset) {
 			for (int32_t tile_col_offset = -20; tile_col_offset < 20;
@@ -1180,13 +1180,13 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			}
 		}
 
-		Game_HeroBitmaps *hero_bitmaps =
+		HeroBitmaps *hero_bitmaps =
 			&game_state->hero_bitmaps[game_state->hero_facing_direction];
 
-		Game_Position *hero_position = &game_state->hero_position;
+		Position *hero_position = &game_state->hero_position;
 
 		// Vector to move from the camera to the hero position in the map
-		Game_PositionDelta delta =
+		PositionDelta delta =
 			game_map_substract_positions(camera_position, hero_position);
 
 		float player_red = 1.0F;
@@ -1246,10 +1246,10 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	}
 }
 
-GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples)
+SOUND_CREATE_SAMPLES(game_sound_create_samples)
 {
-	assert(sizeof(Game_State) <= memory->permanent_storage_size_byte);
+	assert(sizeof(GameState) <= memory->permanent_storage_size_byte);
 
-	Game_State *game_state = memory->permanent_storage;
+	GameState *game_state = memory->permanent_storage;
 	game_sound_output(soundbuff, game_state, 400);
 }

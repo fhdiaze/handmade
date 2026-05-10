@@ -173,6 +173,21 @@ static constexpr float PIE = 3.14159265359F;
 #define LIB_LOGF(fmt, ...) LIB_LOG_MSG_NOOP()
 #endif // LIB_LOGF
 
+static void string_concat(const size_t one_count, const char *const restrict one,
+                              const size_t other_count, const char *const restrict other,
+                              const size_t destsize, char *const restrict dest)
+{
+	for (unsigned i = 0; i < one_count; ++i) {
+		dest[i] = one[i];
+	}
+
+	for (unsigned i = 0; i < other_count; ++i) {
+		dest[one_count + i] = other[i];
+	}
+
+	dest[one_count + other_count] = '\0';
+}
+
 /**
  * @brief truncates a int64_t into a uint32_t.
  *

@@ -1,7 +1,7 @@
 #include "game.c"
 
 struct Plat_Window {
-	Window handle;
+	int handle;
 };
 
 void plat_file_load(void)
