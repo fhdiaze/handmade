@@ -15,12 +15,12 @@ param(
 )
 
 # Setup
-$PlatformFile = ".\src\win_handmade.c"
-$GameFile = ".\src\handmade_game.c"
+$GameFileName = "hm_game"
+$PlatformFileName = "win_handmade"
+$PlatformFilePath = ".\src\$PlatformFileName.c"
+$GameFilePath = ".\src\$GameFileName.c"
 $Outdir = ".\bin"
 $Datadir = ".\data"
-$PlatformFileName = [System.IO.Path]::GetFileNameWithoutExtension($PlatformFile)
-$GameFileName = [System.IO.Path]::GetFileNameWithoutExtension($GameFile)
 $OutPlatform = Join-Path $Outdir "$PlatformFileName.exe"
 $OutGame = Join-Path $Outdir "$GameFileName.dll"
 
@@ -98,12 +98,12 @@ $GameFlags = $Flags + @(
 
 Write-Host "Building game dll..." -ForegroundColor Green
 Write-Host ""
-Write-Host "clang $($GameFlags -join ' ') $GameFile -o $OutGame"
+Write-Host "clang $($GameFlags -join ' ') $GameFilePath -o $OutGame"
 Write-Host ""
 "Waiting for pdb file" | Out-File -FilePath "$Outdir/lock.tmp" -Encoding UTF8
 Write-Host ""
 
-clang @GameFlags $GameFile -o $OutGame
+clang @GameFlags $GameFilePath -o $OutGame
 
 Remove-Item $Outdir/lock.tmp
 
@@ -131,10 +131,10 @@ $PlatformFlags = $Flags + @(
 
 Write-Host "Building platform exe..." -ForegroundColor Green
 Write-Host ""
-Write-Host "clang $($PlatformFlags -join ' ') $PlatformFile -o $OutPlatform"
+Write-Host "clang $($PlatformFlags -join ' ') $PlatformFilePath -o $OutPlatform"
 Write-Host ""
 
-clang @PlatformFlags $PlatformFile -o $OutPlatform
+clang @PlatformFlags $PlatformFilePath -o $OutPlatform
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Platform exe build failed!" -ForegroundColor Red

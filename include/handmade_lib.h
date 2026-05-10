@@ -1,7 +1,7 @@
 // clang-format Language: C
 
-#ifndef HANDMADE_LIB_H
-#define HANDMADE_LIB_H
+#ifndef HM_LIB_H
+#define HM_LIB_H
 
 #include <assert.h>
 #include <math.h>
@@ -212,4 +212,4 @@ inline unsigned lib_int_abs(int value)
 	return (unsigned)(value < 0 ? -value : value);
 }
 
-#endif // HANDMADE_LIB_H
+#endif // HM_LIB_H

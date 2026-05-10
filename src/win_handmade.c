@@ -10,20 +10,9 @@
 #include <stdio.h>
 #include <xinput.h>
 
+#include "hm_game.h"
 #include "handmade_lib.h"
-#include "handmade_win.h"
 #include "hm_platform.h"
-
-// globals
-static uint32_t g_is_running = 0U;
-static uint32_t g_is_pause = 0U;
-static Win_Bitmap g_win_bitmap;
-static LPDIRECTSOUNDBUFFER g_secbuffer;
-static int64_t g_perf_count_frequency;
-static uint32_t g_show_cursor_debug;
-static WINDOWPLACEMENT g_window_position = {
-	.length = sizeof(g_window_position),
-};
 
 // macros
 
@@ -52,6 +41,109 @@ static xinput_set_state_func *xinput_set_state = xinput_set_state_stub;
 #define DSOUND_CREATE(name) \
 	HRESULT WINAPI name(LPCGUID pcGuidDevice, LPDIRECTSOUND *ppDS, LPUNKNOWN pUnkOuter)
 typedef DSOUND_CREATE(direct_sound_create_func);
+
+#define HM_WIN__MAX_FILE_PATH MAX_PATH
+#define HM_WIN__REPLAY_MAX_SLOTS 4
+#define HM_WIN__REPLAY_NO_SLOT UINT8_MAX
+
+#define LODWORD(l) ((unsigned long)(((size_t)(l)) & 0xFFFFFFFF))
+#define HIDWORD(l) ((unsigned long)((((size_t)(l)) >> (sizeof(unsigned) * CHAR_BIT)) & 0xFFFFFFFF))
+
+typedef struct Win_WindowDimensions {
+	long width;
+	long height;
+} Win_WindowDimensions;
+
+/**
+ * @brief (0,0) is on the top left corner.
+ * The byte order in a register (little endian) is AA RR GG BB
+ */
+typedef struct Win_Bitmap {
+	unsigned width;
+	unsigned height;
+	unsigned pitch_bytes; // size of a row in bytes
+	unsigned bytes_per_pixel;
+	void *top_left_px;
+	BITMAPINFO info;
+} Win_Bitmap;
+
+typedef struct Win_SoundOutput {
+	size_t running_sample_index;
+	unsigned samples_per_sec;
+	unsigned bytes_per_sample; // Size of the sample in bytes
+	unsigned buffsize;
+	unsigned safety_bytes;
+} Win_SoundOutput;
+
+typedef struct Win_DebugTimeMark {
+	unsigned long output_play_cursor;
+	unsigned long output_write_cursor;
+
+	unsigned long flip_play_cursor;
+	unsigned long flip_write_cursor;
+
+	unsigned output_location;
+	unsigned output_byte_count;
+
+	unsigned frame_flip_byte;
+} Win_DebugTimeMark;
+
+typedef struct Win_GameCode {
+	HMODULE game_dll;
+
+	/**
+	 * @brief could be null, check before call it
+	 */
+	game_bitmap_update_and_render_func *update_and_render;
+
+	/**
+	 * @brief could be null, check before call it
+	 */
+	game_sound_create_samples_func *sound_create_samples;
+
+	FILETIME dll_write_time;
+
+	uint8_t is_valid;
+} Win_GameCode;
+
+typedef struct Win_ReplaySlot {
+	HANDLE file_handle;
+	HANDLE file_map;
+	void *memory;
+	char filepath[HM_WIN__MAX_FILE_PATH];
+} Win_ReplaySlot;
+
+typedef enum Win_ReplayStatus : uint8_t {
+	WIN_REPLAY_NORMAL,
+	WIN_REPLAY_RECORD,
+	WIN_REPLAY_RECORDED,
+	WIN_REPLAY_PLAYBACK,
+} Win_ReplayStatus;
+
+typedef struct Win_State {
+	size_t gamemem_size;
+	void *gamemem;
+
+	Win_ReplaySlot replay_slots[HM_WIN__REPLAY_MAX_SLOTS];
+	HANDLE replay_file_handle;
+
+	char *exe_path_last_slash;
+	char exe_path[HM_WIN__MAX_FILE_PATH];
+
+	uint8_t replay_slot_index;
+	Win_ReplayStatus replay_status;
+} Win_State;
+
+// globals
+static uint32_t g_is_running = 0U;
+static uint32_t g_is_pause = 0U;
+static Win_Bitmap g_win_bitmap;
+static LPDIRECTSOUNDBUFFER g_secbuffer;
+static int64_t g_perf_count_frequency;
+static uint32_t g_show_cursor_debug;
+static WINDOWPLACEMENT g_window_position = {
+	.length = sizeof(g_window_position),
+};
 
 // util
 
@@ -713,7 +805,9 @@ static Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 {
 	Win_WindowDimensions result;
 	RECT client_rec;
+
 	GetClientRect(winhandle, &client_rec);
+
 	result.width = client_rec.right - client_rec.left;
 	result.height = client_rec.bottom - client_rec.top;
 
@@ -723,49 +817,55 @@ static Win_WindowDimensions win_window_get_dimensions(HWND winhandle)
 /*
  * dib: device independent bitmap
  */
-static void win_bitmap_resize_section(Win_Bitmap *buffer, unsigned win_width, unsigned win_height)
+static void win_bitmap_resize_section(Win_Bitmap *bitmap, unsigned win_width, unsigned win_height)
 {
-	if (buffer->top_left_px) {
-		VirtualFree(buffer->top_left_px, 0, MEM_RELEASE);
+	if (bitmap->top_left_px) {
+		VirtualFree(bitmap->top_left_px, 0, MEM_RELEASE);
 	}
 
-	buffer->width = win_width;
-	buffer->height = win_height;
-	buffer->bytes_per_pixel = 4;
-	buffer->info.bmiHeader.biSize = sizeof(buffer->info.bmiHeader);
-	buffer->info.bmiHeader.biWidth = (long)buffer->width;
+	bitmap->width = win_width;
+	bitmap->height = win_height;
+	bitmap->bytes_per_pixel = 4;
+	bitmap->info.bmiHeader.biSize = sizeof(bitmap->info.bmiHeader);
+	bitmap->info.bmiHeader.biWidth = (long)bitmap->width;
 	// NOTE(fredy): top-down layout (opposite to bottom-up).
 	// The first three bytes on the bitmap are for the top-left pixel
-	buffer->info.bmiHeader.biHeight = -(long)buffer->height;
-	buffer->info.bmiHeader.biPlanes = 1;
-	buffer->info.bmiHeader.biBitCount = 32;
-	buffer->info.bmiHeader.biCompression = BI_RGB;
+	bitmap->info.bmiHeader.biHeight = -(long)bitmap->height;
+	bitmap->info.bmiHeader.biPlanes = 1;
+	bitmap->info.bmiHeader.biBitCount = 32;
+	bitmap->info.bmiHeader.biCompression = BI_RGB;
 
-	size_t bitmap_memory_size = (size_t)(buffer->width) * (size_t)(buffer->height) *
-	                            (size_t)(buffer->bytes_per_pixel);
+	size_t bitmap_memory_size = (size_t)(bitmap->width) * (size_t)(bitmap->height) *
+	                            (size_t)(bitmap->bytes_per_pixel);
 
-	buffer->top_left_px =
+	bitmap->top_left_px =
 		VirtualAlloc(nullptr, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	buffer->pitch_bytes = buffer->width * buffer->bytes_per_pixel;
+	bitmap->pitch_bytes = bitmap->width * bitmap->bytes_per_pixel;
 }
 
-static void win_window_display_bitmap(Win_Bitmap *bitmap, HDC dchandle, long win_width,
+static void win_window_display_bitmap(HDC device_context, Win_Bitmap *bitmap, long win_width,
                                       long win_height)
 {
-	int offset_x = 10;
-	int offset_y = 10;
-	PatBlt(dchandle, 0, 0, win_width, offset_y, BLACKNESS);
-	PatBlt(dchandle, offset_x + (int)bitmap->width, 0,
-	       win_width - offset_x - (int)bitmap->width, win_height, BLACKNESS);
-	PatBlt(dchandle, 0, offset_y + (int)bitmap->height, win_width,
-	       win_height - offset_y - (int)bitmap->height, BLACKNESS);
-	PatBlt(dchandle, 0, 0, offset_x, win_height, BLACKNESS);
-	StretchDIBits(dchandle, offset_x, offset_y, (int)bitmap->width, (int)bitmap->height, 0, 0,
-	              (int)bitmap->width, (int)bitmap->height, bitmap->top_left_px, &bitmap->info,
-	              DIB_RGB_COLORS, SRCCOPY);
+	if (win_width >= 2 * (int)bitmap->width && win_height >= 2 * (int)bitmap->height) {
+		StretchDIBits(device_context, 0, 0, win_width, win_height, 0, 0, (int)bitmap->width,
+		              (int)bitmap->height, bitmap->top_left_px, &bitmap->info,
+		              DIB_RGB_COLORS, SRCCOPY);
+	} else {
+		int offset_x = 10;
+		int offset_y = 10;
+		PatBlt(device_context, 0, 0, win_width, offset_y, BLACKNESS);
+		PatBlt(device_context, offset_x + (int)bitmap->width, 0,
+		       win_width - offset_x - (int)bitmap->width, win_height, BLACKNESS);
+		PatBlt(device_context, 0, offset_y + (int)bitmap->height, win_width,
+		       win_height - offset_y - (int)bitmap->height, BLACKNESS);
+		PatBlt(device_context, 0, 0, offset_x, win_height, BLACKNESS);
+		StretchDIBits(device_context, offset_x, offset_y, (int)bitmap->width,
+		              (int)bitmap->height, 0, 0, (int)bitmap->width, (int)bitmap->height,
+		              bitmap->top_left_px, &bitmap->info, DIB_RGB_COLORS, SRCCOPY);
+	}
 }
 
-static LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unused__]] UINT msg,
+static LRESULT CALLBACK win_window_handle_callback(HWND window, [[__maybe_unused__]] UINT msg,
                                                    [[__maybe_unused__]] WPARAM wparam,
                                                    [[__maybe_unused__]] LPARAM lparam)
 {
@@ -777,7 +877,7 @@ static LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unu
 	} break;
 	case WM_SETCURSOR: {
 		if (g_show_cursor_debug) {
-			result = DefWindowProcA(winhandle, msg, wparam, lparam);
+			result = DefWindowProcA(window, msg, wparam, lparam);
 		} else {
 			SetCursor(nullptr);
 		}
@@ -796,14 +896,14 @@ static LRESULT CALLBACK win_window_handle_callback(HWND winhandle, [[__maybe_unu
 	} break;
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
-		HDC dchandle = BeginPaint(winhandle, &paint);
-		Win_WindowDimensions windim = win_window_get_dimensions(winhandle);
-		win_window_display_bitmap(&g_win_bitmap, dchandle, windim.width, windim.height);
-		EndPaint(winhandle, &paint);
+		HDC dchandle = BeginPaint(window, &paint);
+		Win_WindowDimensions windim = win_window_get_dimensions(window);
+		win_window_display_bitmap(dchandle, &g_win_bitmap, windim.width, windim.height);
+		EndPaint(window, &paint);
 	} break;
 	default: {
 		OutputDebugStringA("default\n");
-		result = DefWindowProcA(winhandle, msg, wparam, lparam);
+		result = DefWindowProcA(window, msg, wparam, lparam);
 	} break;
 	}
 
@@ -850,15 +950,15 @@ static void win_bitmap_draw_vertical_debug(Win_Bitmap *bitmap, unsigned x, unsig
 	}
 }
 
-static inline void win_bitmap_draw_sound_buffer_mark_debug(Win_Bitmap *bitmap_buffer,
+static inline void win_bitmap_draw_sound_buffer_mark_debug(Win_Bitmap *bitmap,
                                                            Win_SoundOutput *soundout,
-                                                           float pixels_per_byte, unsigned padx,
+                                                           float pixels_per_byte, unsigned pad_x,
                                                            unsigned top, unsigned bottom,
                                                            unsigned value, uint32_t color)
 {
 	assert(value < soundout->buffsize);
-	unsigned x = padx + (unsigned)(pixels_per_byte * (float)value);
-	win_bitmap_draw_vertical_debug(bitmap_buffer, x, top, bottom, color);
+	unsigned x = pad_x + (unsigned)(pixels_per_byte * (float)value);
+	win_bitmap_draw_vertical_debug(bitmap, x, top, bottom, color);
 }
 
 /**
@@ -870,8 +970,7 @@ static inline void win_bitmap_draw_sound_buffer_mark_debug(Win_Bitmap *bitmap_bu
  * @param soundout
  * @param target_secs_per_frame
  */
-static void win_bitmap_draw_sound_sync_debug(Win_Bitmap *bitmap_buffer,
-                                             unsigned last_cursors_marks_size,
+static void win_bitmap_draw_sound_sync_debug(Win_Bitmap *bitmap, unsigned last_cursors_marks_size,
                                              Win_DebugTimeMark *last_cursors_marks,
                                              unsigned current_mark_index, Win_SoundOutput *winsound)
 {
@@ -880,7 +979,7 @@ static void win_bitmap_draw_sound_sync_debug(Win_Bitmap *bitmap_buffer,
 
 	unsigned line_height = 64;
 
-	unsigned painting_width = bitmap_buffer->width - 2 * pad_x;
+	unsigned painting_width = bitmap->width - 2 * pad_x;
 	float pixels_per_byte = (float)painting_width / (float)winsound->buffsize;
 
 	for (size_t i = 0; i < last_cursors_marks_size; ++i) {
@@ -899,24 +998,24 @@ static void win_bitmap_draw_sound_sync_debug(Win_Bitmap *bitmap_buffer,
 
 			first_top = top;
 
-			win_bitmap_draw_sound_buffer_mark_debug(bitmap_buffer, winsound,
-			                                        pixels_per_byte, pad_x, top, bottom,
+			win_bitmap_draw_sound_buffer_mark_debug(bitmap, winsound, pixels_per_byte,
+			                                        pad_x, top, bottom,
 			                                        current_mark.output_play_cursor,
 			                                        play_color);
-			win_bitmap_draw_sound_buffer_mark_debug(bitmap_buffer, winsound,
-			                                        pixels_per_byte, pad_x, top, bottom,
+			win_bitmap_draw_sound_buffer_mark_debug(bitmap, winsound, pixels_per_byte,
+			                                        pad_x, top, bottom,
 			                                        current_mark.output_write_cursor,
 			                                        write_color);
 
 			top += pad_y + line_height;
 			bottom += pad_y + line_height;
 
-			win_bitmap_draw_sound_buffer_mark_debug(bitmap_buffer, winsound,
-			                                        pixels_per_byte, pad_x, top, bottom,
+			win_bitmap_draw_sound_buffer_mark_debug(bitmap, winsound, pixels_per_byte,
+			                                        pad_x, top, bottom,
 			                                        current_mark.output_location,
 			                                        play_color);
 			win_bitmap_draw_sound_buffer_mark_debug(
-				bitmap_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+				bitmap, winsound, pixels_per_byte, pad_x, top, bottom,
 				RING_ADD(winsound->buffsize, current_mark.output_location,
 			                 current_mark.output_byte_count),
 				write_color);
@@ -924,35 +1023,34 @@ static void win_bitmap_draw_sound_sync_debug(Win_Bitmap *bitmap_buffer,
 			top += pad_y + line_height;
 			bottom += pad_y + line_height;
 
-			win_bitmap_draw_sound_buffer_mark_debug(
-				bitmap_buffer, winsound, pixels_per_byte, pad_x, first_top, bottom,
-				current_mark.frame_flip_byte, frame_flip_byte_color);
+			win_bitmap_draw_sound_buffer_mark_debug(bitmap, winsound, pixels_per_byte,
+			                                        pad_x, first_top, bottom,
+			                                        current_mark.frame_flip_byte,
+			                                        frame_flip_byte_color);
 		}
 
-		win_bitmap_draw_sound_buffer_mark_debug(bitmap_buffer, winsound, pixels_per_byte,
-		                                        pad_x, top, bottom,
-		                                        current_mark.flip_play_cursor, play_color);
+		win_bitmap_draw_sound_buffer_mark_debug(bitmap, winsound, pixels_per_byte, pad_x,
+		                                        top, bottom, current_mark.flip_play_cursor,
+		                                        play_color);
 
 		win_bitmap_draw_sound_buffer_mark_debug(
-			bitmap_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			bitmap, winsound, pixels_per_byte, pad_x, top, bottom,
 			RING_SUB(winsound->buffsize, current_mark.flip_play_cursor,
 		                 480 * winsound->bytes_per_sample),
 			play_window_color);
 		win_bitmap_draw_sound_buffer_mark_debug(
-			bitmap_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			bitmap, winsound, pixels_per_byte, pad_x, top, bottom,
 			RING_ADD(winsound->buffsize, current_mark.flip_play_cursor,
 		                 480 * winsound->bytes_per_sample),
 			play_window_color);
 
-		win_bitmap_draw_sound_buffer_mark_debug(bitmap_buffer, winsound, pixels_per_byte,
-		                                        pad_x, top, bottom,
-		                                        current_mark.flip_write_cursor,
+		win_bitmap_draw_sound_buffer_mark_debug(bitmap, winsound, pixels_per_byte, pad_x,
+		                                        top, bottom, current_mark.flip_write_cursor,
 		                                        write_color);
 	}
 }
 
-int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
-                     [[__maybe_unused__]] HINSTANCE hprevinstance,
+int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevinstance,
                      [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nCmdShow)
 {
 	// NOTE(): never use MAX_PATH in user-facing code. it is dangerous.
@@ -969,7 +1067,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 	char tmpgamedll_path[HM_WIN__MAX_FILE_PATH];
 	char gamedll_lock_path[HM_WIN__MAX_FILE_PATH];
 
-	win_file_build_path(&winstate, "handmade_game.dll", sizeof(gamedll_path), gamedll_path);
+	win_file_build_path(&winstate, HM_GAME_DLL_NAME, sizeof(gamedll_path), gamedll_path);
 	win_file_build_path(&winstate, "lock.tmp", sizeof(gamedll_lock_path), gamedll_lock_path);
 
 	if (sprintf(tmpgamedll_filename, "handmade_game_tmp_%lu.dll", GetCurrentTime()) < 0) {
@@ -1081,7 +1179,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 
 	winstate.gamemem_size =
 		Plat_Memory.permanent_storage_size_byte + Plat_Memory.transient_storage_size_byte;
-	winstate.gamemem = VirtualAlloc(HM_PLAT__BASE_ADDRESS, winstate.gamemem_size,
+	winstate.gamemem = VirtualAlloc(HM_PLAT_BASE_ADDRESS, winstate.gamemem_size,
 	                                MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	Plat_Memory.permanent_storage = winstate.gamemem;
@@ -1423,7 +1521,7 @@ int CALLBACK WinMain([[__maybe_unused__]] HINSTANCE hinstance,
 #endif
 
 		// Flip the frame
-		win_window_display_bitmap(&g_win_bitmap, dchandle, windim.width, windim.height);
+		win_window_display_bitmap(dchandle, &g_win_bitmap, windim.width, windim.height);
 
 		flip_wall_clock = win_clock_get_wall();
 

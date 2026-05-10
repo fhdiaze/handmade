@@ -1,7 +1,7 @@
 // clang-format Language: C
 
-#ifndef HANDMADE_INTRINSICS_H
-#define HANDMADE_INTRINSICS_H
+#ifndef HM_INTRINSICS_H
+#define HM_INTRINSICS_H
 
 // The idea is to have just a couple of files where you have logic that depends on the compiler/platform
 
@@ -25,7 +25,7 @@ Intrs_BitScanResult intrs_bit_find_least_significant_set_bit(uint32_t value)
 {
 	Intrs_BitScanResult result = {};
 
-#if HM_PLAT__COMPILER_MSVC
+#if HM_PLAT_COMPILER_MSVC
 	result.was_found = _BitScanForward(&result.index, value);
 #else
 	for (uint8_t test = 0; test < 32; ++test) {
@@ -41,4 +41,4 @@ Intrs_BitScanResult intrs_bit_find_least_significant_set_bit(uint32_t value)
 	return result;
 }
 
-#endif // HANDMADE_INTRINSICS_H
+#endif // HM_INTRINSICS_H

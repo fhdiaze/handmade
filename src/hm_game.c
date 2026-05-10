@@ -4,7 +4,7 @@
 
 #include "hm_game.h"
 
-#include "handmade_intrinsics.h"
+#include "hm_intrinsics.h"
 #include <assert.h>
 #include <limits.h>
 #include <stddef.h>
@@ -12,9 +12,6 @@
 #include <stdlib.h>
 
 #include "handmade_lib.h"
-
-#include "handmade_platform.c"
-#include "handmade_tile.c"
 
 #define RANDOM_NUMS_COUNT 4096
 
@@ -241,7 +238,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 	Game_State *game_state = Plat_Memory->permanent_storage;
 	Plat_Arena *arena = &game_state->arena;
 	Game_World *world = game_state->world;
-	Tile_Map *map = nullptr;
+	Game_Map *map = nullptr;
 
 	if (!Plat_Memory->is_initialized) {
 		game_state->backdrop = game_file_load_bitmap_debug(

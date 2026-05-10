@@ -3,34 +3,35 @@
 #ifndef HM_PLATFORM_H
 #define HM_PLATFORM_H
 
+#include <assert.h>
 #include <stdint.h>
 
-#ifndef HM_PLAT__COMPILER_MSVC
-#define HM_PLAT__COMPILER_MSVC 0
+#ifndef HM_PLAT_COMPILER_MSVC
+#define HM_PLAT_COMPILER_MSVC 0
 #endif
 
-#ifndef HM_PLAT__COMPILER_LLVM
-#define HM_PLAT__COMPILER_LLVM 0
+#ifndef HM_PLAT_COMPILER_LLVM
+#define HM_PLAT_COMPILER_LLVM 0
 #endif
 
-#if !HM_PLAT__COMPILER_MSVC && !HM_PLAT__COMPILER_LLVM
+#if !HM_PLAT_COMPILER_MSVC && !HM_PLAT_COMPILER_LLVM
 #ifdef _MSC_VER
-#undef HM_PLAT__COMPILER_MSVC
-#define HM_PLAT__COMPILER_MSVC 1
+#undef HM_PLAT_COMPILER_MSVC
+#define HM_PLAT_COMPILER_MSVC 1
 #else
-#undef HM_PLAT__COMPILER_LLVM
-#define HM_PLAT__COMPILER_LLVM 1
+#undef HM_PLAT_COMPILER_LLVM
+#define HM_PLAT_COMPILER_LLVM 1
 #endif
 #endif
 
-#if HM_PLAT__COMPILER_MSVC
+#if HM_PLAT_COMPILER_MSVC
 #include <intrin.h>
 #endif
 
 #if DEBUG
-#define HM_PLAT__BASE_ADDRESS ((void *)TB_TO_BYTES(2))
+#define HM_PLAT_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
 #else
-#define HM_PLAT__BASE_ADDRESS (nullptr)
+#define HM_PLAT_BASE_ADDRESS (nullptr)
 #endif // DEBUG
 
 /**
@@ -151,10 +152,29 @@ typedef struct Plat_Arena {
 	size_t used_byte;
 } Plat_Arena;
 
-void plat_arena_init(Plat_Arena *arena, size_t size, unsigned char *base);
+void plat_arena_init(Plat_Arena *restrict arena, const size_t size,
+                     unsigned char *const restrict base)
+{
+	arena->capacity_byte = size;
+	arena->base_address = base;
+	arena->used_byte = 0;
+}
 
-void *plat_arena_push_size(Plat_Arena *arena, size_t size);
+void *plat_arena_push_size(Plat_Arena *arena, size_t size)
+{
+	assert(arena->used_byte + size <= arena->capacity_byte);
 
-void *plat_arena_push_array(Plat_Arena *arena, size_t count, size_t size);
+	void *result = arena->base_address + arena->used_byte;
+	arena->used_byte += size;
+
+	return result;
+}
+
+void *plat_arena_push_array(Plat_Arena *arena, size_t count, size_t size)
+{
+	void *result = plat_arena_push_size(arena, count * size);
+
+	return result;
+}
 
 #endif // HM_PLATFORM_H
