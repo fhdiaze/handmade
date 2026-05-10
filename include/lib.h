@@ -1,7 +1,7 @@
 // clang-format Language: C
 
-#ifndef HM_LIB_H
-#define HM_LIB_H
+#ifndef LIB_H
+#define LIB_H
 
 #include <assert.h>
 #include <math.h>
@@ -266,4 +266,4 @@ Intrs_BitScanResult intrs_bit_find_least_significant_set_bit(uint32_t value)
 	return result;
 }
 
-#endif // HM_LIB_H
+#endif // LIB_H

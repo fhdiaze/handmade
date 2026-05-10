@@ -1,15 +1,15 @@
 // clang-format Language: C
 
-#ifndef HM_PLATFORM_H
-#define HM_PLATFORM_H
+#ifndef PLATFORM_H
+#define PLATFORM_H
 
 #include <assert.h>
 #include <stdint.h>
 
 #if DEBUG
-#define HM_PLAT_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
+#define PLAT_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
 #else
-#define HM_PLAT_BASE_ADDRESS (nullptr)
+#define PLAT_BASE_ADDRESS (nullptr)
 #endif // DEBUG
 
 /**
@@ -71,7 +71,7 @@ typedef struct HmBitmapHeader {
  * @brief (0,0) is on the bottom left corner.
  * The byte order in a register (little endian) is AA RR GG BB
  */
-typedef struct Plat_LoadedBitmap {
+typedef struct HmLoadedBitmap {
 	/**
 	 * @brief Width in pixels.
 	 */
@@ -83,34 +83,34 @@ typedef struct Plat_LoadedBitmap {
 	uint32_t height_px;
 
 	uint32_t *bottom_left_px;
-} Plat_LoadedBitmap;
+} HmLoadedBitmap;
 
-typedef struct Plat_ThreadContext {
+typedef struct HmThreadContext {
 	unsigned placeholder;
-} Plat_ThreadContext;
+} HmThreadContext;
 
 #if DEBUG
 
-typedef struct Plat_ReadFileResult {
+typedef struct HmReadFileResult {
 	size_t size_byte;
 	void *base_address;
-} Plat_ReadFileResult;
+} HmReadFileResult;
 
 #define PLAT_FILE_READ_DEBUG(name) \
-	Plat_ReadFileResult name(const char *const filename, Plat_ThreadContext *thread)
+	HmReadFileResult name(const char *const filename, HmThreadContext *thread)
 typedef PLAT_FILE_READ_DEBUG(plat_file_read_debug_func);
 
-#define PLAT_FILE_FREE_DEBUG(name) void name(void *memory, Plat_ThreadContext *thread)
+#define PLAT_FILE_FREE_DEBUG(name) void name(void *memory, HmThreadContext *thread)
 typedef PLAT_FILE_FREE_DEBUG(plat_file_free_debug_func);
 
 #define PLAT_FILE_WRITE_DEBUG(name)                                               \
 	uint8_t name(const char *const filename, size_t memorysize, void *memory, \
-	             Plat_ThreadContext *thread)
+	             HmThreadContext *thread)
 typedef PLAT_FILE_WRITE_DEBUG(plat_file_write_debug_func);
 
 #endif // DEBUG
 
-typedef struct Plat_Memory {
+typedef struct HmMemory {
 	size_t permanent_storage_size_byte; // permanent storage in bytes
 	void *permanent_storage;            // This should be zero initialized
 
@@ -122,7 +122,7 @@ typedef struct Plat_Memory {
 	plat_file_write_debug_func *plat_file_write_debug;
 
 	uint8_t is_initialized;
-} Plat_Memory;
+} HmMemory;
 
 typedef struct Plat_Arena {
 	size_t capacity_byte;
@@ -155,4 +155,4 @@ void *plat_arena_push_array(Plat_Arena *arena, size_t count, size_t size)
 	return result;
 }
 
-#endif // HM_PLATFORM_H
+#endif // PLATFORM_H

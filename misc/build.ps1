@@ -15,7 +15,7 @@ param(
 )
 
 # Setup
-$GameFileName = "hm_game"
+$GameFileName = "game"
 $PlatformFileName = "win_handmade"
 $PlatformFilePath = ".\src\$PlatformFileName.c"
 $GameFilePath = ".\src\$GameFileName.c"

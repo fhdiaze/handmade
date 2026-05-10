@@ -8,8 +8,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "hm_game.h"
-#include "hm_lib.h"
+#include "game.h"
+#include "lib.h"
 
 #define RANDOM_NUMS_COUNT 4096
 
@@ -107,7 +107,7 @@ static void game_bitmap_render_rectangle(Game_Bitmap *bitmap, float start_x_px_f
  */
 static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
                                       float target_offset_x_px_f, float target_offset_y_px_f,
-                                      const Plat_LoadedBitmap *const restrict source,
+                                      const HmLoadedBitmap *const restrict source,
                                       float source_offset_x_px_f, float source_offset_y_px_f)
 {
 	assert(source);
@@ -181,14 +181,14 @@ static void game_bitmap_render_bitmap(Game_Bitmap *const restrict target,
 /**
  *
  */
-static Plat_LoadedBitmap
+static HmLoadedBitmap
 game_file_load_bitmap_debug(const char *const filename,
                             plat_file_read_debug_func *plat_file_read_debug_func,
-                            Plat_ThreadContext *thread)
+                            HmThreadContext *thread)
 {
-	Plat_LoadedBitmap result = {};
+	HmLoadedBitmap result = {};
 
-	Plat_ReadFileResult read_result = plat_file_read_debug_func(filename, thread);
+	HmReadFileResult read_result = plat_file_read_debug_func(filename, thread);
 	if (read_result.base_address == nullptr) {
 		return result;
 	}
@@ -228,27 +228,27 @@ game_file_load_bitmap_debug(const char *const filename,
 
 GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 {
-	assert(sizeof(Game_State) <= Plat_Memory->permanent_storage_size_byte);
+	assert(sizeof(Game_State) <= HmMemory->permanent_storage_size_byte);
 
 	float player_height_m = 1.4F;
 	float player_width_m = 0.75F * player_height_m;
 
-	Game_State *game_state = Plat_Memory->permanent_storage;
+	Game_State *game_state = HmMemory->permanent_storage;
 	Plat_Arena *arena = &game_state->arena;
 	Game_World *world = game_state->world;
 	Game_Map *map = nullptr;
 
-	if (!Plat_Memory->is_initialized) {
+	if (!HmMemory->is_initialized) {
 		game_state->backdrop = game_file_load_bitmap_debug(
-			"test/test_background.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_background.bmp", HmMemory->plat_file_read_debug, thread);
 
 		Game_HeroBitmaps *bitmaps = game_state->hero_bitmaps;
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_right_head.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_right_head.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_right_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_right_cape.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug("test/test_hero_right_torso.bmp",
-		                                             Plat_Memory->plat_file_read_debug,
+		                                             HmMemory->plat_file_read_debug,
 		                                             thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
@@ -256,33 +256,33 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		++bitmaps;
 
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_back_head.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_back_head.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_back_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_back_cape.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_back_torso.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_back_torso.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_left_head.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_left_head.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_left_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_left_cape.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_left_torso.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_left_torso.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
 		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_front_head.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_front_head.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_front_cape.bmp", Plat_Memory->plat_file_read_debug, thread);
+			"test/test_hero_front_cape.bmp", HmMemory->plat_file_read_debug, thread);
 		bitmaps->torso = game_file_load_bitmap_debug("test/test_hero_front_torso.bmp",
-		                                             Plat_Memory->plat_file_read_debug,
+		                                             HmMemory->plat_file_read_debug,
 		                                             thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
@@ -303,8 +303,8 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		size_t game_state_size = sizeof(*game_state);
 		plat_arena_init(&game_state->arena,
-		                Plat_Memory->permanent_storage_size_byte - game_state_size,
-		                (unsigned char *)Plat_Memory->permanent_storage + game_state_size);
+		                HmMemory->permanent_storage_size_byte - game_state_size,
+		                (unsigned char *)HmMemory->permanent_storage + game_state_size);
 
 		game_state->world =
 			plat_arena_push_size(&game_state->arena, sizeof(*game_state->world));
@@ -1002,7 +1002,7 @@ GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			is_top_door = 0U;
 		}
 
-		Plat_Memory->is_initialized = 1U;
+		HmMemory->is_initialized = 1U;
 	}
 
 	map = world->map;

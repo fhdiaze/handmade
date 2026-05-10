@@ -4,16 +4,16 @@
 * Game api definition
 */
 
-#ifndef HM_GAME_H
-#define HM_GAME_H
+#ifndef GAME_H
+#define GAME_H
 
 #include <assert.h>
 #include <stdint.h>
 
-#include "hm_platform.h"
-#include "hm_lib.h"
+#include "platform.h"
+#include "lib.h"
 
-#define HM_GAME_DLL_NAME "hm_game.dll"
+#define GAME_DLL_NAME "game.dll"
 
 #define TILE_RADIUS_PX 30
 #define TILE_RADIUS_M 0.7F
@@ -232,9 +232,9 @@ typedef struct Game_HeroBitmaps {
 	// Top-left corner is the origin
 	int32_t align_y_px;
 
-	Plat_LoadedBitmap head;
-	Plat_LoadedBitmap cape;
-	Plat_LoadedBitmap torso;
+	HmLoadedBitmap head;
+	HmLoadedBitmap cape;
+	HmLoadedBitmap torso;
 } Game_HeroBitmaps;
 
 typedef struct Game_State {
@@ -243,7 +243,7 @@ typedef struct Game_State {
 	Game_Position camera_position;
 	Game_Position hero_position;
 
-	Plat_LoadedBitmap backdrop;
+	HmLoadedBitmap backdrop;
 
 	uint8_t hero_facing_direction;
 	Game_HeroBitmaps hero_bitmaps[4];
@@ -389,12 +389,12 @@ static Game_PositionDelta game_map_substract_positions(Game_Position *start_posi
  * @brief Updates the game status and renders it
  */
 #define GAME_BITMAP_UPDATE_AND_RENDER(name)                                                  \
-	void name(Game_Bitmap *bitmap, Plat_ThreadContext *thread, Plat_Memory *Plat_Memory, \
+	void name(Game_Bitmap *bitmap, HmThreadContext *thread, HmMemory *HmMemory, \
 	          Game_Input *input)
 typedef GAME_BITMAP_UPDATE_AND_RENDER(game_bitmap_update_and_render_func);
 
 #define GAME_SOUND_CREATE_SAMPLES(name) \
-	void name(Game_SoundBuffer *soundbuff, Plat_ThreadContext *thread, Plat_Memory *memory)
+	void name(Game_SoundBuffer *soundbuff, HmThreadContext *thread, HmMemory *memory)
 typedef GAME_SOUND_CREATE_SAMPLES(game_sound_create_samples_func);
 
-#endif // HM_GAME_H
+#endif // GAME_H
