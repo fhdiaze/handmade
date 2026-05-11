@@ -19,7 +19,7 @@
  * @param buffer
  * @param samples
  */
-static void game_sound_output(GameSoundBuffer *buffer, GameState *game_state, unsigned tonehz)
+static void sound_output_samples(GameSoundBuffer *buffer, GameState *game_state, unsigned tonehz)
 {
 	float tone_volume = 3000;
 	size_t wave_period = buffer->samples_per_sec / tonehz;
@@ -58,25 +58,25 @@ static void game_sound_output(GameSoundBuffer *buffer, GameState *game_state, un
  * @param green
  * @param blue
  */
-static void game_bitmap_render_rectangle(GameBitmap *bitmap, float start_x_px_f, float start_y_px_f,
-                                         float end_x_px_f, float end_y_px_f, float red, float green,
-                                         float blue)
+static void offscreen_render_rectangle(GameOffscreenBuffer *bitmap, float start_x_px_f,
+                                       float start_y_px_f, float end_x_px_f, float end_y_px_f,
+                                       float red, float green, float blue)
 {
 	assert(start_x_px_f <= end_x_px_f && start_y_px_f <= end_y_px_f);
 
-	unsigned min_x_px = (unsigned)lib_int_max(lib_float_round_to_int(start_x_px_f), 0);
-	unsigned min_y_px = (unsigned)lib_int_max(lib_float_round_to_int(start_y_px_f), 0);
-	unsigned max_x_px = (unsigned)lib_int_max(lib_float_round_to_int(end_x_px_f), 0);
-	unsigned max_y_px = (unsigned)lib_int_max(lib_float_round_to_int(end_y_px_f), 0);
+	unsigned min_x_px = (unsigned)int_max(float_round_to_int(start_x_px_f), 0);
+	unsigned min_y_px = (unsigned)int_max(float_round_to_int(start_y_px_f), 0);
+	unsigned max_x_px = (unsigned)int_max(float_round_to_int(end_x_px_f), 0);
+	unsigned max_y_px = (unsigned)int_max(float_round_to_int(end_y_px_f), 0);
 
 	min_x_px = LIB_MATH_MIN(min_x_px, bitmap->width_px);
 	min_y_px = LIB_MATH_MIN(min_y_px, bitmap->height_px);
 	max_x_px = LIB_MATH_MIN(max_x_px, bitmap->width_px);
 	max_y_px = LIB_MATH_MIN(max_y_px, bitmap->height_px);
 
-	uint32_t red_bits = (uint32_t)lib_float_round_to_int(red * 255.0F);
-	uint32_t green_bits = (uint32_t)lib_float_round_to_int(green * 255.0F);
-	uint32_t blue_bits = (uint32_t)lib_float_round_to_int(blue * 255.0F);
+	uint32_t red_bits = (uint32_t)float_round_to_int(red * 255.0F);
+	uint32_t green_bits = (uint32_t)float_round_to_int(green * 255.0F);
+	uint32_t blue_bits = (uint32_t)float_round_to_int(blue * 255.0F);
 	uint32_t color = red_bits << 16UL | green_bits << 8UL | blue_bits;
 
 	unsigned char *pixel_first_byte_ptr = (unsigned char *)bitmap->top_left_px +
@@ -105,10 +105,10 @@ static void game_bitmap_render_rectangle(GameBitmap *bitmap, float start_x_px_f,
  * @param source_offset_x_px_f
  * @param source_offset_y_px_f
  */
-static void game_bitmap_render_bitmap(GameBitmap *const restrict target, float target_offset_x_px_f,
-                                      float target_offset_y_px_f,
-                                      const LoadedBitmap *const restrict source,
-                                      float source_offset_x_px_f, float source_offset_y_px_f)
+static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict target,
+                                    float target_offset_x_px_f, float target_offset_y_px_f,
+                                    const LoadedBitmap *const restrict source,
+                                    float source_offset_x_px_f, float source_offset_y_px_f)
 {
 	assert(source);
 	assert(source->bottom_left_px);
@@ -119,10 +119,10 @@ static void game_bitmap_render_bitmap(GameBitmap *const restrict target, float t
 	assert(source_offset_x_px_f >= 0.0F);
 	assert(source_offset_y_px_f >= 0.0F);
 
-	uint32_t target_offset_x_px = (unsigned)lib_float_round_to_int(target_offset_x_px_f);
-	uint32_t target_offset_y_px = (unsigned)lib_float_round_to_int(target_offset_y_px_f);
-	uint32_t source_offset_x_px = (unsigned)lib_float_round_to_int(source_offset_x_px_f);
-	uint32_t source_offset_y_px = (unsigned)lib_float_round_to_int(source_offset_y_px_f);
+	uint32_t target_offset_x_px = (unsigned)float_round_to_int(target_offset_x_px_f);
+	uint32_t target_offset_y_px = (unsigned)float_round_to_int(target_offset_y_px_f);
+	uint32_t source_offset_x_px = (unsigned)float_round_to_int(source_offset_x_px_f);
+	uint32_t source_offset_y_px = (unsigned)float_round_to_int(source_offset_y_px_f);
 
 	assert(target_offset_x_px < target->width_px);
 	assert(target_offset_y_px < target->height_px);
@@ -160,12 +160,9 @@ static void game_bitmap_render_bitmap(GameBitmap *const restrict target, float t
 
 			float t = (float)sa / 255.0F;
 
-			uint32_t r =
-				lib_float_round_to_uint(t * (float)sr + (1.0F - t) * (float)dr);
-			uint32_t g =
-				lib_float_round_to_uint(t * (float)sg + (1.0F - t) * (float)dg);
-			uint32_t b =
-				lib_float_round_to_uint(t * (float)sb + (1.0F - t) * (float)db);
+			uint32_t r = float_round_to_uint(t * (float)sr + (1.0F - t) * (float)dr);
+			uint32_t g = float_round_to_uint(t * (float)sg + (1.0F - t) * (float)dg);
+			uint32_t b = float_round_to_uint(t * (float)sb + (1.0F - t) * (float)db);
 
 			*target_px_ptr = (da << 24U) | (r << 16U) | (g << 8U) | b;
 
@@ -181,9 +178,9 @@ static void game_bitmap_render_bitmap(GameBitmap *const restrict target, float t
 /**
  *
  */
-static LoadedBitmap game_file_load_bitmap_debug(const char *const filename,
-                                                file_read_debug_func *file_read_debug_func,
-                                                ThreadContext *thread)
+static LoadedBitmap file_load_bitmap_debug(const char *const filename,
+                                           file_read_debug_func *file_read_debug_func,
+                                           ThreadContext *thread)
 {
 	LoadedBitmap result = {};
 
@@ -192,7 +189,7 @@ static LoadedBitmap game_file_load_bitmap_debug(const char *const filename,
 		return result;
 	}
 
-	HmBitmapHeader *bitmap = (HmBitmapHeader *)read_result.base_address;
+	BitmapHeader *bitmap = (BitmapHeader *)read_result.base_address;
 
 	assert(bitmap->width_px >= 0);
 	assert(bitmap->height_px >= 0);
@@ -205,11 +202,10 @@ static LoadedBitmap game_file_load_bitmap_debug(const char *const filename,
 
 	uint32_t alpha_mask = ~(bitmap->red_mask | bitmap->green_mask | bitmap->blue_mask);
 
-	Intrs_BitScanResult red_scan = intrs_bit_find_least_significant_set_bit(bitmap->red_mask);
-	Intrs_BitScanResult green_scan =
-		intrs_bit_find_least_significant_set_bit(bitmap->green_mask);
-	Intrs_BitScanResult blue_scan = intrs_bit_find_least_significant_set_bit(bitmap->blue_mask);
-	Intrs_BitScanResult alpha_scan = intrs_bit_find_least_significant_set_bit(alpha_mask);
+	BitScanResult red_scan = bit_find_least_significant_set_bit(bitmap->red_mask);
+	BitScanResult green_scan = bit_find_least_significant_set_bit(bitmap->green_mask);
+	BitScanResult blue_scan = bit_find_least_significant_set_bit(bitmap->blue_mask);
+	BitScanResult alpha_scan = bit_find_least_significant_set_bit(alpha_mask);
 
 	uint32_t *pixel = result.bottom_left_px;
 	for (uint32_t i = 0; i < (uint32_t)(bitmap->width_px * bitmap->height_px); ++i) {
@@ -225,62 +221,62 @@ static LoadedBitmap game_file_load_bitmap_debug(const char *const filename,
 	return result;
 }
 
-GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
+GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
-	assert(sizeof(GameState) <= GameMemory->permanent_storage_size_byte);
+	assert(sizeof(GameState) <= Storage->permanent_storage_size_byte);
 
 	float player_height_m = 1.4F;
 	float player_width_m = 0.75F * player_height_m;
 
-	GameState *game_state = GameMemory->permanent_storage;
+	GameState *game_state = Storage->permanent_storage;
 	Arena *arena = &game_state->arena;
 	World *world = game_state->world;
 	Map *map = nullptr;
 
-	if (!GameMemory->is_initialized) {
-		game_state->backdrop = game_file_load_bitmap_debug(
-			"test/test_background.bmp", GameMemory->plat_file_read_debug, thread);
+	if (!Storage->is_initialized) {
+		game_state->backdrop = file_load_bitmap_debug(
+			"test/test_background.bmp", Storage->plat_file_read_debug, thread);
 
 		HeroBitmaps *bitmaps = game_state->hero_bitmaps;
-		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_right_head.bmp", GameMemory->plat_file_read_debug, thread);
-		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_right_cape.bmp", GameMemory->plat_file_read_debug, thread);
-		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_right_torso.bmp", GameMemory->plat_file_read_debug, thread);
+		bitmaps->head = file_load_bitmap_debug("test/test_hero_right_head.bmp",
+		                                       Storage->plat_file_read_debug, thread);
+		bitmaps->cape = file_load_bitmap_debug("test/test_hero_right_cape.bmp",
+		                                       Storage->plat_file_read_debug, thread);
+		bitmaps->torso = file_load_bitmap_debug("test/test_hero_right_torso.bmp",
+		                                        Storage->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
-		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_back_head.bmp", GameMemory->plat_file_read_debug, thread);
-		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_back_cape.bmp", GameMemory->plat_file_read_debug, thread);
-		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_back_torso.bmp", GameMemory->plat_file_read_debug, thread);
+		bitmaps->head = file_load_bitmap_debug("test/test_hero_back_head.bmp",
+		                                       Storage->plat_file_read_debug, thread);
+		bitmaps->cape = file_load_bitmap_debug("test/test_hero_back_cape.bmp",
+		                                       Storage->plat_file_read_debug, thread);
+		bitmaps->torso = file_load_bitmap_debug("test/test_hero_back_torso.bmp",
+		                                        Storage->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
-		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_left_head.bmp", GameMemory->plat_file_read_debug, thread);
-		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_left_cape.bmp", GameMemory->plat_file_read_debug, thread);
-		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_left_torso.bmp", GameMemory->plat_file_read_debug, thread);
+		bitmaps->head = file_load_bitmap_debug("test/test_hero_left_head.bmp",
+		                                       Storage->plat_file_read_debug, thread);
+		bitmaps->cape = file_load_bitmap_debug("test/test_hero_left_cape.bmp",
+		                                       Storage->plat_file_read_debug, thread);
+		bitmaps->torso = file_load_bitmap_debug("test/test_hero_left_torso.bmp",
+		                                        Storage->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
 		++bitmaps;
 
-		bitmaps->head = game_file_load_bitmap_debug(
-			"test/test_hero_front_head.bmp", GameMemory->plat_file_read_debug, thread);
-		bitmaps->cape = game_file_load_bitmap_debug(
-			"test/test_hero_front_cape.bmp", GameMemory->plat_file_read_debug, thread);
-		bitmaps->torso = game_file_load_bitmap_debug(
-			"test/test_hero_front_torso.bmp", GameMemory->plat_file_read_debug, thread);
+		bitmaps->head = file_load_bitmap_debug("test/test_hero_front_head.bmp",
+		                                       Storage->plat_file_read_debug, thread);
+		bitmaps->cape = file_load_bitmap_debug("test/test_hero_front_cape.bmp",
+		                                       Storage->plat_file_read_debug, thread);
+		bitmaps->torso = file_load_bitmap_debug("test/test_hero_front_torso.bmp",
+		                                        Storage->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
@@ -300,8 +296,8 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 		size_t game_state_size = sizeof(*game_state);
 		arena_init(&game_state->arena,
-		           GameMemory->permanent_storage_size_byte - game_state_size,
-		           (unsigned char *)GameMemory->permanent_storage + game_state_size);
+		           Storage->permanent_storage_size_byte - game_state_size,
+		           (unsigned char *)Storage->permanent_storage + game_state_size);
 
 		game_state->world = arena_push_size(&game_state->arena, sizeof(*game_state->world));
 		world = game_state->world;
@@ -968,7 +964,7 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 						tile_value = TILE_TYPE_STAIRS_DOWN;
 					}
 
-					game_map_set_tile_value(map, &game_state->arena, tile_x,
+					map_set_tile_value(map, &game_state->arena, tile_x,
 					                        tile_y, tile_z, tile_value);
 				}
 			}
@@ -998,13 +994,13 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			is_top_door = 0U;
 		}
 
-		GameMemory->is_initialized = 1U;
+		Storage->is_initialized = 1U;
 	}
 
 	map = world->map;
 
 	for (size_t controller_idx = 0; controller_idx < MAX_CONTROLLERS; ++controller_idx) {
-		ControllerState *controller = game_input_get_controller(input, controller_idx);
+		ControllerState *controller = input_get_controller(input, controller_idx);
 
 		if (!controller->is_connected) {
 			continue;
@@ -1052,25 +1048,25 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			new_player_pos.offset_x_m = new_player_x;
 			new_player_pos.offset_y_m = new_player_y;
 
-			if (!game_map_correct_position(&new_player_pos)) {
+			if (!map_correct_position(&new_player_pos)) {
 				continue;
 			}
 
 			Position left_bottom_pos = new_player_pos;
 			left_bottom_pos.offset_x_m -= player_width_m * 0.5F;
-			if (!game_map_correct_position(&left_bottom_pos)) {
+			if (!map_correct_position(&left_bottom_pos)) {
 				continue;
 			}
 
 			Position right_bottom_pos = new_player_pos;
 			right_bottom_pos.offset_x_m += player_width_m * 0.5F;
-			if (!game_map_correct_position(&right_bottom_pos)) {
+			if (!map_correct_position(&right_bottom_pos)) {
 				continue;
 			}
 
-			if (game_map_is_point_walkable(map, new_player_pos) &&
-			    game_map_is_point_walkable(map, left_bottom_pos) &&
-			    game_map_is_point_walkable(map, right_bottom_pos)) {
+			if (map_is_point_walkable(map, new_player_pos) &&
+			    map_is_point_walkable(map, left_bottom_pos) &&
+			    map_is_point_walkable(map, right_bottom_pos)) {
 				if (!MAP_ARE_SAME_TILE(new_player_pos, game_state->hero_position)) {
 					uint32_t tile_value =
 						MAP_GET_TILE_VALUE_BY_POS(map, new_player_pos);
@@ -1083,7 +1079,7 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 
 				game_state->hero_position = new_player_pos;
 
-				PositionDelta delta = game_map_substract_positions(
+				PositionDelta delta = map_substract_positions(
 					&game_state->camera_position, &game_state->hero_position);
 
 				if (delta.delta_x_m <= -9.0F * TILE_SIDE_M) {
@@ -1109,14 +1105,14 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		}
 
 #if 1
-		game_bitmap_render_bitmap(bitmap, 0.0F, 0.0F, &game_state->backdrop, 0.0F, 0.0F);
+		offscreen_render_bitmap(back_buffer, 0.0F, 0.0F, &game_state->backdrop, 0.0F, 0.0F);
 #else
-		game_bitmap_render_rectangle(bitmap, 0.0F, 0.0F, (float)bitmap->width_px,
-		                             (float)bitmap->height_px, 1.0F, 0.0F, 1.0F);
+		game_bitmap_render_rectangle(back_buffer, 0.0F, 0.0F, (float)back_buffer->width_px,
+		                             (float)back_buffer->height_px, 1.0F, 0.0F, 1.0F);
 #endif
 
-		float bitmap_center_x_px = (float)bitmap->width_px * 0.5F;
-		float bitmap_center_y_px = (float)bitmap->height_px * 0.5F;
+		float bitmap_center_x_px = (float)back_buffer->width_px * 0.5F;
+		float bitmap_center_y_px = (float)back_buffer->height_px * 0.5F;
 
 		Position *camera_position = &game_state->camera_position;
 
@@ -1130,7 +1126,7 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 				uint32_t level = camera_position->tile_z;
 
 				uint32_t tile_type_id =
-					game_map_get_tile_value(map, col, row, level);
+					map_get_tile_value(map, col, row, level);
 
 				if (tile_type_id > TILE_TYPE_EMPTY) {
 					float gray = 0.0F; // Walkable
@@ -1168,9 +1164,9 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 					    game_state->hero_position.tile_x == col) {
 						gray = 0.0F;
 					}
-					game_bitmap_render_rectangle(bitmap, min_x_px, min_y_px,
-					                             max_x_px, max_y_px, gray, gray,
-					                             gray);
+					offscreen_render_rectangle(back_buffer, min_x_px, min_y_px,
+					                           max_x_px, max_y_px, gray, gray,
+					                           gray);
 				}
 			}
 		}
@@ -1181,7 +1177,7 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 		Position *hero_position = &game_state->hero_position;
 
 		// Vector to move from the camera to the hero position in the map
-		PositionDelta delta = game_map_substract_positions(camera_position, hero_position);
+		PositionDelta delta = map_substract_positions(camera_position, hero_position);
 
 		float player_red = 1.0F;
 		float player_green = 1.0F;
@@ -1199,9 +1195,9 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			player_ground_point_y_px - player_height_m * TILE_PIXELS_PER_METER;
 		float player_max_x_px = player_min_x_px + player_width_m * TILE_PIXELS_PER_METER;
 		float player_max_y_px = player_min_y_px + player_height_m * TILE_PIXELS_PER_METER;
-		game_bitmap_render_rectangle(bitmap, player_min_x_px, player_min_y_px,
-		                             player_max_x_px, player_max_y_px, player_red,
-		                             player_green, player_blue);
+		offscreen_render_rectangle(back_buffer, player_min_x_px, player_min_y_px,
+		                           player_max_x_px, player_max_y_px, player_red,
+		                           player_green, player_blue);
 
 		float target_offset_x_px =
 			player_ground_point_x_px - (float)hero_bitmaps->align_x_px;
@@ -1228,22 +1224,22 @@ GAME_UPDATE_AND_RENDER(game_bitmap_update_and_render)
 			continue;
 		}
 
-		game_bitmap_render_bitmap(bitmap, target_offset_x_px, target_offset_y_px,
-		                          &hero_bitmaps->torso, source_offset_x_px,
-		                          source_offset_y_px);
-		game_bitmap_render_bitmap(bitmap, target_offset_x_px, target_offset_y_px,
-		                          &hero_bitmaps->cape, source_offset_x_px,
-		                          source_offset_y_px);
-		game_bitmap_render_bitmap(bitmap, target_offset_x_px, target_offset_y_px,
-		                          &hero_bitmaps->head, source_offset_x_px,
-		                          source_offset_y_px);
+		offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
+		                        &hero_bitmaps->torso, source_offset_x_px,
+		                        source_offset_y_px);
+		offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
+		                        &hero_bitmaps->cape, source_offset_x_px,
+		                        source_offset_y_px);
+		offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
+		                        &hero_bitmaps->head, source_offset_x_px,
+		                        source_offset_y_px);
 	}
 }
 
-SOUND_CREATE_SAMPLES(game_sound_create_samples)
+SOUND_CREATE_SAMPLES(sound_create_samples)
 {
 	assert(sizeof(GameState) <= memory->permanent_storage_size_byte);
 
 	GameState *game_state = memory->permanent_storage;
-	game_sound_output(soundbuff, game_state, 400);
+	sound_output_samples(soundbuff, game_state, 400);
 }

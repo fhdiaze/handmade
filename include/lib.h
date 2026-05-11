@@ -194,19 +194,19 @@ static void string_concat(const size_t one_count, const char *const restrict one
  * @param value
  * @return uint32_t
  */
-inline uint32_t lib_i64_to_u32(int64_t value)
+inline uint32_t i64_to_u32(int64_t value)
 {
 	assert(value < INT32_MAX && value >= 0);
 
 	return (uint32_t)value;
 }
 
-inline int tix_int_min(int a, int b)
+inline int int_min(int a, int b)
 {
 	return a < b ? a : b;
 }
 
-inline int lib_int_max(int a, int b)
+inline int int_max(int a, int b)
 {
 	return a > b ? a : b;
 }
@@ -217,7 +217,7 @@ inline int lib_int_max(int a, int b)
  * @param value
  * @return int
  */
-inline int lib_float_round_to_int(float value)
+inline int float_round_to_int(float value)
 {
 	int result = (int)roundf(value);
 
@@ -230,7 +230,7 @@ inline int lib_float_round_to_int(float value)
  * @param value
  * @return int
  */
-inline uint32_t lib_float_round_to_uint(float value)
+inline uint32_t float_round_to_uint(float value)
 {
 	assert(value >= 0.0F);
 
@@ -239,20 +239,20 @@ inline uint32_t lib_float_round_to_uint(float value)
 	return result;
 }
 
-inline float lib_float_floor(float value)
+inline float float_floor(float value)
 {
 	return floorf(value);
 }
 
-inline unsigned lib_int_abs(int value)
+inline unsigned int_abs(int value)
 {
 	return (unsigned)(value < 0 ? -value : value);
 }
 
-typedef struct Intrs_BitScanResult {
+typedef struct BitScanResult {
 	unsigned long index;
 	uint8_t was_found;
-} Intrs_BitScanResult;
+} BitScanResult;
 
 /**
  * @brief Finds the index of the first non-zero bit if there is one.
@@ -261,9 +261,9 @@ typedef struct Intrs_BitScanResult {
  * @param index
  * @return uint8_t Non zero value if a non-zero value was found, 0 otherwise
  */
-Intrs_BitScanResult intrs_bit_find_least_significant_set_bit(uint32_t value)
+BitScanResult bit_find_least_significant_set_bit(uint32_t value)
 {
-	Intrs_BitScanResult result = {};
+	BitScanResult result = {};
 
 #if LIB_COMPILER_MSVC
 	result.was_found = _BitScanForward(&result.index, value);

@@ -90,8 +90,8 @@ if ($BuildMode -eq "debug") {
 $random = Get-Random -Minimum 0 -Maximum 99999
 $GameFlags = $Flags + @(
     "-Wl,/MAP:$Outdir/$GameFileName.map,/MAPINFO:EXPORTS",
-    "-Wl,/EXPORT:game_sound_create_samples",
-    "-Wl,/EXPORT:game_bitmap_update_and_render",
+    "-Wl,/EXPORT:sound_create_samples",
+    "-Wl,/EXPORT:game_update_and_render",
     "-Wl,/PDB:$Outdir/game_$random.pdb",
     "-shared"
 )

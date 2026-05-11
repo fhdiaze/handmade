@@ -11,7 +11,6 @@
 #include <stdint.h>
 
 #include "lib.h"
-#include "platform.h"
 
 #define GAME_DLL_NAME "game.dll"
 
@@ -45,7 +44,7 @@
 #define MAP_SIZE_CHK (MAP_SIZE_XY_CHK * MAP_SIDE_Z_CHK)
 
 #define MAP_GET_TILE_VALUE_BY_POS(map, pos) \
-	game_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
+	map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
 
 #define MAP_ARE_SAME_TILE(one_position, other_position)  \
 	(one_position.tile_x == other_position.tile_x && \
@@ -143,7 +142,7 @@ typedef enum TileType : uint32_t {
  * @brief (0,0) is on the top left corner.
  * The byte order in a register (little endian) is AA RR GG BB
  */
-typedef struct GameBitmap {
+typedef struct GameOffscreenBuffer {
 	void *top_left_px;
 
 	// width in pixels
@@ -155,7 +154,7 @@ typedef struct GameBitmap {
 	// Size of a row in bytes
 	unsigned pitch_bytes;
 	unsigned bytes_per_pixel;
-} GameBitmap;
+} GameOffscreenBuffer;
 
 typedef struct GameSoundBuffer {
 	unsigned samples_per_sec;
@@ -225,6 +224,24 @@ typedef struct World {
 	Map *map;
 } World;
 
+/**
+ * @brief (0,0) is on the bottom left corner.
+ * The byte order in a register (little endian) is AA RR GG BB
+ */
+typedef struct LoadedBitmap {
+	/**
+	 * @brief Width in pixels.
+	 */
+	uint32_t width_px;
+
+	/**
+	 * @brief Height in pixels.
+	 */
+	uint32_t height_px;
+
+	uint32_t *bottom_left_px;
+} LoadedBitmap;
+
 typedef struct HeroBitmaps {
 	// Top-left corner is the origin
 	int32_t align_x_px;
@@ -236,6 +253,12 @@ typedef struct HeroBitmaps {
 	LoadedBitmap cape;
 	LoadedBitmap torso;
 } HeroBitmaps;
+
+typedef struct Arena {
+	size_t capacity_byte;
+	unsigned char *base_address;
+	size_t used_byte;
+} Arena;
 
 typedef struct GameState {
 	Arena arena;
@@ -249,9 +272,131 @@ typedef struct GameState {
 	HeroBitmaps hero_bitmaps[4];
 } GameState;
 
+/**
+ * @brief The byte order at increasing memory addresses is (BB GB RR AA).
+ * The byte order in a register (little endian) is (AA RR GG BB).
+ * The pixels order is bottom-up.
+ */
+#pragma pack(push, 1)
+typedef struct BitmapHeader {
+	uint16_t file_type;
+	uint32_t file_size;
+
+	uint16_t reserved_one;
+	uint16_t reserved_two;
+
+	uint32_t offset;
+
+	/**
+	 * @brief Size of this header in bytes
+	 */
+	uint32_t header_size_byte;
+
+	/**
+	 * @brief Width in pixels.
+	 * Negative height: Invalid. Kept for historical reasons.
+	 */
+	int32_t width_px;
+
+	/**
+	 * @brief Height in pixels.
+	 * Positive height: the bitmap is stored bottom-up (rows stored from bottom to top, the traditional BMP layout).
+	 * Negative height: the bitmap is stored top-down (rows stored from top to bottom).
+	 */
+	int32_t height_px;
+	uint16_t planes;
+
+	uint16_t bits_per_pixel;
+
+	uint32_t compression;
+
+	/**
+	 * @brief Size of the bitmap in bytes
+	 */
+	uint32_t bitmap_size_byte;
+
+	int32_t horz_resolution;
+	int32_t vert_resolution;
+
+	uint32_t colors_used;
+	uint32_t colors_important;
+
+	uint32_t red_mask;
+	uint32_t green_mask;
+	uint32_t blue_mask;
+} BitmapHeader;
+#pragma pack(pop)
+
+typedef struct ThreadContext {
+	unsigned placeholder;
+} ThreadContext;
+
+#if DEBUG
+
+#define MEMORY_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
+
+typedef struct ReadFileResult {
+	size_t size_byte;
+	void *base_address;
+} ReadFileResult;
+
+#define FILE_READ_DEBUG(name) ReadFileResult name(const char *const filename, ThreadContext *thread)
+#define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
+#define FILE_WRITE_DEBUG(name)                                                    \
+	uint8_t name(const char *const filename, size_t memorysize, void *memory, \
+	             ThreadContext *thread)
+
+typedef FILE_READ_DEBUG(file_read_debug_func);
+
+typedef FILE_FREE_DEBUG(file_free_debug_func);
+
+typedef FILE_WRITE_DEBUG(file_write_debug_func);
+
+#else
+#define MEMORY_BASE_ADDRESS (nullptr)
+#endif // DEBUG
+
+typedef struct Storage {
+	size_t permanent_storage_size_byte; // permanent storage in bytes
+	void *permanent_storage;            // This should be zero initialized
+
+	size_t transient_storage_size_byte; // transient storage in bytes
+	void *transient_storage;            // This should be zero initialized
+
+	file_free_debug_func *plat_file_free_debug;
+	file_read_debug_func *plat_file_read_debug;
+	file_write_debug_func *file_write_debug;
+
+	uint8_t is_initialized;
+} Storage;
+
+void arena_init(Arena *restrict arena, const size_t size, unsigned char *const restrict base)
+{
+	arena->capacity_byte = size;
+	arena->base_address = base;
+	arena->used_byte = 0;
+}
+
+void *arena_push_size(Arena *arena, size_t size)
+{
+	assert(arena->used_byte + size <= arena->capacity_byte);
+
+	void *result = arena->base_address + arena->used_byte;
+	arena->used_byte += size;
+
+	return result;
+}
+
+void *arena_push_array(Arena *arena, size_t count, size_t size)
+{
+	void *result = arena_push_size(arena, count * size);
+
+	return result;
+}
+
 // Utilities
 
-static inline ControllerState *game_input_get_controller(GameInput *input, size_t controller_index)
+static inline ControllerState *input_get_controller(GameInput *input, size_t controller_index)
 {
 	assert(controller_index < MAX_CONTROLLERS);
 
@@ -260,9 +405,9 @@ static inline ControllerState *game_input_get_controller(GameInput *input, size_
 
 // Game services
 
-static inline uint8_t game_map_correct_coord(uint32_t *tile, float *tile_rel)
+static inline uint8_t map_correct_coord(uint32_t *tile, float *tile_rel)
 {
-	int tile_offset = lib_float_round_to_int(*tile_rel / TILE_SIDE_M);
+	int tile_offset = float_round_to_int(*tile_rel / TILE_SIDE_M);
 
 	// World is toroidal
 	*tile = (unsigned)((int)*tile + tile_offset);
@@ -275,8 +420,7 @@ static inline uint8_t game_map_correct_coord(uint32_t *tile, float *tile_rel)
 	return 1U;
 }
 
-static inline ChunkPosition game_map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y,
-                                                   uint32_t tile_z)
+static inline ChunkPosition map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
 {
 	ChunkPosition result;
 
@@ -289,8 +433,8 @@ static inline ChunkPosition game_map_get_chunk_pos(uint32_t tile_x, uint32_t til
 	return result;
 }
 
-static inline TilesChunk *game_map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y,
-                                             uint32_t chunk_z)
+static inline TilesChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y,
+                                        uint32_t chunk_z)
 {
 	TilesChunk *result = nullptr;
 
@@ -302,13 +446,13 @@ static inline TilesChunk *game_map_get_chunk(Map *map, uint32_t chunk_x, uint32_
 	return result;
 }
 
-static inline uint32_t game_map_get_tile_value(Map *map, uint32_t tile_x, uint32_t tile_y,
-                                               uint32_t tile_z)
+static inline uint32_t map_get_tile_value(Map *map, uint32_t tile_x, uint32_t tile_y,
+                                          uint32_t tile_z)
 {
 	uint32_t tile_value = 0;
 
-	ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
-	TilesChunk *chunk = game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
+	TilesChunk *chunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	if (!chunk || !chunk->tiles) {
 		return tile_value;
@@ -322,32 +466,32 @@ static inline uint32_t game_map_get_tile_value(Map *map, uint32_t tile_x, uint32
 	return tile_value;
 }
 
-static uint8_t game_map_correct_position(Position *pos)
+static uint8_t map_correct_position(Position *pos)
 {
-	uint8_t was_success = game_map_correct_coord(&pos->tile_x, &pos->offset_x_m);
+	uint8_t was_success = map_correct_coord(&pos->tile_x, &pos->offset_x_m);
 	if (!was_success) {
 		return was_success;
 	}
 
-	was_success = game_map_correct_coord(&pos->tile_y, &pos->offset_y_m);
+	was_success = map_correct_coord(&pos->tile_y, &pos->offset_y_m);
 
 	return was_success;
 }
 
-static uint8_t game_map_is_point_walkable(Map *map, Position pos)
+static uint8_t map_is_point_walkable(Map *map, Position pos)
 {
-	uint32_t tile_value = game_map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
+	uint32_t tile_value = map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
 	uint8_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
 	                      tile_value == TILE_TYPE_STAIRS_DOWN;
 
 	return is_walkable;
 }
 
-static void game_map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t tile_y,
-                                    uint32_t tile_z, uint32_t tile_value)
+static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t tile_y,
+                               uint32_t tile_z, uint32_t tile_value)
 {
-	ChunkPosition cpos = game_map_get_chunk_pos(tile_x, tile_y, tile_z);
-	TilesChunk *tilechunk = game_map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
+	TilesChunk *tilechunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	assert(tilechunk);
 
@@ -364,7 +508,7 @@ static void game_map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uin
 	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_value;
 }
 
-static PositionDelta game_map_substract_positions(Position *start_position, Position *end_position)
+static PositionDelta map_substract_positions(Position *start_position, Position *end_position)
 {
 	PositionDelta result = {};
 
@@ -384,13 +528,13 @@ static PositionDelta game_map_substract_positions(Position *start_position, Posi
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_UPDATE_AND_RENDER(name)                                                 \
-	void name(GameBitmap *bitmap, ThreadContext *thread, GameMemory *GameMemory, \
+#define GAME_UPDATE_AND_RENDER(name)                                                         \
+	void name(GameOffscreenBuffer *back_buffer, ThreadContext *thread, Storage *Storage, \
 	          GameInput *input)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 
 #define SOUND_CREATE_SAMPLES(name) \
-	void name(GameSoundBuffer *soundbuff, ThreadContext *thread, GameMemory *memory)
+	void name(GameSoundBuffer *soundbuff, ThreadContext *thread, Storage *memory)
 typedef SOUND_CREATE_SAMPLES(sound_create_samples_func);
 
 #endif // GAME_H
