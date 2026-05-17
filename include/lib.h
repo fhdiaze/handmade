@@ -281,4 +281,172 @@ BitScanResult bit_find_least_significant_set_bit(uint32_t value)
 	return result;
 }
 
+/**
+ * @brief Vector in plane
+ */
+typedef struct Vtwo {
+	union {
+		struct {
+			float x;
+			float y;
+		};
+		float e[2];
+	};
+} Vtwo;
+
+/**
+ * @brief Flips a vector in the x axis (inverts its x coordinate)
+ *
+ * @param a The vector to flip
+ * @return Vtwo The flipped vector (-a.x, a.y)
+ *
+ * @example
+ * Vtwo v = {3.0f, 4.0f};
+ * Vtwo flipped = vtwo_flip_x(v);  // {-3.0f, 4.0f}
+ */
+inline Vtwo vtwo_flip_x(Vtwo a)
+{
+	Vtwo result = {
+		.x = a.x,
+		.y = -a.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Flips a vector in the y axis (inverts its y coordinate)
+ *
+ * @param a The vector to flip
+ * @return Vtwo The flipped vector (a.x, -a.y)
+ *
+ * @example
+ * Vtwo v = {3.0f, 4.0f};
+ * Vtwo flipped = vtwo_flip_y(v);  // {3.0f, -4.0f}
+ */
+inline Vtwo vtwo_flip_y(Vtwo a)
+{
+	Vtwo result = {
+		.x = a.x,
+		.y = -a.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Negates a vector (inverts its direction)
+ *
+ * @param a The vector to negate
+ * @return Vtwo The negated vector (-a.x, -a.y)
+ *
+ * @example
+ * Vtwo v = {3.0f, 4.0f};
+ * Vtwo neg = vtwo_inv(v);  // {-3.0f, -4.0f}
+ */
+inline Vtwo vtwo_neg(Vtwo a)
+{
+	Vtwo result = {
+		.x = -a.x,
+		.y = -a.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Adds two vectors
+ *
+ * @param a The first vector
+ * @param b The second vector
+ * @return Vtwo The sum of a and b (a.x + b.x, a.y + b.y)
+ *
+ * @example
+ * Vtwo a = {1.0f, 2.0f};
+ * Vtwo b = {3.0f, 4.0f};
+ * Vtwo sum = vtwo_add(a, b);  // {4.0f, 6.0f}
+ */
+inline Vtwo vtwo_add(Vtwo a, Vtwo b)
+{
+	Vtwo result = {
+		.x = a.x + b.x,
+		.y = a.y + b.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Subtracts vector b from vector b (calculates a - b)
+ *
+ * @param a The vector to subtract from
+ * @param b The vector to subtract from a
+ * @return Vtwo The difference (a.x - b.x, a.y - b.y)
+ *
+ * @example
+ * Vtwo a = {1.0f, 2.0f};
+ * Vtwo b = {5.0f, 7.0f};
+ * Vtwo diff = vtwo_sub(a, b);  // {-4.0f, -5.0f}
+ */
+inline Vtwo vtwo_sub(Vtwo a, Vtwo b)
+{
+	Vtwo result = {
+		.x = a.x - b.x,
+		.y = a.y - b.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Scales x axis
+ *
+ * @param a The vector
+ * @param s The scalar
+ * @return Vtwo The scaled vector (a.x * s, a.y)
+ */
+inline Vtwo vtwo_scale_x(Vtwo a, float s)
+{
+	Vtwo result = {
+		.x = a.x * s,
+		.y = a.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Scalar multiplication
+ *
+ * @param a The vector
+ * @param s The scalar
+ * @return Vtwo The scaled vector (a.x * s, a.y * s)
+ */
+inline Vtwo vtwo_scale(Vtwo a, float s)
+{
+	Vtwo result = {
+		.x = a.x * s,
+		.y = a.y * s,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Scalar addition
+ *
+ * @param a The vector
+ * @param s The scalar
+ * @return Vtwo The translated vector (a.x * s, a.y * s)
+ */
+inline Vtwo vtwo_add_scalar(Vtwo a, float s)
+{
+	Vtwo result = {
+		.x = a.x + s,
+		.y = a.y + s,
+	};
+
+	return result;
+}
+
 #endif // LIB_H

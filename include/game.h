@@ -82,9 +82,9 @@ typedef struct ChunkPosition {
 	uint32_t tile_y;
 } ChunkPosition;
 
-typedef struct TilesChunk {
+typedef struct TileChunk {
 	uint32_t *tiles;
-} TilesChunk;
+} TileChunk;
 
 /**
  * @brief Origin of the map is bottom-left corner of the screen
@@ -93,7 +93,7 @@ typedef struct Map {
 	/**
 	 * @brief Chunks are laid out in memory with z as the outermost dimension, then y, then x
 	 */
-	TilesChunk *chunks;
+	TileChunk *chunks;
 } Map;
 
 typedef struct Position {
@@ -113,20 +113,15 @@ typedef struct Position {
 	uint32_t tile_z;
 
 	/**
-	 * @brief X relative to the center of the tile in meters
+	 * @brief Offset vector relative to the center of the tile in meters
 	 */
-	float offset_x_m;
-
-	/**
-	 * @brief Y relative to the center of the tile in meters
-	 */
-	float offset_y_m;
+	Vtwo offset_m;
 } Position;
 
 typedef struct PositionDelta {
-	// Delta on x axis in meters
-	float delta_x_m;
-	float delta_y_m;
+	// Delta on x and y axis in meters
+	Vtwo delta_xy_m;
+
 	float delta_z_m;
 } PositionDelta;
 
@@ -433,10 +428,10 @@ static inline ChunkPosition map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y, 
 	return result;
 }
 
-static inline TilesChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y,
-                                        uint32_t chunk_z)
+static inline TileChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y,
+                                       uint32_t chunk_z)
 {
-	TilesChunk *result = nullptr;
+	TileChunk *result = nullptr;
 
 	if (chunk_x < MAP_SIDE_X_CHK && chunk_y < MAP_SIDE_Y_CHK && chunk_z < MAP_SIDE_Z_CHK) {
 		result =
@@ -446,13 +441,22 @@ static inline TilesChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chu
 	return result;
 }
 
+/**
+ * @brief Gets the tile type id
+ *
+ * @param map
+ * @param tile_x
+ * @param tile_y
+ * @param tile_z
+ * @return uint32_t
+ */
 static inline uint32_t map_get_tile_value(Map *map, uint32_t tile_x, uint32_t tile_y,
                                           uint32_t tile_z)
 {
 	uint32_t tile_value = 0;
 
 	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
-	TilesChunk *chunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+	TileChunk *chunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	if (!chunk || !chunk->tiles) {
 		return tile_value;
@@ -468,12 +472,12 @@ static inline uint32_t map_get_tile_value(Map *map, uint32_t tile_x, uint32_t ti
 
 static uint8_t map_correct_position(Position *pos)
 {
-	uint8_t was_success = map_correct_coord(&pos->tile_x, &pos->offset_x_m);
+	uint8_t was_success = map_correct_coord(&pos->tile_x, &pos->offset_m.x);
 	if (!was_success) {
 		return was_success;
 	}
 
-	was_success = map_correct_coord(&pos->tile_y, &pos->offset_y_m);
+	was_success = map_correct_coord(&pos->tile_y, &pos->offset_m.y);
 
 	return was_success;
 }
@@ -491,7 +495,7 @@ static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t
                                uint32_t tile_z, uint32_t tile_value)
 {
 	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
-	TilesChunk *tilechunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+	TileChunk *tilechunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	assert(tilechunk);
 
@@ -508,18 +512,29 @@ static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t
 	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_value;
 }
 
-static PositionDelta map_substract_positions(Position *start_position, Position *end_position)
+/**
+ * @brief Calculates end_position - start_position
+ *
+ * @param start_position
+ * @param end_position
+ * @return PositionDelta
+ */
+static PositionDelta position_substract(Position *start_position, Position *end_position)
 {
 	PositionDelta result = {};
 
-	float delta_tile_x = (float)end_position->tile_x - (float)start_position->tile_x;
-	float delta_tile_y = (float)end_position->tile_y - (float)start_position->tile_y;
+	Vtwo delta_xy_tile = {
+		.x = (float)end_position->tile_x - (float)start_position->tile_x,
+		.y = (float)end_position->tile_y - (float)start_position->tile_y,
+	};
 	float delta_tile_z = (float)end_position->tile_z - (float)start_position->tile_z;
 
-	result.delta_x_m =
-		delta_tile_x * TILE_SIDE_M + end_position->offset_x_m - start_position->offset_x_m;
-	result.delta_y_m =
-		delta_tile_y * TILE_SIDE_M + end_position->offset_y_m - start_position->offset_y_m;
+	Vtwo delta_xy_m = vtwo_scale(delta_xy_tile, TILE_SIDE_M);
+
+	Vtwo delta_tile_offset_m = vtwo_sub(end_position->offset_m, start_position->offset_m);
+	delta_xy_m = vtwo_add(delta_xy_m, delta_tile_offset_m);
+
+	result.delta_xy_m = delta_xy_m;
 	result.delta_z_m = delta_tile_z * TILE_SIDE_M;
 
 	return result;

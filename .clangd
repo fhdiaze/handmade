@@ -13,6 +13,9 @@ CompileFlags:
 Diagnostics:
   UnusedIncludes: Strict
 
+Documentation:
+  CommentFormat: Doxygen
+
 ---
 # Flags for .h files
 If:
@@ -29,5 +32,3 @@ If:
 CompileFlags:
   Add: [-xc]
 
-Documentation:
-  CommentFormat: Doxygen
