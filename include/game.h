@@ -43,12 +43,10 @@
 #define MAP_SIZE_XY_CHK (MAP_SIDE_Y_CHK * MAP_SIDE_X_CHK)
 #define MAP_SIZE_CHK (MAP_SIZE_XY_CHK * MAP_SIDE_Z_CHK)
 
-#define MAP_GET_TILE_VALUE_BY_POS(map, pos) \
-	map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
+#define MAP_GET_TILE_VALUE_BY_POS(map, pos) map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
 
-#define MAP_ARE_SAME_TILE(one_position, other_position)  \
-	(one_position.tile_x == other_position.tile_x && \
-	 one_position.tile_y == other_position.tile_y && \
+#define MAP_ARE_SAME_TILE(one_position, other_position)                                                  \
+	(one_position.tile_x == other_position.tile_x && one_position.tile_y == other_position.tile_y && \
 	 one_position.tile_z == other_position.tile_z)
 
 #define MAX_MOUSE_BUTTONS 5
@@ -337,9 +335,8 @@ typedef struct ReadFileResult {
 
 #define FILE_READ_DEBUG(name) ReadFileResult name(const char *const filename, ThreadContext *thread)
 #define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
-#define FILE_WRITE_DEBUG(name)                                                    \
-	uint8_t name(const char *const filename, size_t memorysize, void *memory, \
-	             ThreadContext *thread)
+#define FILE_WRITE_DEBUG(name) \
+	uint8_t name(const char *const filename, size_t memorysize, void *memory, ThreadContext *thread)
 
 typedef FILE_READ_DEBUG(file_read_debug_func);
 
@@ -428,14 +425,12 @@ static inline ChunkPosition map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y, 
 	return result;
 }
 
-static inline TileChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y,
-                                       uint32_t chunk_z)
+static inline TileChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y, uint32_t chunk_z)
 {
 	TileChunk *result = nullptr;
 
 	if (chunk_x < MAP_SIDE_X_CHK && chunk_y < MAP_SIDE_Y_CHK && chunk_z < MAP_SIDE_Z_CHK) {
-		result =
-			&map->chunks[chunk_z * MAP_SIZE_XY_CHK + chunk_y * MAP_SIDE_X_CHK + chunk_x];
+		result = &map->chunks[chunk_z * MAP_SIZE_XY_CHK + chunk_y * MAP_SIDE_X_CHK + chunk_x];
 	}
 
 	return result;
@@ -450,8 +445,7 @@ static inline TileChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chun
  * @param tile_z
  * @return uint32_t
  */
-static inline uint32_t map_get_tile_value(Map *map, uint32_t tile_x, uint32_t tile_y,
-                                          uint32_t tile_z)
+static inline uint32_t map_get_tile_value(Map *map, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
 {
 	uint32_t tile_value = 0;
 
@@ -491,8 +485,8 @@ static uint8_t map_is_point_walkable(Map *map, Position pos)
 	return is_walkable;
 }
 
-static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t tile_y,
-                               uint32_t tile_z, uint32_t tile_value)
+static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z,
+                               uint32_t tile_value)
 {
 	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
 	TileChunk *tilechunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
@@ -543,13 +537,11 @@ static PositionDelta position_substract(Position *start_position, Position *end_
 /**
  * @brief Updates the game status and renders it
  */
-#define GAME_UPDATE_AND_RENDER(name)                                                         \
-	void name(GameOffscreenBuffer *back_buffer, ThreadContext *thread, Storage *Storage, \
-	          GameInput *input)
+#define GAME_UPDATE_AND_RENDER(name) \
+	void name(GameOffscreenBuffer *back_buffer, ThreadContext *thread, Storage *Storage, GameInput *input)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 
-#define SOUND_CREATE_SAMPLES(name) \
-	void name(GameSoundBuffer *soundbuff, ThreadContext *thread, Storage *memory)
+#define SOUND_CREATE_SAMPLES(name) void name(GameSoundBuffer *soundbuff, ThreadContext *thread, Storage *memory)
 typedef SOUND_CREATE_SAMPLES(sound_create_samples_func);
 
 #endif // GAME_H

@@ -74,9 +74,8 @@ static constexpr float PIE = 3.14159265359F;
 /**
  * @brief Checks if an index is between start and end indexes in a ring buffer
  */
-#define RING_BETWEEN(start, end, test)                               \
-	((end) >= (start) ? ((test) >= (start) && (test) <= (end)) : \
-	                    ((test) >= (start) || (test) <= (end)))
+#define RING_BETWEEN(start, end, test) \
+	((end) >= (start) ? ((test) >= (start) && (test) <= (end)) : ((test) >= (start) || (test) <= (end)))
 
 // Defines what is the minimum priority of a message to be logged.
 // Anything with higher priority is going to be logged.
@@ -102,25 +101,24 @@ static constexpr float PIE = 3.14159265359F;
 #define LIB_LOG_WRITE(fmt, ...) printf(fmt __VA_OPT__(, ) __VA_ARGS__)
 #endif
 
-#define LIB_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                     \
-	do {                                                                                    \
-		char _pr_tstamp_str[LIB_LOG_TSTAMP_BUF_SIZE];                                   \
-		struct timespec _pr_ts;                                                         \
-		struct tm _pr_tm;                                                               \
-                                                                                                \
-		if (!timespec_get(&_pr_ts, TIME_UTC)) {                                         \
-			break;                                                                  \
-		}                                                                               \
-		if (gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                        \
-			break;                                                                  \
-		}                                                                               \
-		if (strftime(_pr_tstamp_str, LIB_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm) == 0) { \
-			break;                                                                  \
-		}                                                                               \
-                                                                                                \
-		LIB_LOG_WRITE("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str,   \
-		              _pr_ts.tv_nsec, file_name, func_name,                             \
-		              STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);                   \
+#define LIB_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                                   \
+	do {                                                                                                  \
+		char _pr_tstamp_str[LIB_LOG_TSTAMP_BUF_SIZE];                                                 \
+		struct timespec _pr_ts;                                                                       \
+		struct tm _pr_tm;                                                                             \
+                                                                                                              \
+		if (!timespec_get(&_pr_ts, TIME_UTC)) {                                                       \
+			break;                                                                                \
+		}                                                                                             \
+		if (gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                                      \
+			break;                                                                                \
+		}                                                                                             \
+		if (strftime(_pr_tstamp_str, LIB_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm) == 0) {               \
+			break;                                                                                \
+		}                                                                                             \
+                                                                                                              \
+		LIB_LOG_WRITE("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str, _pr_ts.tv_nsec, \
+		              file_name, func_name, STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);           \
 	} while (false)
 
 #define LIB_LOG_MSG_NOOP(...) ((void)0)
@@ -173,9 +171,8 @@ static constexpr float PIE = 3.14159265359F;
 #define LIB_LOGF(fmt, ...) LIB_LOG_MSG_NOOP()
 #endif // LIB_LOGF
 
-static void string_concat(const size_t one_count, const char *const restrict one,
-                          const size_t other_count, const char *const restrict other,
-                          const size_t destsize, char *const restrict dest)
+static void string_concat(const size_t one_count, const char *const restrict one, const size_t other_count,
+                          const char *const restrict other, const size_t destsize, char *const restrict dest)
 {
 	for (unsigned i = 0; i < one_count; ++i) {
 		dest[i] = one[i];
@@ -261,7 +258,7 @@ typedef struct BitScanResult {
  * @param index
  * @return uint8_t Non zero value if a non-zero value was found, 0 otherwise
  */
-BitScanResult bit_find_least_significant_set_bit(uint32_t value)
+BitScanResult uint_find_least_significant_set_bit(uint32_t value)
 {
 	BitScanResult result = {};
 
@@ -284,14 +281,12 @@ BitScanResult bit_find_least_significant_set_bit(uint32_t value)
 /**
  * @brief Vector in plane
  */
-typedef struct Vtwo {
-	union {
-		struct {
-			float x;
-			float y;
-		};
-		float e[2];
+typedef union Vtwo {
+	struct {
+		float x;
+		float y;
 	};
+	float e[2];
 } Vtwo;
 
 /**
