@@ -5,11 +5,16 @@ set "BuildMode=debug"
 set "Architecture=x64"
 set "LiveBuild=0"
 
-if not ""%1""=="""" (
-    if /i ""%1""=="/m" set "BuildMode=%2"
-    if /i ""%1""=="/a" set "Architecture=%2"
-    if /i ""%1""=="/lb" set "LiveBuild=1"
-)
+:parse_args
+
+if "%~1"=="" goto :done_args
+if /i "%~1"=="/m"  ( set "BuildMode=%~2"    & shift & shift & goto :parse_args )
+if /i "%~1"=="/a"  ( set "Architecture=%~2" & shift & shift & goto :parse_args )
+if /i "%~1"=="/lb" ( set "LiveBuild=1"       & shift        & goto :parse_args )
+shift
+goto :parse_args
+
+:done_args
 
 set "GameFileName=game"
 set "PlatformFileName=win_handmade"
@@ -68,16 +73,13 @@ if "%BuildMode%"=="debug" (
     echo Building in RELEASE mode...
 )
 
-setlocal enabledelayedexpansion
-for /f %%R in ('powershell -Command "Get-Random -Minimum 0 -Maximum 99999"') do set "random=%%R"
-
-set "GameFlags=!Flags! -Wl,/MAP:%Outdir%/%GameFileName%.map,/MAPINFO:EXPORTS -Wl,/EXPORT:sound_create_samples -Wl,/EXPORT:game_update_and_render -Wl,/PDB:%Outdir%/game_!random!.pdb -shared"
+set "GameFlags=!Flags! -Wl,/MAP:%Outdir%/%GameFileName%.map,/MAPINFO:EXPORTS -Wl,/EXPORT:sound_create_samples -Wl,/EXPORT:game_update_and_render -Wl,/PDB:%Outdir%/game_%random%.pdb -shared"
 
 echo Building game dll...
 echo.
 echo clang !GameFlags! %GameFilePath% -o %OutGame%
 echo.
-echo Waiting for pdb file > "%Outdir%\lock.tmp"
+echo Waiting for pdb file>"%Outdir%\lock.tmp"
 echo.
 
 clang !GameFlags! %GameFilePath% -o %OutGame%

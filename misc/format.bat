@@ -1,10 +1,11 @@
 @echo off
 
-setlocal enabledelayedexpansion
+echo -------
+echo -------
 
 set Wildcard=*.h *.c
 
-for /r . %%f in (!Wildcard!) do (
+for /r . %%f in (%Wildcard%) do (
     echo Formatting %%~nxf
     clang-format -i "%%f"
 )
