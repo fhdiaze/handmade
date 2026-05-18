@@ -892,9 +892,9 @@ static void win_bitmap_draw_vertical_debug(WinOffscreenBuffer *bitmap, unsigned 
 	}
 }
 
-static inline void offscreen_draw_sound_mark_debug(WinOffscreenBuffer *back_buffer, WinSoundOutput *soundout,
-                                                       float pixels_per_byte, unsigned pad_x, unsigned top,
-                                                       unsigned bottom, unsigned value, uint32_t color)
+static inline void winoffs_draw_sound_mark_debug(WinOffscreenBuffer *back_buffer, WinSoundOutput *soundout,
+                                                 float pixels_per_byte, unsigned pad_x, unsigned top, unsigned bottom,
+                                                 unsigned value, uint32_t color)
 {
 	assert(value < soundout->buffsize);
 	unsigned x = pad_x + (unsigned)(pixels_per_byte * (float)value);
@@ -938,43 +938,42 @@ static void win_offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer,
 
 			first_top = top;
 
-			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-			                                    current_mark.output_play_cursor, play_color);
-			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-			                                    current_mark.output_write_cursor, write_color);
+			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			                              current_mark.output_play_cursor, play_color);
+			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			                              current_mark.output_write_cursor, write_color);
 
 			top += pad_y + line_height;
 			bottom += pad_y + line_height;
 
-			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-			                                    current_mark.output_location, play_color);
-			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-			                                    RING_ADD(winsound->buffsize, current_mark.output_location,
-			                                             current_mark.output_byte_count),
-			                                    write_color);
+			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			                              current_mark.output_location, play_color);
+			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			                              RING_ADD(winsound->buffsize, current_mark.output_location,
+			                                       current_mark.output_byte_count),
+			                              write_color);
 
 			top += pad_y + line_height;
 			bottom += pad_y + line_height;
 
-			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, first_top,
-			                                    bottom, current_mark.frame_flip_byte,
-			                                    frame_flip_byte_color);
+			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, first_top, bottom,
+			                              current_mark.frame_flip_byte, frame_flip_byte_color);
 		}
 
-		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-		                                    current_mark.flip_play_cursor, play_color);
+		winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+		                              current_mark.flip_play_cursor, play_color);
 
-		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-		                                    RING_SUB(winsound->buffsize, current_mark.flip_play_cursor,
-		                                             480 * winsound->bytes_per_sample),
-		                                    play_window_color);
-		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-		                                    RING_ADD(winsound->buffsize, current_mark.flip_play_cursor,
-		                                             480 * winsound->bytes_per_sample),
-		                                    play_window_color);
+		winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+		                              RING_SUB(winsound->buffsize, current_mark.flip_play_cursor,
+		                                       480 * winsound->bytes_per_sample),
+		                              play_window_color);
+		winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+		                              RING_ADD(winsound->buffsize, current_mark.flip_play_cursor,
+		                                       480 * winsound->bytes_per_sample),
+		                              play_window_color);
 
-		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-		                                    current_mark.flip_write_cursor, write_color);
+		winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+		                              current_mark.flip_write_cursor, write_color);
 	}
 }
 
