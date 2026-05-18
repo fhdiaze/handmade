@@ -4,11 +4,11 @@
         {
             "label": "build-x64",
             "type": "shell",
-            "command": ".\\misc\\build.ps1",
+            "command": ".\\misc\\build.bat",
             "args": [
-                "-m",
+                "/m",
                 "debug",
-                "-Architecture",
+                "/Architecture",
                 "x64"
             ],
             "group": {
@@ -22,11 +22,11 @@
         {
             "label": "build-x86",
             "type": "shell",
-            "command": ".\\misc\\build.ps1",
+            "command": ".\\misc\\build.bat",
             "args": [
-                "-m",
+                "/m",
                 "debug",
-                "-Architecture",
+                "/Architecture",
                 "x86"
             ],
             "group": "build",
