@@ -920,43 +920,43 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		if (controller->is_analog) {
 		} else {
-			Vtwo player_speed_mps = {
+			Vtwo player_direction = {
 				.x = 0.0F,
 				.y = 0.0F,
 			};
 
 			if (controller->moveup.ended_down) {
 				game_state->hero_facing_direction = 1;
-				player_speed_mps.y = 1.0F;
+				player_direction.y = 1.0F;
 			}
 
 			if (controller->movedown.ended_down) {
 				game_state->hero_facing_direction = 3;
-				player_speed_mps.y = -1.0F;
+				player_direction.y = -1.0F;
 			}
 
 			if (controller->moveleft.ended_down) {
 				game_state->hero_facing_direction = 2;
-				player_speed_mps.x = -1.0F;
+				player_direction.x = -1.0F;
 			}
 
 			if (controller->moveright.ended_down) {
 				game_state->hero_facing_direction = 0;
-				player_speed_mps.x = 1.0F;
+				player_direction.x = 1.0F;
 			}
 
-			float player_speed = 2.0F;
+			float player_speed_magnitude = 2.0F;
 			if (controller->actionup.ended_down) {
-				player_speed = 10.0F;
+				player_speed_magnitude = 10.0F;
 			}
 
-			player_speed_mps = vtwo_scale(player_speed_mps, player_speed);
+			Vtwo player_speed = vtwo_scale(player_direction, player_speed_magnitude);
 
-			if (player_speed_mps.x != 0.0F && player_speed_mps.y != 0.0F) {
-				player_speed_mps = vtwo_scale(player_speed_mps, 0.707106781187F);
+			if (player_direction.x != 0.0F && player_direction.y != 0.0F) {
+				player_speed = vtwo_scale(player_speed, 0.707106781187F);
 			}
 
-			Vtwo player_delta = vtwo_scale(player_speed_mps, input->secs_time_delta);
+			Vtwo player_delta = vtwo_scale(player_speed, input->secs_time_delta);
 
 			Vtwo new_player_tile_position = vtwo_add(game_state->hero_position.offset_m, player_delta);
 
