@@ -8,13 +8,35 @@ set "LiveBuild=0"
 :parse_args
 
 if "%~1"=="" goto :done_args
-if /i "%~1"=="/m"  ( set "BuildMode=%~2"    & shift & shift & goto :parse_args )
-if /i "%~1"=="/a"  ( set "Architecture=%~2" & shift & shift & goto :parse_args )
-if /i "%~1"=="/lb" ( set "LiveBuild=1"       & shift        & goto :parse_args )
+if /i "%~1"=="/m" (
+    if "%~2"=="" (
+        echo Error: /m requires a value. & exit /b 1
+    )
+    set "BuildMode=%~2" & shift & shift & goto :parse_args
+)
+if /i "%~1"=="/a" (
+    if "%~2"=="" (
+        echo Error: /a requires a value. & exit /b 1
+    )
+    set "Architecture=%~2" & shift & shift & goto :parse_args
+)
+if /i "%~1"=="/lb" (
+    set "LiveBuild=1"       & shift        & goto :parse_args
+)
 shift
 goto :parse_args
 
 :done_args
+
+if /i not "%BuildMode%"=="debug" if /i not "%BuildMode%"=="release" (
+    echo Error: Invalid build mode "%BuildMode%". Must be "debug" or "release".
+    exit /b 1
+)
+
+if /i not "%Architecture%"=="x86" if /i not "%Architecture%"=="x64" (
+    echo Error: Invalid architecture "%Architecture%". Must be "x86" or "x64".
+    exit /b 1
+)
 
 set "GameFileName=game"
 set "PlatformFileName=win_handmade"
