@@ -68,7 +68,7 @@ if not exist "%Datadir%" (
     del /q "%Datadir%\log.txt" 2>nul
 )
 
-:: Read flags from file
+REM Read flags from file
 setlocal enabledelayedexpansion
 set "Flags="
 for /f "tokens=*" %%A in (compile_flags.txt) do (

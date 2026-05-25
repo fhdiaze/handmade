@@ -241,6 +241,11 @@ inline float float_floor(float value)
 	return floorf(value);
 }
 
+inline float float_square(float value)
+{
+	return value * value;
+}
+
 inline unsigned int_abs(int value)
 {
 	return (unsigned)(value < 0 ? -value : value);

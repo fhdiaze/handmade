@@ -291,6 +291,9 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		game_state->camera_position.offset_m.x = 0.0F;
 		game_state->camera_position.offset_m.y = 0.0F;
 
+		game_state->player_speed.x = 0.0F;
+		game_state->player_speed.y = 0.0F;
+
 		size_t game_state_size = sizeof(*game_state);
 		arena_init(&game_state->arena, Storage->permanent_storage_size_byte - game_state_size,
 		           (unsigned char *)Storage->permanent_storage + game_state_size);
@@ -920,45 +923,49 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		if (controller->is_analog) {
 		} else {
-			Vtwo player_direction = {
-				.x = 0.0F,
-				.y = 0.0F,
-			};
+			Vtwo player_acceleration_direction = {};
 
 			if (controller->moveup.ended_down) {
 				game_state->hero_facing_direction = 1;
-				player_direction.y = 1.0F;
+				player_acceleration_direction.y = 1.0F;
 			}
 
 			if (controller->movedown.ended_down) {
 				game_state->hero_facing_direction = 3;
-				player_direction.y = -1.0F;
+				player_acceleration_direction.y = -1.0F;
 			}
 
 			if (controller->moveleft.ended_down) {
 				game_state->hero_facing_direction = 2;
-				player_direction.x = -1.0F;
+				player_acceleration_direction.x = -1.0F;
 			}
 
 			if (controller->moveright.ended_down) {
 				game_state->hero_facing_direction = 0;
-				player_direction.x = 1.0F;
+				player_acceleration_direction.x = 1.0F;
 			}
 
-			float player_speed_magnitude = 2.0F;
+			float player_acceleration_norm = 10.0F;
 			if (controller->actionup.ended_down) {
-				player_speed_magnitude = 10.0F;
+				player_acceleration_norm = 50.0F;
 			}
 
-			Vtwo player_speed = vtwo_scale(player_direction, player_speed_magnitude);
-
-			if (player_direction.x != 0.0F && player_direction.y != 0.0F) {
-				player_speed = vtwo_scale(player_speed, 0.707106781187F);
+			Vtwo player_acceleration = vtwo_scale(player_acceleration_direction, player_acceleration_norm);
+			if (player_acceleration_direction.x != 0.0F && player_acceleration_direction.y != 0.0F) {
+				player_acceleration = vtwo_scale(player_acceleration, 0.707106781187F);
 			}
 
-			Vtwo player_delta = vtwo_scale(player_speed, input->secs_time_delta);
+			player_acceleration = vtwo_sub(player_acceleration, vtwo_scale(game_state->player_speed, 1.5F));
 
-			Vtwo new_player_tile_position = vtwo_add(game_state->hero_position.offset_m, player_delta);
+			Vtwo new_player_speed = vtwo_add(vtwo_scale(player_acceleration, input->time_delta_sec),
+			                                 game_state->player_speed);
+			float time_delta_sec_squared = float_square(input->time_delta_sec);
+			Vtwo component_one = vtwo_scale(player_acceleration, 0.5F * time_delta_sec_squared);
+			Vtwo component_two = vtwo_scale(new_player_speed, input->time_delta_sec);
+			Vtwo player_delta_m = vtwo_add(component_one, component_two);
+
+			Vtwo new_player_tile_position = vtwo_add(game_state->hero_position.offset_m, player_delta_m);
+			game_state->player_speed = new_player_speed;
 
 			Position new_player_map_position = game_state->hero_position;
 			new_player_map_position.offset_m = new_player_tile_position;

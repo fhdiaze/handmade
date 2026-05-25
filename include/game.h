@@ -196,7 +196,7 @@ typedef struct GameInput {
 	unsigned mouse_y;
 	unsigned mouse_z; // mouse wheel
 
-	float secs_time_delta;
+	float time_delta_sec;
 
 	union {
 		ButtonState mouse_buttons[MAX_MOUSE_BUTTONS];
@@ -256,8 +256,10 @@ typedef struct Arena {
 typedef struct GameState {
 	Arena arena;
 	World *world;
+
 	Position camera_position;
 	Position hero_position;
+	Vtwo player_speed;
 
 	LoadedBitmap backdrop;
 

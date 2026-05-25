@@ -1159,7 +1159,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 	size_t last_cycle_count = __rdtsc();
 	while (g_is_running) {
 		OutputDebugStringA("LPCSTR lpOutputString");
-		new_input->secs_time_delta = target_secs_per_frame;
+		new_input->time_delta_sec = target_secs_per_frame;
 
 		if (win_file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
 		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&
