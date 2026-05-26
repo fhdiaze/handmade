@@ -113,7 +113,7 @@ typedef struct Position {
 	/**
 	 * @brief Offset vector relative to the center of the tile in meters
 	 */
-	Vtwo offset_m;
+	Vtwo tile_offset_m;
 } Position;
 
 typedef struct PositionDelta {
@@ -259,7 +259,7 @@ typedef struct GameState {
 
 	Position camera_position;
 	Position hero_position;
-	Vtwo player_speed;
+	Vtwo player_velocity;
 
 	LoadedBitmap backdrop;
 
@@ -468,12 +468,12 @@ static inline uint32_t map_get_tile_value(Map *map, uint32_t tile_x, uint32_t ti
 
 static uint8_t map_correct_position(Position *pos)
 {
-	uint8_t was_success = map_correct_coord(&pos->tile_x, &pos->offset_m.x);
+	uint8_t was_success = map_correct_coord(&pos->tile_x, &pos->tile_offset_m.x);
 	if (!was_success) {
 		return was_success;
 	}
 
-	was_success = map_correct_coord(&pos->tile_y, &pos->offset_m.y);
+	was_success = map_correct_coord(&pos->tile_y, &pos->tile_offset_m.y);
 
 	return was_success;
 }
@@ -527,7 +527,7 @@ static PositionDelta position_substract(Position *start_position, Position *end_
 
 	Vtwo delta_xy_m = vtwo_scale(delta_xy_tile, TILE_SIDE_M);
 
-	Vtwo delta_tile_offset_m = vtwo_sub(end_position->offset_m, start_position->offset_m);
+	Vtwo delta_tile_offset_m = vtwo_sub(end_position->tile_offset_m, start_position->tile_offset_m);
 	delta_xy_m = vtwo_add(delta_xy_m, delta_tile_offset_m);
 
 	result.delta_xy_m = delta_xy_m;

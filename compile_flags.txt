@@ -24,7 +24,12 @@
 -Wpedantic
 -Wstrict-overflow=2
 -Wredundant-decls
+-Wenum-conversion
+-Wassign-enum
+-Wenum-compare
+-Wenum-float-conversion
+-Wanon-enum-enum-conversionae
 -fuse-ld=lld
--I./include
 -D_CRT_SECURE_NO_WARNINGS
 -Wl,/INCREMENTAL:NO
+-I./include
