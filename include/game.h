@@ -259,7 +259,7 @@ typedef struct GameState {
 
 	Position camera_position;
 	Position hero_position;
-	Vtwo player_velocity;
+	Vtwo hero_velocity;
 
 	LoadedBitmap backdrop;
 
@@ -399,17 +399,29 @@ static inline ControllerState *input_get_controller(GameInput *input, size_t con
 
 // Game services
 
-static inline uint8_t map_correct_coord(uint32_t *tile, float *tile_rel)
+/**
+ * @brief Normalizes a single axis coordinate so the tile offset stays within [-TILE_RADIUS_M, TILE_RADIUS_M].
+ *
+ * Converts any whole-tile excess in @p tile_offset_f into discrete tile steps and adds them to @p tile.
+ * The world is toroidal, so tile indices wrap around without bounds checking.
+ *
+ * @param tile          Pointer to the tile index on one axis. Updated in place by the number of whole tiles
+ *                      spanned by the offset.
+ * @param tile_offset_f Pointer to the sub-tile offset in meters from the center of the tile. Reduced in place
+ *                      to the remainder after whole tiles are extracted.
+ * @return Always 1 (success).
+ */
+static inline uint32_t map_normalize_coord(uint32_t *tile, float *tile_offset_f)
 {
-	int tile_offset = float_round_to_int(*tile_rel / TILE_SIDE_M);
+	int tile_offset = float_round_to_int(*tile_offset_f / TILE_SIDE_M);
 
 	// World is toroidal
 	*tile = (unsigned)((int)*tile + tile_offset);
 
-	*tile_rel -= (float)(tile_offset)*TILE_SIDE_M;
+	*tile_offset_f -= (float)(tile_offset)*TILE_SIDE_M;
 
-	assert(*tile_rel <= TILE_RADIUS_M);
-	assert(*tile_rel >= -TILE_RADIUS_M);
+	assert(*tile_offset_f <= TILE_RADIUS_M);
+	assert(*tile_offset_f >= -TILE_RADIUS_M);
 
 	return 1U;
 }
@@ -466,23 +478,32 @@ static inline uint32_t map_get_tile_value(Map *map, uint32_t tile_x, uint32_t ti
 	return tile_value;
 }
 
-static uint8_t map_correct_position(Position *pos)
+/**
+ * @brief Normalizes a full 2D map position so both axis offsets stay within [-TILE_RADIUS_M, TILE_RADIUS_M].
+ *
+ * Calls map_normalize_coord on the x and y axes in sequence. Any whole-tile excess in the tile offsets is
+ * folded back into the discrete tile indices. The z axis and tile_z are left unchanged.
+ *
+ * @param pos Position to normalize in place.
+ * @return 1 on success, 0 if normalization of either axis fails.
+ */
+static uint32_t map_normalize_position(Position *pos)
 {
-	uint8_t was_success = map_correct_coord(&pos->tile_x, &pos->tile_offset_m.x);
+	uint32_t was_success = map_normalize_coord(&pos->tile_x, &pos->tile_offset_m.x);
 	if (!was_success) {
 		return was_success;
 	}
 
-	was_success = map_correct_coord(&pos->tile_y, &pos->tile_offset_m.y);
+	was_success = map_normalize_coord(&pos->tile_y, &pos->tile_offset_m.y);
 
 	return was_success;
 }
 
-static uint8_t map_is_point_walkable(Map *map, Position pos)
+static uint32_t map_is_point_walkable(Map *map, Position pos)
 {
 	uint32_t tile_value = map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
-	uint8_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
-	                      tile_value == TILE_TYPE_STAIRS_DOWN;
+	uint32_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
+	                       tile_value == TILE_TYPE_STAIRS_DOWN;
 
 	return is_walkable;
 }

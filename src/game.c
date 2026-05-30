@@ -291,8 +291,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		game_state->camera_position.tile_offset_m.x = 0.0F;
 		game_state->camera_position.tile_offset_m.y = 0.0F;
 
-		game_state->player_velocity.x = 0.0F;
-		game_state->player_velocity.y = 0.0F;
+		game_state->hero_velocity.x = 0.0F;
+		game_state->hero_velocity.y = 0.0F;
 
 		size_t game_state_size = sizeof(*game_state);
 		arena_init(&game_state->arena, Storage->permanent_storage_size_byte - game_state_size,
@@ -923,111 +923,142 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		if (controller->is_analog) {
 		} else {
-			Vtwo player_acceleration_direction = {};
+			Vtwo hero_acceleration_direction = {};
 
 			if (controller->moveup.ended_down) {
 				game_state->hero_facing_direction = 1;
-				player_acceleration_direction.y = 1.0F;
+				hero_acceleration_direction.y = 1.0F;
 			}
 
 			if (controller->movedown.ended_down) {
 				game_state->hero_facing_direction = 3;
-				player_acceleration_direction.y = -1.0F;
+				hero_acceleration_direction.y = -1.0F;
 			}
 
 			if (controller->moveleft.ended_down) {
 				game_state->hero_facing_direction = 2;
-				player_acceleration_direction.x = -1.0F;
+				hero_acceleration_direction.x = -1.0F;
 			}
 
 			if (controller->moveright.ended_down) {
 				game_state->hero_facing_direction = 0;
-				player_acceleration_direction.x = 1.0F;
+				hero_acceleration_direction.x = 1.0F;
 			}
 
-			float player_acceleration_norm = 10.0F;
+			float hero_acceleration_norm = 10.0F;
 			if (controller->actionup.ended_down) {
-				player_acceleration_norm = 50.0F;
+				hero_acceleration_norm = 50.0F;
 			}
 
-			Vtwo player_acceleration = vtwo_scale(player_acceleration_direction, player_acceleration_norm);
-			if (player_acceleration_direction.x != 0.0F && player_acceleration_direction.y != 0.0F) {
-				player_acceleration = vtwo_scale(player_acceleration, 0.707106781187F);
+			Vtwo hero_acceleration = vtwo_scale(hero_acceleration_direction, hero_acceleration_norm);
+			if (hero_acceleration_direction.x != 0.0F && hero_acceleration_direction.y != 0.0F) {
+				hero_acceleration = vtwo_scale(hero_acceleration, 0.707106781187F);
 			}
 
-			player_acceleration =
-				vtwo_sub(player_acceleration, vtwo_scale(game_state->player_velocity, 1.5F));
+			hero_acceleration = vtwo_sub(hero_acceleration, vtwo_scale(game_state->hero_velocity, 1.5F));
 
-			Vtwo new_player_velocity = vtwo_add(vtwo_scale(player_acceleration, input->time_delta_sec),
-			                                    game_state->player_velocity);
 			float time_delta_sec_squared = float_square(input->time_delta_sec);
-			Vtwo acceleration_displacement = vtwo_scale(player_acceleration, 0.5F * time_delta_sec_squared);
-			Vtwo velocity_displacement = vtwo_scale(new_player_velocity, input->time_delta_sec);
+			Vtwo acceleration_displacement = vtwo_scale(hero_acceleration, 0.5F * time_delta_sec_squared);
+			Vtwo velocity_displacement = vtwo_scale(game_state->hero_velocity, input->time_delta_sec);
 
-			Vtwo player_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
+			Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
 
 			// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
-			Vtwo new_player_tile_offset =
-				vtwo_add(game_state->hero_position.tile_offset_m, player_displacement);
-			game_state->player_velocity = new_player_velocity;
+			Position hero_position = game_state->hero_position;
+			hero_position.tile_offset_m = vtwo_add(hero_position.tile_offset_m, hero_displacement);
+			game_state->hero_velocity = vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec),
+			                                     game_state->hero_velocity);
 
-			Position new_player_map_position = game_state->hero_position;
-			new_player_map_position.tile_offset_m = new_player_tile_offset;
-
-			if (!map_correct_position(&new_player_map_position)) {
+			if (!map_normalize_position(&hero_position)) {
 				continue;
 			}
 
-			Position left_bottom_pos = new_player_map_position;
+			Position left_bottom_pos = hero_position;
 			left_bottom_pos.tile_offset_m.x -= player_width_m * 0.5F;
-			if (!map_correct_position(&left_bottom_pos)) {
+			if (!map_normalize_position(&left_bottom_pos)) {
 				continue;
 			}
 
-			Position right_bottom_pos = new_player_map_position;
+			Position right_bottom_pos = hero_position;
 			right_bottom_pos.tile_offset_m.x += player_width_m * 0.5F;
-			if (!map_correct_position(&right_bottom_pos)) {
+			if (!map_normalize_position(&right_bottom_pos)) {
 				continue;
 			}
 
-			if (map_is_point_walkable(map, new_player_map_position) &&
-			    map_is_point_walkable(map, left_bottom_pos) &&
-			    map_is_point_walkable(map, right_bottom_pos)) {
-				if (!MAP_ARE_SAME_TILE(new_player_map_position, game_state->hero_position)) {
-					uint32_t tile_value = MAP_GET_TILE_VALUE_BY_POS(map, new_player_map_position);
+			uint32_t collided = 0U;
+			Position collision_position = {};
+
+			if (!map_is_point_walkable(map, hero_position)) {
+				collision_position = hero_position;
+				collided = 1U;
+			}
+
+			if (!map_is_point_walkable(map, left_bottom_pos)) {
+				collision_position = left_bottom_pos;
+				collided = 1U;
+			}
+
+			if (!map_is_point_walkable(map, right_bottom_pos)) {
+				collision_position = right_bottom_pos;
+				collided = 1U;
+			}
+
+			if (collided) {
+				Vtwo r = {};
+
+				if (collision_position.tile_x < game_state->hero_position.tile_x) {
+					r = (Vtwo){ .x = 1.0F, .y = 0.0F };
+				}
+
+				if (collision_position.tile_x > game_state->hero_position.tile_x) {
+					r = (Vtwo){ .x = -1.0F, .y = 0.0F };
+				}
+
+				if (collision_position.tile_y < game_state->hero_position.tile_y) {
+					r = (Vtwo){ .x = 0.0F, .y = 1.0F };
+				}
+
+				if (collision_position.tile_y > game_state->hero_position.tile_y) {
+					r = (Vtwo){ .x = 0.0F, .y = -1.0F };
+				}
+
+				float speed_on_r_axis = vtwo_dot(game_state->hero_velocity, r);
+				Vtwo v_towards_r_axis = vtwo_scale(r, speed_on_r_axis);
+				game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, v_towards_r_axis);
+			} else {
+				if (!MAP_ARE_SAME_TILE(hero_position, game_state->hero_position)) {
+					uint32_t tile_value = MAP_GET_TILE_VALUE_BY_POS(map, hero_position);
 					if (tile_value == TILE_TYPE_STAIRS_UP) {
-						++new_player_map_position.tile_z;
+						++hero_position.tile_z;
 					} else if (tile_value == TILE_TYPE_STAIRS_DOWN) {
-						--new_player_map_position.tile_z;
+						--hero_position.tile_z;
 					}
 				}
 
-				game_state->hero_position = new_player_map_position;
-
-				PositionDelta delta =
-					position_substract(&game_state->camera_position, &new_player_map_position);
-
-				if (delta.delta_xy_m.x <= -9.0F * TILE_SIDE_M) {
-					game_state->camera_position.tile_x -= 17;
-				}
-
-				if (delta.delta_xy_m.y <= -5.0F * TILE_SIDE_M) {
-					game_state->camera_position.tile_y -= 9;
-				}
-
-				if (delta.delta_xy_m.x >= 9.0F * TILE_SIDE_M) {
-					game_state->camera_position.tile_x += 17;
-				}
-
-				if (delta.delta_xy_m.y >= 5.0F * TILE_SIDE_M) {
-					game_state->camera_position.tile_y += 9;
-				}
-
-				game_state->camera_position.tile_z = new_player_map_position.tile_z;
-			} else {
-				continue;
+				game_state->hero_position = hero_position;
 			}
+
+			PositionDelta delta = position_substract(&game_state->camera_position, &hero_position);
+
+			if (delta.delta_xy_m.x <= -9.0F * TILE_SIDE_M) {
+				game_state->camera_position.tile_x -= 17;
+			}
+
+			if (delta.delta_xy_m.y <= -5.0F * TILE_SIDE_M) {
+				game_state->camera_position.tile_y -= 9;
+			}
+
+			if (delta.delta_xy_m.x >= 8.0F * TILE_SIDE_M) {
+				game_state->camera_position.tile_x += 17;
+			}
+
+			if (delta.delta_xy_m.y >= 5.0F * TILE_SIDE_M) {
+				game_state->camera_position.tile_y += 9;
+			}
+
+			game_state->camera_position.tile_z = hero_position.tile_z;
 		}
+
 		// Render the background
 #if 1
 		offscreen_render_bitmap(back_buffer, 0.0F, 0.0F, &game_state->backdrop, 0.0F, 0.0F);

@@ -449,4 +449,18 @@ inline Vtwo vtwo_add_scalar(Vtwo a, float s)
 	return result;
 }
 
+/**
+ * @brief Calculates the dot product between two bidimensional vectors
+ *
+ * @param a One vector
+ * @param b Other vector
+ * @return float The dot product a . b
+ */
+inline float vtwo_dot(Vtwo a, Vtwo b)
+{
+	float result = a.x * b.x + a.y * b.y;
+
+	return result;
+}
+
 #endif // LIB_H
