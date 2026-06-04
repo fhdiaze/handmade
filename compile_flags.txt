@@ -1,6 +1,9 @@
 -std=c23
--Wall
 -fbuiltin
+-fuse-ld=lld
+-D_CRT_SECURE_NO_WARNINGS
+
+-Wall
 -Wextra
 -Wsign-compare
 -Wconversion
@@ -29,7 +32,9 @@
 -Wenum-compare
 -Wenum-float-conversion
 -Wanon-enum-enum-conversionae
--fuse-ld=lld
--D_CRT_SECURE_NO_WARNINGS
+
+-Wl,/opt:ref
+-Wl,/opt:icf
 -Wl,/INCREMENTAL:NO
+
 -I./include

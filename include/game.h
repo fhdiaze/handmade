@@ -499,11 +499,18 @@ static uint32_t map_normalize_position(Position *pos)
 	return was_success;
 }
 
+static inline uint32_t map_is_tile_walkable(TileType tile_value)
+{
+	uint32_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
+	                       tile_value == TILE_TYPE_STAIRS_DOWN;
+
+	return is_walkable;
+}
+
 static uint32_t map_is_point_walkable(Map *map, Position pos)
 {
 	uint32_t tile_value = map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
-	uint32_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
-	                       tile_value == TILE_TYPE_STAIRS_DOWN;
+	uint32_t is_walkable = map_is_tile_walkable(tile_value);
 
 	return is_walkable;
 }

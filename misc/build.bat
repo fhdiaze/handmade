@@ -1,4 +1,5 @@
 @echo off
+
 setlocal enabledelayedexpansion
 
 set "BuildMode=debug"
@@ -69,7 +70,6 @@ if not exist "%Datadir%" (
 )
 
 REM Read flags from file
-setlocal enabledelayedexpansion
 set "Flags="
 for /f "tokens=*" %%A in (compile_flags.txt) do (
     set "line=%%A"
