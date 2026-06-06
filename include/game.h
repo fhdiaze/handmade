@@ -43,7 +43,8 @@
 #define MAP_SIZE_XY_CHK (MAP_SIDE_Y_CHK * MAP_SIDE_X_CHK)
 #define MAP_SIZE_CHK (MAP_SIZE_XY_CHK * MAP_SIDE_Z_CHK)
 
-#define MAP_GET_TILE_VALUE_BY_POS(map, pos) map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z)
+#define MAP_GET_TILE_TYPE_BY_POS(map, pos) map_get_tile_type(map, pos.tile_x, pos.tile_y, pos.tile_z)
+#define MAP_IS_POSITION_WALKABLE(map, pos) map_is_tile_walkable(map, pos.tile_x, pos.tile_y, pos.tile_z)
 
 #define MAP_ARE_SAME_TILE(one_position, other_position)                                                  \
 	(one_position.tile_x == other_position.tile_x && one_position.tile_y == other_position.tile_y && \
@@ -459,23 +460,23 @@ static inline TileChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chun
  * @param tile_z
  * @return uint32_t
  */
-static inline uint32_t map_get_tile_value(Map *map, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
+static inline TileType map_get_tile_type(Map *map, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
 {
-	uint32_t tile_value = 0;
+	TileType tile_type = TILE_TYPE_NONE;
 
 	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
 	TileChunk *chunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
 
 	if (!chunk || !chunk->tiles) {
-		return tile_value;
+		return tile_type;
 	}
 
 	assert(cpos.tile_x < CHUNK_SIDE_TL);
 	assert(cpos.tile_y < CHUNK_SIDE_TL);
 
-	tile_value = chunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x];
+	tile_type = chunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x];
 
-	return tile_value;
+	return tile_type;
 }
 
 /**
@@ -499,24 +500,24 @@ static uint32_t map_normalize_position(Position *pos)
 	return was_success;
 }
 
-static inline uint32_t map_is_tile_walkable(TileType tile_value)
+static inline uint32_t tile_is_walkable(TileType tile_type)
 {
-	uint32_t is_walkable = tile_value == TILE_TYPE_EMPTY || tile_value == TILE_TYPE_STAIRS_UP ||
-	                       tile_value == TILE_TYPE_STAIRS_DOWN;
+	uint32_t is_walkable = tile_type == TILE_TYPE_EMPTY || tile_type == TILE_TYPE_STAIRS_UP ||
+	                       tile_type == TILE_TYPE_STAIRS_DOWN;
 
 	return is_walkable;
 }
 
-static uint32_t map_is_point_walkable(Map *map, Position pos)
+static uint32_t map_is_tile_walkable(Map *map, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
 {
-	uint32_t tile_value = map_get_tile_value(map, pos.tile_x, pos.tile_y, pos.tile_z);
-	uint32_t is_walkable = map_is_tile_walkable(tile_value);
+	TileType tile_type = map_get_tile_type(map, tile_x, tile_y, tile_z);
+	uint32_t is_walkable = tile_is_walkable(tile_type);
 
 	return is_walkable;
 }
 
 static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z,
-                               uint32_t tile_value)
+                               TileType tile_type)
 {
 	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
 	TileChunk *tilechunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
@@ -533,7 +534,7 @@ static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t
 	assert(cpos.tile_x < CHUNK_SIDE_TL);
 	assert(cpos.tile_y < CHUNK_SIDE_TL);
 
-	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_value;
+	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_type;
 }
 
 /**

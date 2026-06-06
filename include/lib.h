@@ -377,7 +377,7 @@ inline Vtwo vtwo_add(Vtwo a, Vtwo b)
 }
 
 /**
- * @brief Subtracts vector b from vector b (calculates a - b)
+ * @brief Subtracts vector b from vector a (calculates a - b)
  *
  * @param a The vector to subtract from
  * @param b The vector to subtract from a
@@ -461,6 +461,21 @@ inline float vtwo_dot(Vtwo a, Vtwo b)
 	float result = a.x * b.x + a.y * b.y;
 
 	return result;
+}
+
+/**
+ * @brief Calculates the squared norm (squared length) of a vector
+ *
+ * Avoids a square root; use when only comparing magnitudes.
+ *
+ * @param a A vector
+ * @return float ||a||^2 = a.x^2 + a.y^2
+ */
+inline float vtwo_norm_sq(Vtwo a)
+{
+	float norm_sq = vtwo_dot(a, a);
+
+	return norm_sq;
 }
 
 #endif // LIB_H

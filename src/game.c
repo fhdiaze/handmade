@@ -851,36 +851,36 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 					uint32_t tile_x = screen_x * tiles_per_width + chunk_tile_x;
 					uint32_t tile_y = screen_y * tiles_per_height + chunk_tile_y;
 
-					uint32_t tile_value = TILE_TYPE_EMPTY;
+					uint32_t tile_type = TILE_TYPE_EMPTY;
 					if (chunk_tile_x == 0 &&
 					    (chunk_tile_y != tiles_per_height / 2 || !is_left_door)) {
-						tile_value = TILE_TYPE_WALL;
+						tile_type = TILE_TYPE_WALL;
 					}
 
 					if (chunk_tile_x == tiles_per_width - 1 &&
 					    (chunk_tile_y != tiles_per_height / 2 || !is_right_door)) {
-						tile_value = TILE_TYPE_WALL;
+						tile_type = TILE_TYPE_WALL;
 					}
 
 					if (chunk_tile_y == 0 &&
 					    (chunk_tile_x != tiles_per_width / 2 || !is_bottom_door)) {
-						tile_value = TILE_TYPE_WALL;
+						tile_type = TILE_TYPE_WALL;
 					}
 
 					if (chunk_tile_y == tiles_per_height - 1 &&
 					    (chunk_tile_x != tiles_per_width / 2 || !is_top_door)) {
-						tile_value = TILE_TYPE_WALL;
+						tile_type = TILE_TYPE_WALL;
 					}
 
 					if (chunk_tile_x == 10 && chunk_tile_y == 6 && is_stairs_up) {
-						tile_value = TILE_TYPE_STAIRS_UP;
+						tile_type = TILE_TYPE_STAIRS_UP;
 					}
 
 					if (chunk_tile_x == 10 && chunk_tile_y == 6 && is_stairs_down) {
-						tile_value = TILE_TYPE_STAIRS_DOWN;
+						tile_type = TILE_TYPE_STAIRS_DOWN;
 					}
 
-					map_set_tile_value(map, &game_state->arena, tile_x, tile_y, tile_z, tile_value);
+					map_set_tile_value(map, &game_state->arena, tile_x, tile_y, tile_z, tile_type);
 				}
 			}
 
@@ -926,26 +926,6 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		} else {
 			Vtwo hero_acceleration_direction = {};
 
-			if (controller->moveup.ended_down) {
-				game_state->hero_facing_direction = 1;
-				hero_acceleration_direction.y = 1.0F;
-			}
-
-			if (controller->movedown.ended_down) {
-				game_state->hero_facing_direction = 3;
-				hero_acceleration_direction.y = -1.0F;
-			}
-
-			if (controller->moveleft.ended_down) {
-				game_state->hero_facing_direction = 2;
-				hero_acceleration_direction.x = -1.0F;
-			}
-
-			if (controller->moveright.ended_down) {
-				game_state->hero_facing_direction = 0;
-				hero_acceleration_direction.x = 1.0F;
-			}
-
 			float hero_acceleration_norm = 10.0F;
 			if (controller->actionup.ended_down) {
 				hero_acceleration_norm = 50.0F;
@@ -974,7 +954,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				continue;
 			}
 
-#if 0
+#if 1
 			Position left_bottom_pos = new_hero_position;
 			left_bottom_pos.tile_offset_m.x -= player_width_m * 0.5F;
 			if (!map_normalize_position(&left_bottom_pos)) {
@@ -990,17 +970,17 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			uint32_t collided = 0U;
 			Position collision_position = {};
 
-			if (!map_is_point_walkable(map, new_hero_position)) {
+			if (!MAP_IS_POSITION_WALKABLE(map, new_hero_position)) {
 				collision_position = new_hero_position;
 				collided = 1U;
 			}
 
-			if (!map_is_point_walkable(map, left_bottom_pos)) {
+			if (!MAP_IS_POSITION_WALKABLE(map, left_bottom_pos)) {
 				collision_position = left_bottom_pos;
 				collided = 1U;
 			}
 
-			if (!map_is_point_walkable(map, right_bottom_pos)) {
+			if (!MAP_IS_POSITION_WALKABLE(map, right_bottom_pos)) {
 				collision_position = right_bottom_pos;
 				collided = 1U;
 			}
@@ -1035,13 +1015,25 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			uint32_t min_tile_y = 0;
 			uint32_t one_past_max_tile_x = 0;
 			uint32_t one_past_max_tile_y = 0;
-			uint32_t tile_z = 0;
+			uint32_t tile_z = game_state->hero_position.tile_z;
+			Position best_position = game_state->hero_position;
+			float best_distance_sq = vtwo_norm_sq(hero_displacement);
+			float test_distance_sq = 0;
+			Position test_tile = {};
 			for (uint32_t tile_y = min_tile_y; tile_y != one_past_max_tile_y; ++tile_y) {
 				for (uint32_t tile_x = min_tile_x; tile_x != one_past_max_tile_x; ++tile_x) {
-					uint32_t tile_value = map_get_tile_value(map, tile_x, tile_y, tile_z);
-					if (map_is_tile_walkable(tile_value)) {
+					if (map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
 						Vtwo min_corner = { .x = -TILE_RADIUS_M, .y = -TILE_RADIUS_M };
 						Vtwo max_corner = { .x = TILE_RADIUS_M, .y = TILE_RADIUS_M };
+
+						PositionDelta x = position_substract(&test_tile, &new_hero_position);
+						Vtwo test_position = rectangle_closest_point();
+						test_distance_sq = ;
+
+						if (best_distance_sq > test_distance_sq) {
+							best_position = ;
+							best_distance_sq = ;
+						}
 					}
 				}
 			}
@@ -1053,12 +1045,32 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		 */
 
 		if (!MAP_ARE_SAME_TILE(game_state->hero_position, old_hero_position)) {
-			uint32_t tile_value = MAP_GET_TILE_VALUE_BY_POS(map, game_state->hero_position);
-			if (tile_value == TILE_TYPE_STAIRS_UP) {
+			uint32_t tile_type = MAP_GET_TILE_TYPE_BY_POS(map, game_state->hero_position);
+			if (tile_type == TILE_TYPE_STAIRS_UP) {
 				++game_state->hero_position.tile_z;
-			} else if (tile_value == TILE_TYPE_STAIRS_DOWN) {
+			} else if (tile_type == TILE_TYPE_STAIRS_DOWN) {
 				--game_state->hero_position.tile_z;
 			}
+		}
+
+		if (controller->moveup.ended_down) {
+			game_state->hero_facing_direction = 1;
+			hero_acceleration_direction.y = 1.0F;
+		}
+
+		if (controller->movedown.ended_down) {
+			game_state->hero_facing_direction = 3;
+			hero_acceleration_direction.y = -1.0F;
+		}
+
+		if (controller->moveleft.ended_down) {
+			game_state->hero_facing_direction = 2;
+			hero_acceleration_direction.x = -1.0F;
+		}
+
+		if (controller->moveright.ended_down) {
+			game_state->hero_facing_direction = 0;
+			hero_acceleration_direction.x = 1.0F;
 		}
 
 		Position *camera_position = &game_state->camera_position;
@@ -1108,7 +1120,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				uint32_t tile_row = (uint32_t)((int32_t)camera_position->tile_y + tile_row_offset);
 				uint32_t level = camera_position->tile_z;
 
-				uint32_t tile_type_id = map_get_tile_value(map, tile_col, tile_row, level);
+				uint32_t tile_type_id = map_get_tile_type(map, tile_col, tile_row, level);
 
 				if (tile_type_id > TILE_TYPE_EMPTY) {
 					float gray = 0.0F; // Walkable
