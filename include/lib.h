@@ -9,6 +9,10 @@
 #include <stdio.h> // IWYU pragma: keep
 #include <time.h>
 
+// =============================================================================
+// Compiler Detection
+// =============================================================================
+
 #ifndef LIB_COMPILER_MSVC
 #define LIB_COMPILER_MSVC 0
 #endif
@@ -31,25 +35,96 @@
 #include <intrin.h>
 #endif
 
-// Constants
-static constexpr float PIE = 3.14159265359F;
-#define LIB_LOG_TSTAMP_BUF_SIZE 32
-#define LIB_LOG_LEVEL_ALL 0UL
-#define LIB_LOG_LEVEL_TRACE 1UL
-#define LIB_LOG_LEVEL_DEBUG 2UL
-#define LIB_LOG_LEVEL_INFO 3UL
-#define LIB_LOG_LEVEL_WARN 4UL
-#define LIB_LOG_LEVEL_ERROR 5UL
-#define LIB_LOG_LEVEL_FATAL 6UL
-#define LIB_LOG_LEVEL_OFF 7UL
+// =============================================================================
+// Memory
+// =============================================================================
 
 #define LIB_KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
 #define MB_TO_BYTES(_pr_v) (LIB_KB_TO_BYTES(_pr_v) * 1024)
 #define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
 #define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
 
+// =============================================================================
+// Math
+// =============================================================================
+
+static constexpr float PIE = 3.14159265359F;
+
 #define LIB_MATH_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
 #define LIB_MATH_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
+
+/**
+ * @brief truncates a int64_t into a uint32_t.
+ *
+ * @param value
+ * @return uint32_t
+ */
+inline uint32_t i64_to_u32(int64_t value)
+{
+	assert(value < INT32_MAX && value >= 0);
+
+	return (uint32_t)value;
+}
+
+inline int int_min(int a, int b)
+{
+	return a < b ? a : b;
+}
+
+inline int int_max(int a, int b)
+{
+	return a > b ? a : b;
+}
+
+/**
+ * @brief Rounds a float to the nearest biggest int: 0.5 -> 1
+ *
+ * @param value
+ * @return int
+ */
+inline int float_round_to_int(float value)
+{
+	int result = (int)roundf(value);
+
+	return result;
+}
+
+/**
+ * @brief Rounds a float to the nearest biggest unsigned int: 0.5 -> 1
+ *
+ * @param value
+ * @return int
+ */
+inline uint32_t float_round_to_uint(float value)
+{
+	assert(value >= 0.0F);
+
+	uint32_t result = (uint32_t)(value + 0.5F);
+
+	return result;
+}
+
+inline float float_floor(float value)
+{
+	return floorf(value);
+}
+
+inline float float_square(float value)
+{
+	return value * value;
+}
+
+inline unsigned int_abs(int value)
+{
+	// trick to avoid branches: (x ^ (x >> 31)) - (x >> 31)
+	unsigned result = value < 0 ? -(unsigned)value : (unsigned)value;
+
+	return result;
+}
+
+// =============================================================================
+// Ring Buffer
+// =============================================================================
 
 /**
  * @brief Calculates the distance between two indexes in a ring buffer
@@ -76,6 +151,20 @@ static constexpr float PIE = 3.14159265359F;
  */
 #define RING_BETWEEN(start, end, test) \
 	((end) >= (start) ? ((test) >= (start) && (test) <= (end)) : ((test) >= (start) || (test) <= (end)))
+
+// =============================================================================
+// Logging
+// =============================================================================
+
+#define LIB_LOG_TSTAMP_BUF_SIZE 32
+#define LIB_LOG_LEVEL_ALL 0UL
+#define LIB_LOG_LEVEL_TRACE 1UL
+#define LIB_LOG_LEVEL_DEBUG 2UL
+#define LIB_LOG_LEVEL_INFO 3UL
+#define LIB_LOG_LEVEL_WARN 4UL
+#define LIB_LOG_LEVEL_ERROR 5UL
+#define LIB_LOG_LEVEL_FATAL 6UL
+#define LIB_LOG_LEVEL_OFF 7UL
 
 // Defines what is the minimum priority of a message to be logged.
 // Anything with higher priority is going to be logged.
@@ -171,6 +260,10 @@ static constexpr float PIE = 3.14159265359F;
 #define LIB_LOGF(fmt, ...) LIB_LOG_MSG_NOOP()
 #endif // LIB_LOGF
 
+// =============================================================================
+// String
+// =============================================================================
+
 static void string_concat(const size_t one_count, const char *const restrict one, const size_t other_count,
                           const char *const restrict other, const size_t destsize, char *const restrict dest)
 {
@@ -185,74 +278,9 @@ static void string_concat(const size_t one_count, const char *const restrict one
 	dest[one_count + other_count] = '\0';
 }
 
-/**
- * @brief truncates a int64_t into a uint32_t.
- *
- * @param value
- * @return uint32_t
- */
-inline uint32_t i64_to_u32(int64_t value)
-{
-	assert(value < INT32_MAX && value >= 0);
-
-	return (uint32_t)value;
-}
-
-inline int int_min(int a, int b)
-{
-	return a < b ? a : b;
-}
-
-inline int int_max(int a, int b)
-{
-	return a > b ? a : b;
-}
-
-/**
- * @brief Rounds a float to the nearest biggest int: 0.5 -> 1
- *
- * @param value
- * @return int
- */
-inline int float_round_to_int(float value)
-{
-	int result = (int)roundf(value);
-
-	return result;
-}
-
-/**
- * @brief Rounds a float to the nearest biggest unsigned int: 0.5 -> 1
- *
- * @param value
- * @return int
- */
-inline uint32_t float_round_to_uint(float value)
-{
-	assert(value >= 0.0F);
-
-	uint32_t result = (uint32_t)(value + 0.5F);
-
-	return result;
-}
-
-inline float float_floor(float value)
-{
-	return floorf(value);
-}
-
-inline float float_square(float value)
-{
-	return value * value;
-}
-
-inline unsigned int_abs(int value)
-{
-	// trick to avoid branches: (x ^ (x >> 31)) - (x >> 31)
-	unsigned result = value < 0 ? -(unsigned)value : (unsigned)value;
-
-	return result;
-}
+// =============================================================================
+// Bit Operations
+// =============================================================================
 
 typedef struct CtzResult {
 	uint32_t count;
@@ -311,6 +339,10 @@ uint32_t uint_rotl(uint32_t value, int32_t shift)
 
 	return result;
 }
+
+// =============================================================================
+// Vector Math
+// =============================================================================
 
 /**
  * @brief Vector in plane
