@@ -125,11 +125,11 @@ typedef struct PositionDelta {
 } PositionDelta;
 
 typedef enum TileType : uint32_t {
-	TILE_TYPE_NONE = 0,
-	TILE_TYPE_EMPTY = 1,
-	TILE_TYPE_WALL = 2,
-	TILE_TYPE_STAIRS_UP = 3,
-	TILE_TYPE_STAIRS_DOWN = 4,
+	TILE_TYPE_NONE,
+	TILE_TYPE_EMPTY,
+	TILE_TYPE_WALL,
+	TILE_TYPE_STAIRS_UP,
+	TILE_TYPE_STAIRS_DOWN,
 } TileType;
 
 /**
@@ -253,6 +253,13 @@ typedef struct Arena {
 	unsigned char *base_address;
 	size_t used_byte;
 } Arena;
+
+typedef enum HeroFacingDirection : uint8_t {
+	HERO_FACING_RIGHT,
+	HERO_FACING_UP,
+	HERO_FACING_LEFT,
+	HERO_FACING_DOWN,
+} HeroFacingDirection;
 
 typedef struct GameState {
 	Arena arena;

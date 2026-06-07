@@ -199,17 +199,28 @@ static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read
 
 	uint32_t alpha_mask = ~(bitmap->red_mask | bitmap->green_mask | bitmap->blue_mask);
 
-	BitScanResult red_scan = uint_find_least_significant_set_bit(bitmap->red_mask);
-	BitScanResult green_scan = uint_find_least_significant_set_bit(bitmap->green_mask);
-	BitScanResult blue_scan = uint_find_least_significant_set_bit(bitmap->blue_mask);
-	BitScanResult alpha_scan = uint_find_least_significant_set_bit(alpha_mask);
+	CtzResult red_scan = uint_ctz(bitmap->red_mask);
+	CtzResult green_scan = uint_ctz(bitmap->green_mask);
+	CtzResult blue_scan = uint_ctz(bitmap->blue_mask);
+	CtzResult alpha_scan = uint_ctz(alpha_mask);
+
+	assert(red_scan.was_found);
+	assert(green_scan.was_found);
+	assert(blue_scan.was_found);
+	assert(alpha_scan.was_found);
+
+	int32_t alpha_shift = 24 - (int32_t)alpha_scan.count;
+	int32_t red_shift = 16 - (int32_t)red_scan.count;
+	int32_t green_shift = 8 - (int32_t)green_scan.count;
+	int32_t blue_shift = 0 - (int32_t)blue_scan.count;
 
 	uint32_t *pixel = result.bottom_left_px;
 	for (uint32_t i = 0; i < (uint32_t)(bitmap->width_px * bitmap->height_px); ++i) {
-		uint32_t alpha = ((*pixel & alpha_mask) >> alpha_scan.index) << 24U;
-		uint32_t red = ((*pixel & bitmap->red_mask) >> red_scan.index) << 16U;
-		uint32_t green = ((*pixel & bitmap->green_mask) >> green_scan.index) << 8U;
-		uint32_t blue = (*pixel & bitmap->blue_mask) >> blue_scan.index;
+		uint32_t alpha = uint_rotl((*pixel & alpha_mask), alpha_shift);
+		uint32_t red = uint_rotl((*pixel & bitmap->red_mask), red_shift);
+		uint32_t green = uint_rotl((*pixel & bitmap->green_mask), green_shift);
+		uint32_t blue = uint_rotl((*pixel & bitmap->blue_mask), blue_shift);
+
 		*pixel = alpha | red | green | blue;
 
 		++pixel;
@@ -914,7 +925,6 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 	map = world->map;
 	Position old_hero_position = game_state->hero_position;
-
 	for (size_t controller_idx = 0; controller_idx < MAX_CONTROLLERS; ++controller_idx) {
 		ControllerState *controller = input_get_controller(input, controller_idx);
 
@@ -922,24 +932,42 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			continue;
 		}
 
+		Vtwo hero_acceleration = {};
+		Vtwo hero_acceleration_direction = {};
 		if (controller->is_analog) {
+			hero_acceleration.x = controller->stick_avg_x;
+			hero_acceleration.y = controller->stick_avg_y;
 		} else {
-			Vtwo hero_acceleration_direction = {};
-
-			float hero_acceleration_norm = 10.0F;
-			if (controller->actionup.ended_down) {
-				hero_acceleration_norm = 50.0F;
+			if (controller->moveright.ended_down) {
+				hero_acceleration_direction.x = 1.0F;
 			}
 
-			Vtwo hero_acceleration = vtwo_scale(hero_acceleration_direction, hero_acceleration_norm);
+			if (controller->moveup.ended_down) {
+				hero_acceleration_direction.y = 1.0F;
+			}
+
+			if (controller->moveleft.ended_down) {
+				hero_acceleration_direction.x = -1.0F;
+			}
+
+			if (controller->movedown.ended_down) {
+				hero_acceleration_direction.y = -1.0F;
+			}
+
+			float hero_acceleration_norm = 30.0F;
+			if (controller->actionup.ended_down) {
+				hero_acceleration_norm = 70.0F;
+			}
+
+			hero_acceleration = vtwo_scale(hero_acceleration_direction, hero_acceleration_norm);
 			if (hero_acceleration_direction.x != 0.0F && hero_acceleration_direction.y != 0.0F) {
 				hero_acceleration = vtwo_scale(hero_acceleration, 0.707106781187F);
 			}
 
-			hero_acceleration = vtwo_sub(hero_acceleration, vtwo_scale(game_state->hero_velocity, 1.5F));
+			hero_acceleration = vtwo_sub(hero_acceleration, vtwo_scale(game_state->hero_velocity, 7.0F));
 
-			float time_delta_sec_squared = float_square(input->time_delta_sec);
-			Vtwo acceleration_displacement = vtwo_scale(hero_acceleration, 0.5F * time_delta_sec_squared);
+			float time_delta_sec_sq = float_square(input->time_delta_sec);
+			Vtwo acceleration_displacement = vtwo_scale(hero_acceleration, 0.5F * time_delta_sec_sq);
 			Vtwo velocity_displacement = vtwo_scale(game_state->hero_velocity, input->time_delta_sec);
 
 			Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
@@ -1053,24 +1081,20 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			}
 		}
 
-		if (controller->moveup.ended_down) {
-			game_state->hero_facing_direction = 1;
-			hero_acceleration_direction.y = 1.0F;
-		}
-
-		if (controller->movedown.ended_down) {
-			game_state->hero_facing_direction = 3;
-			hero_acceleration_direction.y = -1.0F;
-		}
-
-		if (controller->moveleft.ended_down) {
-			game_state->hero_facing_direction = 2;
-			hero_acceleration_direction.x = -1.0F;
-		}
-
-		if (controller->moveright.ended_down) {
-			game_state->hero_facing_direction = 0;
-			hero_acceleration_direction.x = 1.0F;
+		if (game_state->hero_velocity.x == 0.0F && game_state->hero_velocity.y == 0.0F) {
+			// Do not set
+		} else if (fabsf(game_state->hero_velocity.x) > fabsf(game_state->hero_velocity.y)) {
+			if (game_state->hero_velocity.x > 0.0F) {
+				game_state->hero_facing_direction = HERO_FACING_RIGHT;
+			} else {
+				game_state->hero_facing_direction = HERO_FACING_LEFT;
+			}
+		} else {
+			if (game_state->hero_velocity.y > 0.0F) {
+				game_state->hero_facing_direction = HERO_FACING_UP;
+			} else {
+				game_state->hero_facing_direction = HERO_FACING_DOWN;
+			}
 		}
 
 		Position *camera_position = &game_state->camera_position;

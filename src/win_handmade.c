@@ -697,9 +697,9 @@ static void win_window_pump_messages(WinState *winstate, ControllerState *keyboa
 				} else if (vk_code == VK_RIGHT) {
 					win_keyboard_process_message(&keyboard_controller->actionright, is_down);
 				} else if (vk_code == VK_ESCAPE) {
-					win_keyboard_process_message(&keyboard_controller->start, is_down);
-				} else if (vk_code == VK_SPACE) {
 					win_keyboard_process_message(&keyboard_controller->back, is_down);
+				} else if (vk_code == VK_SPACE) {
+					win_keyboard_process_message(&keyboard_controller->start, is_down);
 				}
 #if DEBUG
 				else if (vk_code == 'P') {

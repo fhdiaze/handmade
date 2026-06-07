@@ -248,27 +248,38 @@ inline float float_square(float value)
 
 inline unsigned int_abs(int value)
 {
-	return (unsigned)(value < 0 ? -value : value);
+	// trick to avoid branches: (x ^ (x >> 31)) - (x >> 31)
+	unsigned result = value < 0 ? -(unsigned)value : (unsigned)value;
+
+	return result;
 }
 
-typedef struct BitScanResult {
-	unsigned long index;
+typedef struct CtzResult {
+	uint32_t count;
 	uint8_t was_found;
-} BitScanResult;
+} CtzResult;
 
 /**
- * @brief Finds the index of the first non-zero bit if there is one.
+ * @brief Count trailing zeroes - returns the index of the first least-significant non-zero bit if there is one.
  *
  * @param value
  * @param index
- * @return uint8_t Non zero value if a non-zero value was found, 0 otherwise
+ * @return BitScanResult .index = number of trailing zeroes, .was_found = 1 if a non-zero bit was found,
+ * otherwise .was_found = 0
  */
-BitScanResult uint_find_least_significant_set_bit(uint32_t value)
+CtzResult uint_ctz(uint32_t value)
 {
-	BitScanResult result = {};
+	CtzResult result = {};
 
 #if LIB_COMPILER_MSVC
-	result.was_found = _BitScanForward(&result.index, value);
+	unsigned long ctz_tmp = 0;
+	result.was_found = _BitScanForward(&ctz_tmp, value);
+	result.count = ctz_tmp;
+#elif LIB_COMPILER_LLVM
+	if (value != 0U) {
+		result.was_found = 1U;
+		result.index = (unsigned long)__builtin_ctz(value);
+	}
 #else
 	for (uint8_t test = 0; test < 32; ++test) {
 		if (value & (1U << test)) {
@@ -279,6 +290,24 @@ BitScanResult uint_find_least_significant_set_bit(uint32_t value)
 		}
 	}
 #endif
+
+	return result;
+}
+
+/**
+ * @brief Rotates the bits of @p value to the left by @p shift positions
+ *
+ * @param value The 32-bit value to rotate
+ * @param shift The number of bit positions to rotate left (0-31)
+ * @return uint32_t @p value with its bits rotated left by @p shift
+ *
+ * @example
+ * uint32_t r = uint_rotl(0x00000001U, 1);  // 0x00000002
+ * uint32_t r = uint_rotl(0x80000000U, 1);  // 0x00000001
+ */
+uint32_t uint_rotl(uint32_t value, int32_t shift)
+{
+	uint32_t result = _rotl(value, shift);
 
 	return result;
 }
