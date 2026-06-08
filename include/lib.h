@@ -539,4 +539,20 @@ inline float vtwo_norm_sq(Vtwo a)
 	return norm_sq;
 }
 
+inline float vtwo_norm(Vtwo a)
+{
+	float norm_sq = vtwo_norm_sq(a);
+	float result = sqrtf(norm_sq);
+
+	return result;
+}
+
+inline Vtwo vtwo_normalize(Vtwo a)
+{
+	float norm = vtwo_norm(a);
+	Vtwo result = vtwo_scale(a, 1.0F / norm);
+
+	return result;
+}
+
 #endif // LIB_H

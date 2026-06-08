@@ -933,140 +933,141 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		}
 
 		Vtwo hero_acceleration = {};
-		Vtwo hero_acceleration_direction = {};
+		float hero_acceleration_scale = controller->actionup.ended_down ? 70.0F : 50.0F;
+
 		if (controller->is_analog) {
 			hero_acceleration.x = controller->stick_avg_x;
 			hero_acceleration.y = controller->stick_avg_y;
+
+			float norm_sq = vtwo_norm_sq(hero_acceleration);
+			if (norm_sq > 1.0F) {
+				hero_acceleration_scale /= sqrtf(norm_sq);
+			}
 		} else {
 			if (controller->moveright.ended_down) {
-				hero_acceleration_direction.x = 1.0F;
+				hero_acceleration.x = 1.0F;
 			}
 
 			if (controller->moveup.ended_down) {
-				hero_acceleration_direction.y = 1.0F;
+				hero_acceleration.y = 1.0F;
 			}
 
 			if (controller->moveleft.ended_down) {
-				hero_acceleration_direction.x = -1.0F;
+				hero_acceleration.x = -1.0F;
 			}
 
 			if (controller->movedown.ended_down) {
-				hero_acceleration_direction.y = -1.0F;
+				hero_acceleration.y = -1.0F;
 			}
 
-			float hero_acceleration_norm = 30.0F;
-			if (controller->actionup.ended_down) {
-				hero_acceleration_norm = 70.0F;
+			if (hero_acceleration.x != 0.0F && hero_acceleration.y != 0.0F) {
+				hero_acceleration_scale *= 0.707106781187F;
 			}
+		}
 
-			hero_acceleration = vtwo_scale(hero_acceleration_direction, hero_acceleration_norm);
-			if (hero_acceleration_direction.x != 0.0F && hero_acceleration_direction.y != 0.0F) {
-				hero_acceleration = vtwo_scale(hero_acceleration, 0.707106781187F);
-			}
+		hero_acceleration = vtwo_scale(hero_acceleration, hero_acceleration_scale);
+		hero_acceleration = vtwo_sub(hero_acceleration, vtwo_scale(game_state->hero_velocity, 7.0F));
 
-			hero_acceleration = vtwo_sub(hero_acceleration, vtwo_scale(game_state->hero_velocity, 7.0F));
+		float time_delta_sec_sq = float_square(input->time_delta_sec);
+		Vtwo acceleration_displacement = vtwo_scale(hero_acceleration, 0.5F * time_delta_sec_sq);
+		Vtwo velocity_displacement = vtwo_scale(game_state->hero_velocity, input->time_delta_sec);
 
-			float time_delta_sec_sq = float_square(input->time_delta_sec);
-			Vtwo acceleration_displacement = vtwo_scale(hero_acceleration, 0.5F * time_delta_sec_sq);
-			Vtwo velocity_displacement = vtwo_scale(game_state->hero_velocity, input->time_delta_sec);
+		Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
 
-			Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
+		// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
+		Position new_hero_position = game_state->hero_position;
+		new_hero_position.tile_offset_m = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
+		game_state->hero_velocity =
+			vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec), game_state->hero_velocity);
 
-			// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
-			Position new_hero_position = game_state->hero_position;
-			new_hero_position.tile_offset_m = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
-			game_state->hero_velocity = vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec),
-			                                     game_state->hero_velocity);
-
-			if (!map_normalize_position(&new_hero_position)) {
-				continue;
-			}
+		if (!map_normalize_position(&new_hero_position)) {
+			continue;
+		}
 
 #if 1
-			Position left_bottom_pos = new_hero_position;
-			left_bottom_pos.tile_offset_m.x -= player_width_m * 0.5F;
-			if (!map_normalize_position(&left_bottom_pos)) {
-				continue;
+		Position left_bottom_pos = new_hero_position;
+		left_bottom_pos.tile_offset_m.x -= player_width_m * 0.5F;
+		if (!map_normalize_position(&left_bottom_pos)) {
+			continue;
+		}
+
+		Position right_bottom_pos = new_hero_position;
+		right_bottom_pos.tile_offset_m.x += player_width_m * 0.5F;
+		if (!map_normalize_position(&right_bottom_pos)) {
+			continue;
+		}
+
+		uint32_t collided = 0U;
+		Position collision_position = {};
+
+		if (!MAP_IS_POSITION_WALKABLE(map, new_hero_position)) {
+			collision_position = new_hero_position;
+			collided = 1U;
+		}
+
+		if (!MAP_IS_POSITION_WALKABLE(map, left_bottom_pos)) {
+			collision_position = left_bottom_pos;
+			collided = 1U;
+		}
+
+		if (!MAP_IS_POSITION_WALKABLE(map, right_bottom_pos)) {
+			collision_position = right_bottom_pos;
+			collided = 1U;
+		}
+
+		if (collided) {
+			Vtwo r = {};
+
+			if (collision_position.tile_x < game_state->hero_position.tile_x) {
+				r = (Vtwo){ .x = 1.0F, .y = 0.0F };
 			}
 
-			Position right_bottom_pos = new_hero_position;
-			right_bottom_pos.tile_offset_m.x += player_width_m * 0.5F;
-			if (!map_normalize_position(&right_bottom_pos)) {
-				continue;
+			if (collision_position.tile_x > game_state->hero_position.tile_x) {
+				r = (Vtwo){ .x = -1.0F, .y = 0.0F };
 			}
 
-			uint32_t collided = 0U;
-			Position collision_position = {};
-
-			if (!MAP_IS_POSITION_WALKABLE(map, new_hero_position)) {
-				collision_position = new_hero_position;
-				collided = 1U;
+			if (collision_position.tile_y < game_state->hero_position.tile_y) {
+				r = (Vtwo){ .x = 0.0F, .y = 1.0F };
 			}
 
-			if (!MAP_IS_POSITION_WALKABLE(map, left_bottom_pos)) {
-				collision_position = left_bottom_pos;
-				collided = 1U;
+			if (collision_position.tile_y > game_state->hero_position.tile_y) {
+				r = (Vtwo){ .x = 0.0F, .y = -1.0F };
 			}
 
-			if (!MAP_IS_POSITION_WALKABLE(map, right_bottom_pos)) {
-				collision_position = right_bottom_pos;
-				collided = 1U;
-			}
-
-			if (collided) {
-				Vtwo r = {};
-
-				if (collision_position.tile_x < game_state->hero_position.tile_x) {
-					r = (Vtwo){ .x = 1.0F, .y = 0.0F };
-				}
-
-				if (collision_position.tile_x > game_state->hero_position.tile_x) {
-					r = (Vtwo){ .x = -1.0F, .y = 0.0F };
-				}
-
-				if (collision_position.tile_y < game_state->hero_position.tile_y) {
-					r = (Vtwo){ .x = 0.0F, .y = 1.0F };
-				}
-
-				if (collision_position.tile_y > game_state->hero_position.tile_y) {
-					r = (Vtwo){ .x = 0.0F, .y = -1.0F };
-				}
-
-				float speed_on_r_axis = vtwo_dot(game_state->hero_velocity, r);
-				Vtwo v_towards_r_axis = vtwo_scale(r, speed_on_r_axis);
-				game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, v_towards_r_axis);
-			} else {
-				game_state->hero_position = new_hero_position;
-			}
+			float speed_on_r_axis = vtwo_dot(game_state->hero_velocity, r);
+			Vtwo v_towards_r_axis = vtwo_scale(r, speed_on_r_axis);
+			game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, v_towards_r_axis);
+		} else {
+			game_state->hero_position = new_hero_position;
+		}
 #else
-			uint32_t min_tile_x = 0;
-			uint32_t min_tile_y = 0;
-			uint32_t one_past_max_tile_x = 0;
-			uint32_t one_past_max_tile_y = 0;
-			uint32_t tile_z = game_state->hero_position.tile_z;
-			Position best_position = game_state->hero_position;
-			float best_distance_sq = vtwo_norm_sq(hero_displacement);
-			float test_distance_sq = 0;
-			Position test_tile = {};
-			for (uint32_t tile_y = min_tile_y; tile_y != one_past_max_tile_y; ++tile_y) {
-				for (uint32_t tile_x = min_tile_x; tile_x != one_past_max_tile_x; ++tile_x) {
-					if (map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
-						Vtwo min_corner = { .x = -TILE_RADIUS_M, .y = -TILE_RADIUS_M };
-						Vtwo max_corner = { .x = TILE_RADIUS_M, .y = TILE_RADIUS_M };
+		uint32_t min_tile_x = 0;
+		uint32_t min_tile_y = 0;
+		uint32_t one_past_max_tile_x = 0;
+		uint32_t one_past_max_tile_y = 0;
+		uint32_t tile_z = game_state->hero_position.tile_z;
+		Position best_position = game_state->hero_position;
+		float best_distance_sq = vtwo_norm_sq(hero_displacement);
+		float test_distance_sq = 0;
+		Position test_tile = {};
+		for (uint32_t tile_y = min_tile_y; tile_y != one_past_max_tile_y; ++tile_y) {
+			for (uint32_t tile_x = min_tile_x; tile_x != one_past_max_tile_x; ++tile_x) {
+				if (map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
+					Vtwo min_corner = { .x = -TILE_RADIUS_M, .y = -TILE_RADIUS_M };
+					Vtwo max_corner = { .x = TILE_RADIUS_M, .y = TILE_RADIUS_M };
 
-						PositionDelta x = position_substract(&test_tile, &new_hero_position);
-						Vtwo test_position = rectangle_closest_point();
-						test_distance_sq = ;
+					PositionDelta x = position_substract(&test_tile, &new_hero_position);
+					Vtwo test_position = rectangle_closest_point();
+					test_distance_sq = ;
 
-						if (best_distance_sq > test_distance_sq) {
-							best_position = ;
-							best_distance_sq = ;
-						}
+					if (best_distance_sq > test_distance_sq) {
+						best_position = ;
+						best_distance_sq = ;
 					}
 				}
 			}
-#endif
 		}
+#endif
 
 		/**
 		 * Update camera position and hero Z coord base on latest movement

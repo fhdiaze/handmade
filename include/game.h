@@ -1,9 +1,5 @@
 // clang-format Language: C
 
-/*
-* Game api definition
-*/
-
 #ifndef GAME_H
 #define GAME_H
 
@@ -13,6 +9,44 @@
 #include "lib.h"
 
 #define GAME_DLL_NAME "game.dll"
+
+// =============================================================================
+// Memory
+// =============================================================================
+
+typedef struct Arena {
+	size_t capacity_byte;
+	unsigned char *base_address;
+	size_t used_byte;
+} Arena;
+
+void arena_init(Arena *restrict arena, const size_t size, unsigned char *const restrict base)
+{
+	arena->capacity_byte = size;
+	arena->base_address = base;
+	arena->used_byte = 0;
+}
+
+void *arena_push_size(Arena *arena, size_t size)
+{
+	assert(arena->used_byte + size <= arena->capacity_byte);
+
+	void *result = arena->base_address + arena->used_byte;
+	arena->used_byte += size;
+
+	return result;
+}
+
+void *arena_push_array(Arena *arena, size_t count, size_t size)
+{
+	void *result = arena_push_size(arena, count * size);
+
+	return result;
+}
+
+// =============================================================================
+// Tile Map
+// =============================================================================
 
 #define TILE_RADIUS_PX 30
 #define TILE_RADIUS_M 0.7F
@@ -43,16 +77,20 @@
 #define MAP_SIZE_XY_CHK (MAP_SIDE_Y_CHK * MAP_SIDE_X_CHK)
 #define MAP_SIZE_CHK (MAP_SIZE_XY_CHK * MAP_SIDE_Z_CHK)
 
-#define MAP_GET_TILE_TYPE_BY_POS(map, pos) map_get_tile_type(map, pos.tile_x, pos.tile_y, pos.tile_z)
-#define MAP_IS_POSITION_WALKABLE(map, pos) map_is_tile_walkable(map, pos.tile_x, pos.tile_y, pos.tile_z)
+#define MAP_GET_TILE_TYPE_BY_POS(map, pos) map_get_tile_type(map, (pos).tile_x, (pos).tile_y, (pos).tile_z)
+#define MAP_IS_POSITION_WALKABLE(map, pos) map_is_tile_walkable(map, (pos).tile_x, (pos).tile_y, (pos).tile_z)
 
-#define MAP_ARE_SAME_TILE(one_position, other_position)                                                  \
-	(one_position.tile_x == other_position.tile_x && one_position.tile_y == other_position.tile_y && \
-	 one_position.tile_z == other_position.tile_z)
+#define MAP_ARE_SAME_TILE(one_position, other_position)                                                          \
+	((one_position).tile_x == (other_position).tile_x && (one_position).tile_y == (other_position).tile_y && \
+	 (one_position).tile_z == (other_position).tile_z)
 
-#define MAX_MOUSE_BUTTONS 5
-#define MAX_CONTROLLERS 5
-#define MAX_CONTROLLER_BUTTONS 12
+typedef enum TileType : uint32_t {
+	TILE_TYPE_NONE,
+	TILE_TYPE_EMPTY,
+	TILE_TYPE_WALL,
+	TILE_TYPE_STAIRS_UP,
+	TILE_TYPE_STAIRS_DOWN,
+} TileType;
 
 typedef struct ChunkPosition {
 	/**
@@ -123,289 +161,6 @@ typedef struct PositionDelta {
 
 	float delta_z_m;
 } PositionDelta;
-
-typedef enum TileType : uint32_t {
-	TILE_TYPE_NONE,
-	TILE_TYPE_EMPTY,
-	TILE_TYPE_WALL,
-	TILE_TYPE_STAIRS_UP,
-	TILE_TYPE_STAIRS_DOWN,
-} TileType;
-
-/**
- * @brief (0,0) is on the top left corner.
- * The byte order in a register (little endian) is AA RR GG BB
- */
-typedef struct GameOffscreenBuffer {
-	void *top_left_px;
-
-	// width in pixels
-	unsigned width_px;
-
-	// Height in pixels
-	unsigned height_px;
-
-	// Size of a row in bytes
-	unsigned pitch_bytes;
-	unsigned bytes_per_pixel;
-} GameOffscreenBuffer;
-
-typedef struct GameSoundBuffer {
-	unsigned samples_per_sec;
-	unsigned sample_count;
-	int16_t *samples;
-} GameSoundBuffer;
-
-typedef struct ButtonState {
-	// half transition count per frame
-	unsigned half_transition_count;
-	uint8_t ended_down;
-} ButtonState;
-
-typedef struct ControllerState {
-	float stick_avg_x;
-	float stick_avg_y;
-
-	union {
-		ButtonState buttons[MAX_CONTROLLER_BUTTONS];
-		struct {
-			ButtonState moveup;
-			ButtonState movedown;
-			ButtonState moveleft;
-			ButtonState moveright;
-
-			ButtonState actionup;
-			ButtonState actiondown;
-			ButtonState actionleft;
-			ButtonState actionright;
-
-			ButtonState left_shoulder;
-			ButtonState right_shoulder;
-
-			ButtonState start;
-			ButtonState back;
-		};
-	};
-
-	// TODO(fredy): bools in structs are suspicious
-	uint8_t is_analog;
-	uint8_t is_connected;
-} ControllerState;
-
-typedef struct GameInput {
-	unsigned mouse_x;
-	unsigned mouse_y;
-	unsigned mouse_z; // mouse wheel
-
-	float time_delta_sec;
-
-	union {
-		ButtonState mouse_buttons[MAX_MOUSE_BUTTONS];
-
-		struct {
-			ButtonState mouse_main;
-			ButtonState mouse_middle;
-			ButtonState mouse_secondary;
-			ButtonState mouse_back;
-			ButtonState mouse_forward;
-		};
-	};
-
-	ControllerState controllers[MAX_CONTROLLERS];
-} GameInput;
-
-typedef struct World {
-	Map *map;
-} World;
-
-/**
- * @brief (0,0) is on the bottom left corner.
- * The byte order in a register (little endian) is AA RR GG BB
- */
-typedef struct LoadedBitmap {
-	/**
-	 * @brief Width in pixels.
-	 */
-	uint32_t width_px;
-
-	/**
-	 * @brief Height in pixels.
-	 */
-	uint32_t height_px;
-
-	uint32_t *bottom_left_px;
-} LoadedBitmap;
-
-typedef struct HeroBitmaps {
-	// Top-left corner is the origin
-	int32_t align_x_px;
-
-	// Top-left corner is the origin
-	int32_t align_y_px;
-
-	LoadedBitmap head;
-	LoadedBitmap cape;
-	LoadedBitmap torso;
-} HeroBitmaps;
-
-typedef struct Arena {
-	size_t capacity_byte;
-	unsigned char *base_address;
-	size_t used_byte;
-} Arena;
-
-typedef enum HeroFacingDirection : uint8_t {
-	HERO_FACING_RIGHT,
-	HERO_FACING_UP,
-	HERO_FACING_LEFT,
-	HERO_FACING_DOWN,
-} HeroFacingDirection;
-
-typedef struct GameState {
-	Arena arena;
-	World *world;
-
-	Position camera_position;
-	Position hero_position;
-	Vtwo hero_velocity;
-
-	LoadedBitmap backdrop;
-
-	uint8_t hero_facing_direction;
-	HeroBitmaps hero_bitmaps[4];
-} GameState;
-
-/**
- * @brief The byte order at increasing memory addresses is (BB GB RR AA).
- * The byte order in a register (little endian) is (AA RR GG BB).
- * The pixels order is bottom-up.
- */
-#pragma pack(push, 1)
-typedef struct BitmapHeader {
-	uint16_t file_type;
-	uint32_t file_size;
-
-	uint16_t reserved_one;
-	uint16_t reserved_two;
-
-	uint32_t offset;
-
-	/**
-	 * @brief Size of this header in bytes
-	 */
-	uint32_t header_size_byte;
-
-	/**
-	 * @brief Width in pixels.
-	 * Negative height: Invalid. Kept for historical reasons.
-	 */
-	int32_t width_px;
-
-	/**
-	 * @brief Height in pixels.
-	 * Positive height: the bitmap is stored bottom-up (rows stored from bottom to top, the traditional BMP layout).
-	 * Negative height: the bitmap is stored top-down (rows stored from top to bottom).
-	 */
-	int32_t height_px;
-	uint16_t planes;
-
-	uint16_t bits_per_pixel;
-
-	uint32_t compression;
-
-	/**
-	 * @brief Size of the bitmap in bytes
-	 */
-	uint32_t bitmap_size_byte;
-
-	int32_t horz_resolution;
-	int32_t vert_resolution;
-
-	uint32_t colors_used;
-	uint32_t colors_important;
-
-	uint32_t red_mask;
-	uint32_t green_mask;
-	uint32_t blue_mask;
-} BitmapHeader;
-#pragma pack(pop)
-
-typedef struct ThreadContext {
-	unsigned placeholder;
-} ThreadContext;
-
-#if DEBUG
-
-#define MEMORY_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
-
-typedef struct ReadFileResult {
-	size_t size_byte;
-	void *base_address;
-} ReadFileResult;
-
-#define FILE_READ_DEBUG(name) ReadFileResult name(const char *const filename, ThreadContext *thread)
-#define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
-#define FILE_WRITE_DEBUG(name) \
-	uint8_t name(const char *const filename, size_t memorysize, void *memory, ThreadContext *thread)
-
-typedef FILE_READ_DEBUG(file_read_debug_func);
-
-typedef FILE_FREE_DEBUG(file_free_debug_func);
-
-typedef FILE_WRITE_DEBUG(file_write_debug_func);
-
-#else
-#define MEMORY_BASE_ADDRESS (nullptr)
-#endif // DEBUG
-
-typedef struct Storage {
-	size_t permanent_storage_size_byte; // permanent storage in bytes
-	void *permanent_storage;            // This should be zero initialized
-
-	size_t transient_storage_size_byte; // transient storage in bytes
-	void *transient_storage;            // This should be zero initialized
-
-	file_free_debug_func *plat_file_free_debug;
-	file_read_debug_func *plat_file_read_debug;
-	file_write_debug_func *file_write_debug;
-
-	uint8_t is_initialized;
-} Storage;
-
-void arena_init(Arena *restrict arena, const size_t size, unsigned char *const restrict base)
-{
-	arena->capacity_byte = size;
-	arena->base_address = base;
-	arena->used_byte = 0;
-}
-
-void *arena_push_size(Arena *arena, size_t size)
-{
-	assert(arena->used_byte + size <= arena->capacity_byte);
-
-	void *result = arena->base_address + arena->used_byte;
-	arena->used_byte += size;
-
-	return result;
-}
-
-void *arena_push_array(Arena *arena, size_t count, size_t size)
-{
-	void *result = arena_push_size(arena, count * size);
-
-	return result;
-}
-
-// Utilities
-
-static inline ControllerState *input_get_controller(GameInput *input, size_t controller_index)
-{
-	assert(controller_index < MAX_CONTROLLERS);
-
-	return &input->controllers[controller_index];
-}
-
-// Game services
 
 /**
  * @brief Normalizes a single axis coordinate so the tile offset stays within [-TILE_RADIUS_M, TILE_RADIUS_M].
@@ -571,6 +326,279 @@ static PositionDelta position_substract(Position *start_position, Position *end_
 
 	return result;
 }
+
+// =============================================================================
+// Input
+// =============================================================================
+
+#define MAX_MOUSE_BUTTONS 5
+#define MAX_CONTROLLERS 5
+#define MAX_CONTROLLER_BUTTONS 12
+
+typedef struct ButtonState {
+	// half transition count per frame
+	unsigned half_transition_count;
+	uint8_t ended_down;
+} ButtonState;
+
+typedef struct ControllerState {
+	float stick_avg_x;
+	float stick_avg_y;
+
+	union {
+		ButtonState buttons[MAX_CONTROLLER_BUTTONS];
+		struct {
+			ButtonState moveup;
+			ButtonState movedown;
+			ButtonState moveleft;
+			ButtonState moveright;
+
+			ButtonState actionup;
+			ButtonState actiondown;
+			ButtonState actionleft;
+			ButtonState actionright;
+
+			ButtonState left_shoulder;
+			ButtonState right_shoulder;
+
+			ButtonState start;
+			ButtonState back;
+		};
+	};
+
+	// TODO(fredy): bools in structs are suspicious
+	uint8_t is_analog;
+	uint8_t is_connected;
+} ControllerState;
+
+typedef struct GameInput {
+	unsigned mouse_x;
+	unsigned mouse_y;
+	unsigned mouse_z; // mouse wheel
+
+	float time_delta_sec;
+
+	union {
+		ButtonState mouse_buttons[MAX_MOUSE_BUTTONS];
+
+		struct {
+			ButtonState mouse_main;
+			ButtonState mouse_middle;
+			ButtonState mouse_secondary;
+			ButtonState mouse_back;
+			ButtonState mouse_forward;
+		};
+	};
+
+	ControllerState controllers[MAX_CONTROLLERS];
+} GameInput;
+
+static inline ControllerState *input_get_controller(GameInput *input, size_t controller_index)
+{
+	assert(controller_index < MAX_CONTROLLERS);
+
+	return &input->controllers[controller_index];
+}
+
+// =============================================================================
+// Rendering
+// =============================================================================
+
+/**
+ * @brief (0,0) is on the top left corner.
+ * The byte order in a register (little endian) is AA RR GG BB
+ */
+typedef struct GameOffscreenBuffer {
+	void *top_left_px;
+
+	// width in pixels
+	unsigned width_px;
+
+	// Height in pixels
+	unsigned height_px;
+
+	// Size of a row in bytes
+	unsigned pitch_bytes;
+	unsigned bytes_per_pixel;
+} GameOffscreenBuffer;
+
+/**
+ * @brief (0,0) is on the bottom left corner.
+ * The byte order in a register (little endian) is AA RR GG BB
+ */
+typedef struct LoadedBitmap {
+	/**
+	 * @brief Width in pixels.
+	 */
+	uint32_t width_px;
+
+	/**
+	 * @brief Height in pixels.
+	 */
+	uint32_t height_px;
+
+	uint32_t *bottom_left_px;
+} LoadedBitmap;
+
+typedef struct HeroBitmaps {
+	// Top-left corner is the origin
+	int32_t align_x_px;
+
+	// Top-left corner is the origin
+	int32_t align_y_px;
+
+	LoadedBitmap head;
+	LoadedBitmap cape;
+	LoadedBitmap torso;
+} HeroBitmaps;
+
+/**
+ * @brief The byte order at increasing memory addresses is (BB GB RR AA).
+ * The byte order in a register (little endian) is (AA RR GG BB).
+ * The pixels order is bottom-up.
+ */
+#pragma pack(push, 1)
+typedef struct BitmapHeader {
+	uint16_t file_type;
+	uint32_t file_size;
+
+	uint16_t reserved_one;
+	uint16_t reserved_two;
+
+	uint32_t offset;
+
+	/**
+	 * @brief Size of this header in bytes
+	 */
+	uint32_t header_size_byte;
+
+	/**
+	 * @brief Width in pixels.
+	 * Negative height: Invalid. Kept for historical reasons.
+	 */
+	int32_t width_px;
+
+	/**
+	 * @brief Height in pixels.
+	 * Positive height: the bitmap is stored bottom-up (rows stored from bottom to top, the traditional BMP layout).
+	 * Negative height: the bitmap is stored top-down (rows stored from top to bottom).
+	 */
+	int32_t height_px;
+	uint16_t planes;
+
+	uint16_t bits_per_pixel;
+
+	uint32_t compression;
+
+	/**
+	 * @brief Size of the bitmap in bytes
+	 */
+	uint32_t bitmap_size_byte;
+
+	int32_t horz_resolution;
+	int32_t vert_resolution;
+
+	uint32_t colors_used;
+	uint32_t colors_important;
+
+	uint32_t red_mask;
+	uint32_t green_mask;
+	uint32_t blue_mask;
+} BitmapHeader;
+#pragma pack(pop)
+
+// =============================================================================
+// Audio
+// =============================================================================
+
+typedef struct GameSoundBuffer {
+	unsigned samples_per_sec;
+	unsigned sample_count;
+	int16_t *samples;
+} GameSoundBuffer;
+
+// =============================================================================
+// Game State
+// =============================================================================
+
+typedef struct World {
+	Map *map;
+} World;
+
+typedef enum HeroFacingDirection : uint8_t {
+	HERO_FACING_RIGHT,
+	HERO_FACING_UP,
+	HERO_FACING_LEFT,
+	HERO_FACING_DOWN,
+} HeroFacingDirection;
+
+typedef struct GameState {
+	Arena arena;
+	World *world;
+
+	Position camera_position;
+	Position hero_position;
+	Vtwo hero_velocity;
+
+	LoadedBitmap backdrop;
+
+	uint8_t hero_facing_direction;
+	HeroBitmaps hero_bitmaps[4];
+} GameState;
+
+// =============================================================================
+// Platform and Game API Shared
+// =============================================================================
+
+typedef struct ThreadContext {
+	unsigned placeholder;
+} ThreadContext;
+
+// =============================================================================
+// Platform API
+// =============================================================================
+
+#if DEBUG
+
+#define MEMORY_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
+
+typedef struct ReadFileResult {
+	size_t size_byte;
+	void *base_address;
+} ReadFileResult;
+
+#define FILE_READ_DEBUG(name) ReadFileResult name(const char *const filename, ThreadContext *thread)
+#define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
+#define FILE_WRITE_DEBUG(name) \
+	uint8_t name(const char *const filename, size_t memorysize, void *memory, ThreadContext *thread)
+
+typedef FILE_READ_DEBUG(file_read_debug_func);
+
+typedef FILE_FREE_DEBUG(file_free_debug_func);
+
+typedef FILE_WRITE_DEBUG(file_write_debug_func);
+
+#else
+#define MEMORY_BASE_ADDRESS (nullptr)
+#endif // DEBUG
+
+// =============================================================================
+// Game API
+// =============================================================================
+
+typedef struct Storage {
+	size_t permanent_storage_size_byte; // permanent storage in bytes
+	void *permanent_storage;            // This should be zero initialized
+
+	size_t transient_storage_size_byte; // transient storage in bytes
+	void *transient_storage;            // This should be zero initialized
+
+	file_free_debug_func *plat_file_free_debug;
+	file_read_debug_func *plat_file_read_debug;
+	file_write_debug_func *file_write_debug;
+
+	uint8_t is_initialized;
+} Storage;
 
 /**
  * @brief Updates the game status and renders it
