@@ -39,8 +39,8 @@
 // Memory
 // =============================================================================
 
-#define LIB_KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
-#define MB_TO_BYTES(_pr_v) (LIB_KB_TO_BYTES(_pr_v) * 1024)
+#define KB_TO_BYTES(_pr_v) ((_pr_v) * 1024)
+#define MB_TO_BYTES(_pr_v) (KB_TO_BYTES(_pr_v) * 1024)
 #define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
 #define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
 
@@ -50,8 +50,8 @@
 
 static constexpr float PIE = 3.14159265359F;
 
-#define LIB_MATH_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
-#define LIB_MATH_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
+#define NUMBER_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
+#define NUMBER_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
 
 /**
  * @brief truncates a int64_t into a uint32_t.
