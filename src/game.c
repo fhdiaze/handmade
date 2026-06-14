@@ -229,6 +229,22 @@ static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read
 	return result;
 }
 
+inline static void wall_test(float wall_x, float rel_x, float rel_y, float delta_x, float delta_y, float *max_time,
+                             float min_y, float max_y)
+{
+	float t_epsilon = 0.0001F;
+
+	if (delta_x != 0.0F) {
+		float t_result = (wall_x - rel_x) / delta_x;
+		float y = delta_y * t_result + rel_y;
+		if (t_result >= 0.0F && *max_time > t_result) {
+			if (y >= min_y && y <= max_y) {
+				*max_time = max(0.0F, t_result - t_epsilon);
+			}
+		}
+	}
+}
+
 GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
 	assert(sizeof(GameState) <= Storage->permanent_storage_size_byte);
@@ -971,20 +987,20 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		float time_delta_sec_sq = float_square(input->time_delta_sec);
 		Vtwo acceleration_displacement = vtwo_scale(hero_acceleration, 0.5F * time_delta_sec_sq);
 		Vtwo velocity_displacement = vtwo_scale(game_state->hero_velocity, input->time_delta_sec);
+		game_state->hero_velocity =
+			vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec), game_state->hero_velocity);
 
 		// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
 		Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
 
-		game_state->hero_velocity =
-			vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec), game_state->hero_velocity);
-
-#if 0
 		Position new_hero_position = game_state->hero_position;
 		new_hero_position.tile_offset_m = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
 
 		if (!map_normalize_position(&new_hero_position)) {
 			continue;
 		}
+
+#if 0
 
 		Position left_bottom_pos = new_hero_position;
 		left_bottom_pos.tile_offset_m.x -= player_width_m * 0.5F;
@@ -1042,55 +1058,50 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			game_state->hero_position = new_hero_position;
 		}
 #else
-		uint32_t start_tile_x = old_hero_position.tile_x;
-		uint32_t start_tile_y = old_hero_position.tile_y;
-		uint32_t end_tile_x = old_hero_position.tile_x + 1;
-		uint32_t end_tile_y = old_hero_position.tile_y + 1;
+		uint32_t min_tile_x = NUMBER_MIN(old_hero_position.tile_x, new_hero_position.tile_x);
+		uint32_t min_tile_y = NUMBER_MIN(old_hero_position.tile_y, new_hero_position.tile_y);
+		uint32_t max_tile_x = NUMBER_MAX(old_hero_position.tile_x, new_hero_position.tile_x) + 1;
+		uint32_t max_tile_y = NUMBER_MAX(old_hero_position.tile_y, new_hero_position.tile_y) + 1;
 
-		uint32_t tile_z = game_state->hero_position.tile_z;
-		float best_time = 1.0F;
-		float best_distance_sq = vtwo_norm_sq(hero_displacement);
-		float test_distance_sq = 0;
-		Position test_tile = {};
-		for (uint32_t tile_y = start_tile_y; tile_y != end_tile_y; ++tile_y) {
-			for (uint32_t tile_x = start_tile_x; tile_x != end_tile_x; ++tile_x) {
-				test_tile.tile_x = tile_x;
-				test_tile.tile_y = tile_y;
-				test_tile.tile_z = tile_z;
+		uint32_t tile_z = new_hero_position.tile_z;
+		float max_time = 1.0F;
+
+		for (uint32_t tile_y = min_tile_y; tile_y != max_tile_y; ++tile_y) {
+			for (uint32_t tile_x = min_tile_x; tile_x != max_tile_x; ++tile_x) {
+				Position test_tile = (Position){
+					.tile_x = tile_x,
+					.tile_y = tile_y,
+					.tile_z = tile_z,
+				};
 
 				if (!map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
 					Vtwo min_corner = { .x = -TILE_RADIUS_M, .y = -TILE_RADIUS_M };
 					Vtwo max_corner = { .x = TILE_RADIUS_M, .y = TILE_RADIUS_M };
 
-					Vtwo tile_center_to_hero =
-						position_substract(&test_tile, &old_hero_position).delta_xy_m;
+					Vtwo tile_to_hero =
+						position_substract(&old_hero_position, &test_tile).delta_xy_m;
 
-					float wall_x = 0.0F;
-
-					if (hero_displacement.x >= 0.0F) {
-						float tr = (wall_x - tile_center_to_hero.x) / hero_displacement.x;
-						float y = hero_displacement.y * tr;
-						if (tr > 0 && best_time > tr) {
-							if (y >= min_corner.y && y <= max_corner.y) {
-								best_time = tr;
-							}
-						}
-					}
-
-					// tile_test_wall(min_corner.x, min_corner.y, max_corner.y, hero_displacement.x);
+					wall_test(min_corner.x, tile_to_hero.x, tile_to_hero.y, hero_displacement.x,
+					          hero_displacement.y, &max_time, min_corner.y, max_corner.y);
+					wall_test(max_corner.x, tile_to_hero.x, tile_to_hero.y, hero_displacement.x,
+					          hero_displacement.y, &max_time, min_corner.y, max_corner.y);
+					wall_test(min_corner.y, tile_to_hero.y, tile_to_hero.x, hero_displacement.y,
+					          hero_displacement.x, &max_time, min_corner.x, max_corner.x);
+					wall_test(max_corner.y, tile_to_hero.y, tile_to_hero.x, hero_displacement.y,
+					          hero_displacement.x, &max_time, min_corner.x, max_corner.x);
 				}
 			}
 		}
 
-		Position new_hero_position = game_state->hero_position;
-		hero_displacement = vtwo_scale(hero_displacement, best_time);
+		hero_displacement = vtwo_scale(hero_displacement, max_time);
+
+		new_hero_position = game_state->hero_position;
 		new_hero_position.tile_offset_m = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
 
-		if (!map_normalize_position(&new_hero_position)) {
-			continue;
+		if (map_normalize_position(&new_hero_position)) {
+			game_state->hero_position = new_hero_position;
 		}
 
-		game_state->hero_position = new_hero_position;
 #endif
 
 		/**
@@ -1126,7 +1137,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		// Vector to move from the camera to the hero position in the map
 		PositionDelta delta_position =
-			position_substract(&game_state->camera_position, &game_state->hero_position);
+			position_substract(&game_state->hero_position, &game_state->camera_position);
 
 		if (delta_position.delta_xy_m.x <= -9.0F * TILE_SIDE_M) {
 			game_state->camera_position.tile_x -= 17;

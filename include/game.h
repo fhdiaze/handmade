@@ -300,25 +300,25 @@ static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t
 }
 
 /**
- * @brief Calculates end_position - start_position
+ * @brief Calculates a - b
  *
- * @param start_position
- * @param end_position
+ * @param a A position
+ * @param b Another position
  * @return PositionDelta
  */
-static PositionDelta position_substract(Position *start_position, Position *end_position)
+static PositionDelta position_substract(const Position *const a, const Position *const b)
 {
 	PositionDelta result = {};
 
 	Vtwo delta_xy_tile = {
-		.x = (float)end_position->tile_x - (float)start_position->tile_x,
-		.y = (float)end_position->tile_y - (float)start_position->tile_y,
+		.x = (float)a->tile_x - (float)b->tile_x,
+		.y = (float)a->tile_y - (float)b->tile_y,
 	};
-	float delta_tile_z = (float)end_position->tile_z - (float)start_position->tile_z;
+	float delta_tile_z = (float)a->tile_z - (float)b->tile_z;
 
 	Vtwo delta_xy_m = vtwo_scale(delta_xy_tile, TILE_SIDE_M);
 
-	Vtwo delta_tile_offset_m = vtwo_sub(end_position->tile_offset_m, start_position->tile_offset_m);
+	Vtwo delta_tile_offset_m = vtwo_sub(a->tile_offset_m, b->tile_offset_m);
 	delta_xy_m = vtwo_add(delta_xy_m, delta_tile_offset_m);
 
 	result.delta_xy_m = delta_xy_m;
