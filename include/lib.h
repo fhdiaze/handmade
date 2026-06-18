@@ -149,7 +149,7 @@ inline unsigned int_abs(int value)
 /**
  * @brief Checks if an index is between start and end indexes in a ring buffer
  */
-#define RING_BETWEEN(start, end, test) \
+#define RING_IS_BETWEEN(start, end, test) \
 	((end) >= (start) ? ((test) >= (start) && (test) <= (end)) : ((test) >= (start) || (test) <= (end)))
 
 // =============================================================================

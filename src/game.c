@@ -1058,16 +1058,42 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			game_state->hero_position = new_hero_position;
 		}
 #else
-		uint32_t min_tile_x = NUMBER_MIN(old_hero_position.tile_x, new_hero_position.tile_x);
-		uint32_t min_tile_y = NUMBER_MIN(old_hero_position.tile_y, new_hero_position.tile_y);
-		uint32_t max_tile_x = NUMBER_MAX(old_hero_position.tile_x, new_hero_position.tile_x) + 1;
-		uint32_t max_tile_y = NUMBER_MAX(old_hero_position.tile_y, new_hero_position.tile_y) + 1;
+		uint32_t old_to_new_x_distance =
+			RING_DIFF(UINT32_MAX, old_hero_position.tile_x, new_hero_position.tile_x);
+		uint32_t new_to_old_x_distance =
+			RING_DIFF(UINT32_MAX, new_hero_position.tile_x, old_hero_position.tile_x);
+
+		uint32_t old_to_new_y_distance =
+			RING_DIFF(UINT32_MAX, old_hero_position.tile_y, new_hero_position.tile_y);
+		uint32_t new_to_old_y_distance =
+			RING_DIFF(UINT32_MAX, new_hero_position.tile_y, old_hero_position.tile_y);
+
+		uint32_t start_tile_x = 0;
+		uint32_t start_tile_y = 0;
+		uint32_t end_tile_x = 0;
+		uint32_t end_tile_y = 0;
+
+		if (old_to_new_x_distance < new_to_old_x_distance) {
+			start_tile_x = old_hero_position.tile_x;
+			end_tile_x = new_hero_position.tile_x + 1;
+		} else {
+			start_tile_x = new_hero_position.tile_x;
+			end_tile_x = old_hero_position.tile_x + 1;
+		}
+
+		if (old_to_new_y_distance < new_to_old_y_distance) {
+			start_tile_y = old_hero_position.tile_y;
+			end_tile_y = new_hero_position.tile_y + 1;
+		} else {
+			start_tile_y = new_hero_position.tile_y;
+			end_tile_y = old_hero_position.tile_y + 1;
+		}
 
 		uint32_t tile_z = new_hero_position.tile_z;
 		float max_time = 1.0F;
 
-		for (uint32_t tile_y = min_tile_y; tile_y != max_tile_y; ++tile_y) {
-			for (uint32_t tile_x = min_tile_x; tile_x != max_tile_x; ++tile_x) {
+		for (uint32_t tile_y = start_tile_y; tile_y != end_tile_y; ++tile_y) {
+			for (uint32_t tile_x = start_tile_x; tile_x != end_tile_x; ++tile_x) {
 				Position test_tile = (Position){
 					.tile_x = tile_x,
 					.tile_y = tile_y,

@@ -183,8 +183,8 @@ static inline uint32_t map_normalize_coord(uint32_t *tile, float *tile_offset_f)
 
 	*tile_offset_f -= (float)(tile_offset)*TILE_SIDE_M;
 
-	assert(*tile_offset_f <= TILE_RADIUS_M);
 	assert(*tile_offset_f >= -TILE_RADIUS_M);
+	assert(*tile_offset_f <= TILE_RADIUS_M);
 
 	return 1U;
 }

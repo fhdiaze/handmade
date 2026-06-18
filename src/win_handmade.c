@@ -1323,7 +1323,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 			float secs_to_flip = target_secs_per_frame - secs_from_flip;
 			unsigned bytes_to_flip = (unsigned)(secs_to_flip * (float)bytes_per_sec);
 			unsigned frame_flip_byte = RING_ADD(winsound.buffsize, play_cursor, bytes_to_flip);
-			unsigned sound_flip_byte = RING_BETWEEN(play_cursor, frame_flip_byte, write_cursor) ?
+			unsigned sound_flip_byte = RING_IS_BETWEEN(play_cursor, frame_flip_byte, write_cursor) ?
 			                                   // Sound has low latency
 			                                   frame_flip_byte :
 			                                   // Sound has high latency
