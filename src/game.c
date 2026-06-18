@@ -336,8 +336,13 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		uint32_t tiles_per_width = 17;
 		uint32_t tiles_per_height = 9;
+#if 0
+		uint32_t screen_x = UINT32_MAX / 2;
+		uint32_t screen_y = UINT32_MAX / 2;
+#else
 		uint32_t screen_x = 0;
 		uint32_t screen_y = 0;
+#endif
 		uint32_t random_choice = 0;
 		uint32_t options = 3;
 		uint32_t random_num_idx = 0;
@@ -994,12 +999,10 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
 
 		Position new_hero_position = game_state->hero_position;
-		new_hero_position.tile_offset_m = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
+		new_hero_position = game_state->hero_position;
+		Vtwo new_hero_tile_offset = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
 
-		if (!map_normalize_position(&new_hero_position)) {
-			continue;
-		}
-
+		if (position_set_offset(&new_hero_position, new_hero_tile_offset)) {
 #if 0
 
 		Position left_bottom_pos = new_hero_position;
@@ -1058,77 +1061,54 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			game_state->hero_position = new_hero_position;
 		}
 #else
-		uint32_t old_to_new_x_distance =
-			RING_DIFF(UINT32_MAX, old_hero_position.tile_x, new_hero_position.tile_x);
-		uint32_t new_to_old_x_distance =
-			RING_DIFF(UINT32_MAX, new_hero_position.tile_x, old_hero_position.tile_x);
+			uint32_t start_tile_x = old_hero_position.tile_x;
+			uint32_t end_tile_x = new_hero_position.tile_x;
+			uint32_t start_tile_y = old_hero_position.tile_y;
+			uint32_t end_tile_y = new_hero_position.tile_y;
 
-		uint32_t old_to_new_y_distance =
-			RING_DIFF(UINT32_MAX, old_hero_position.tile_y, new_hero_position.tile_y);
-		uint32_t new_to_old_y_distance =
-			RING_DIFF(UINT32_MAX, new_hero_position.tile_y, old_hero_position.tile_y);
+			uint32_t tile_z = new_hero_position.tile_z;
+			float max_time = 1.0F;
 
-		uint32_t start_tile_x = 0;
-		uint32_t start_tile_y = 0;
-		uint32_t end_tile_x = 0;
-		uint32_t end_tile_y = 0;
+			for (uint32_t tile_y = start_tile_y; tile_y != end_tile_y; ++tile_y) {
+				for (uint32_t tile_x = start_tile_x; tile_x != end_tile_x; ++tile_x) {
+					Position test_tile = (Position){
+						.tile_x = tile_x,
+						.tile_y = tile_y,
+						.tile_z = tile_z,
+					};
 
-		if (old_to_new_x_distance < new_to_old_x_distance) {
-			start_tile_x = old_hero_position.tile_x;
-			end_tile_x = new_hero_position.tile_x + 1;
-		} else {
-			start_tile_x = new_hero_position.tile_x;
-			end_tile_x = old_hero_position.tile_x + 1;
-		}
+					if (!map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
+						Vtwo min_corner = { .x = -TILE_RADIUS_M, .y = -TILE_RADIUS_M };
+						Vtwo max_corner = { .x = TILE_RADIUS_M, .y = TILE_RADIUS_M };
 
-		if (old_to_new_y_distance < new_to_old_y_distance) {
-			start_tile_y = old_hero_position.tile_y;
-			end_tile_y = new_hero_position.tile_y + 1;
-		} else {
-			start_tile_y = new_hero_position.tile_y;
-			end_tile_y = old_hero_position.tile_y + 1;
-		}
+						Vtwo tile_to_hero =
+							position_substract(&old_hero_position, &test_tile).delta_xy_m;
 
-		uint32_t tile_z = new_hero_position.tile_z;
-		float max_time = 1.0F;
-
-		for (uint32_t tile_y = start_tile_y; tile_y != end_tile_y; ++tile_y) {
-			for (uint32_t tile_x = start_tile_x; tile_x != end_tile_x; ++tile_x) {
-				Position test_tile = (Position){
-					.tile_x = tile_x,
-					.tile_y = tile_y,
-					.tile_z = tile_z,
-				};
-
-				if (!map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
-					Vtwo min_corner = { .x = -TILE_RADIUS_M, .y = -TILE_RADIUS_M };
-					Vtwo max_corner = { .x = TILE_RADIUS_M, .y = TILE_RADIUS_M };
-
-					Vtwo tile_to_hero =
-						position_substract(&old_hero_position, &test_tile).delta_xy_m;
-
-					wall_test(min_corner.x, tile_to_hero.x, tile_to_hero.y, hero_displacement.x,
-					          hero_displacement.y, &max_time, min_corner.y, max_corner.y);
-					wall_test(max_corner.x, tile_to_hero.x, tile_to_hero.y, hero_displacement.x,
-					          hero_displacement.y, &max_time, min_corner.y, max_corner.y);
-					wall_test(min_corner.y, tile_to_hero.y, tile_to_hero.x, hero_displacement.y,
-					          hero_displacement.x, &max_time, min_corner.x, max_corner.x);
-					wall_test(max_corner.y, tile_to_hero.y, tile_to_hero.x, hero_displacement.y,
-					          hero_displacement.x, &max_time, min_corner.x, max_corner.x);
+						wall_test(min_corner.x, tile_to_hero.x, tile_to_hero.y,
+						          hero_displacement.x, hero_displacement.y, &max_time,
+						          min_corner.y, max_corner.y);
+						wall_test(max_corner.x, tile_to_hero.x, tile_to_hero.y,
+						          hero_displacement.x, hero_displacement.y, &max_time,
+						          min_corner.y, max_corner.y);
+						wall_test(min_corner.y, tile_to_hero.y, tile_to_hero.x,
+						          hero_displacement.y, hero_displacement.x, &max_time,
+						          min_corner.x, max_corner.x);
+						wall_test(max_corner.y, tile_to_hero.y, tile_to_hero.x,
+						          hero_displacement.y, hero_displacement.x, &max_time,
+						          min_corner.x, max_corner.x);
+					}
 				}
 			}
-		}
 
-		hero_displacement = vtwo_scale(hero_displacement, max_time);
+			hero_displacement = vtwo_scale(hero_displacement, max_time);
+			new_hero_tile_offset = vtwo_add(game_state->hero_position.tile_offset_m, hero_displacement);
 
-		new_hero_position = game_state->hero_position;
-		new_hero_position.tile_offset_m = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
-
-		if (map_normalize_position(&new_hero_position)) {
-			game_state->hero_position = new_hero_position;
-		}
+			if (position_set_offset(&game_state->hero_position, new_hero_tile_offset)) {
+				game_state->hero_position = new_hero_position;
+			}
 
 #endif
+		}
 
 		/**
 		 * Update camera position and hero Z coord base on latest movement
@@ -1165,20 +1145,20 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		PositionDelta delta_position =
 			position_substract(&game_state->hero_position, &game_state->camera_position);
 
-		if (delta_position.delta_xy_m.x <= -9.0F * TILE_SIDE_M) {
-			game_state->camera_position.tile_x -= 17;
-		}
-
-		if (delta_position.delta_xy_m.y <= -5.0F * TILE_SIDE_M) {
-			game_state->camera_position.tile_y -= 9;
-		}
-
-		if (delta_position.delta_xy_m.x >= 8.0F * TILE_SIDE_M) {
+		if (delta_position.delta_xy_m.x > 9.0F * TILE_SIDE_M) {
 			game_state->camera_position.tile_x += 17;
 		}
 
-		if (delta_position.delta_xy_m.y >= 5.0F * TILE_SIDE_M) {
+		if (delta_position.delta_xy_m.x < -9.0F * TILE_SIDE_M) {
+			game_state->camera_position.tile_x -= 17;
+		}
+
+		if (delta_position.delta_xy_m.y > 5.0F * TILE_SIDE_M) {
 			game_state->camera_position.tile_y += 9;
+		}
+
+		if (delta_position.delta_xy_m.y < -5.0F * TILE_SIDE_M) {
+			game_state->camera_position.tile_y -= 9;
 		}
 
 		game_state->camera_position.tile_z = game_state->hero_position.tile_z;

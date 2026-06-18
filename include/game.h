@@ -300,6 +300,23 @@ static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t
 }
 
 /**
+ * @brief Normalizes a full 2D map position so both axis offsets stay within [-TILE_RADIUS_M, TILE_RADIUS_M].
+ *
+ * Calls map_normalize_coord on the x and y axes in sequence. Any whole-tile excess in the tile offsets is
+ * folded back into the discrete tile indices. The z axis and tile_z are left unchanged.
+ *
+ * @param pos Position to normalize in place.
+ * @return 1 on success, 0 if normalization of either axis fails.
+ */
+static inline uint32_t position_set_offset(Position *position, Vtwo offset)
+{
+	position->tile_offset_m = offset;
+	uint32_t result = map_normalize_position(position);
+
+	return result;
+}
+
+/**
  * @brief Calculates a - b
  *
  * @param a A position
