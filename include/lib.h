@@ -44,6 +44,36 @@
 #define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
 #define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
 
+typedef struct Arena {
+	size_t capacity_byte;
+	unsigned char *base_address;
+	size_t used_byte;
+} Arena;
+
+void arena_init(Arena *restrict arena, const size_t size, unsigned char *const restrict base)
+{
+	arena->capacity_byte = size;
+	arena->base_address = base;
+	arena->used_byte = 0;
+}
+
+void *arena_push_size(Arena *arena, size_t size)
+{
+	assert(arena->used_byte + size <= arena->capacity_byte);
+
+	void *result = arena->base_address + arena->used_byte;
+	arena->used_byte += size;
+
+	return result;
+}
+
+void *arena_push_array(Arena *arena, size_t count, size_t size)
+{
+	void *result = arena_push_size(arena, count * size);
+
+	return result;
+}
+
 // =============================================================================
 // Math
 // =============================================================================

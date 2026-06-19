@@ -13,10 +13,419 @@
 
 #define RANDOM_NUMS_COUNT 4096
 
-static const Vtwo g_screen_offset = {
-	.x = -(float)TILE_RADIUS_PX,
-	.y = -(float)TILE_RADIUS_PX,
-};
+// =============================================================================
+// Tile Map
+// =============================================================================
+
+#define TILE_RADIUS_PX 30
+#define TILE_RADIUS_M 0.7F
+
+#define TILE_SIDE_PX (TILE_RADIUS_PX * 2UL)
+
+/**
+ * @brief Side of a tile in meters
+ */
+#define TILE_SIDE_M (TILE_RADIUS_M * 2.0F)
+
+#define TILE_PIXELS_PER_METER ((float)TILE_RADIUS_PX / TILE_RADIUS_M)
+#define CHUNK_SHIFT_BIT 4UL
+
+/**
+ * @brief Size of a chunk in tiles
+ */
+#define CHUNK_SIDE_TL (1UL << CHUNK_SHIFT_BIT)
+#define CHUNK_MASK (CHUNK_SIDE_TL - 1)
+#define CHUNK_SIZE_TL (CHUNK_SIDE_TL * CHUNK_SIDE_TL)
+
+/**
+* @brief Map side in tile chunks
+*/
+#define MAP_SIDE_X_CHK 128
+#define MAP_SIDE_Y_CHK 128
+#define MAP_SIDE_Z_CHK 2
+#define MAP_SIZE_XY_CHK (MAP_SIDE_Y_CHK * MAP_SIDE_X_CHK)
+#define MAP_SIZE_CHK (MAP_SIZE_XY_CHK * MAP_SIDE_Z_CHK)
+
+#define MAP_GET_TILE_TYPE_BY_POS(map, pos) map_get_tile_type(map, (pos).tile_x, (pos).tile_y, (pos).tile_z)
+#define MAP_IS_POSITION_WALKABLE(map, pos) map_is_tile_walkable(map, (pos).tile_x, (pos).tile_y, (pos).tile_z)
+
+#define MAP_ARE_SAME_TILE(one_position, other_position)                                                          \
+	((one_position).tile_x == (other_position).tile_x && (one_position).tile_y == (other_position).tile_y && \
+	 (one_position).tile_z == (other_position).tile_z)
+
+typedef enum TileType : uint32_t {
+	TILE_TYPE_NONE,
+	TILE_TYPE_EMPTY,
+	TILE_TYPE_WALL,
+	TILE_TYPE_STAIRS_UP,
+	TILE_TYPE_STAIRS_DOWN,
+} TileType;
+
+typedef struct ChunkPosition {
+	/**
+	 * @brief Increases towards the right of the screen
+	 */
+	uint32_t chunk_x;
+
+	/**
+	 * @brief Increases towards the top screen
+	 */
+	uint32_t chunk_y;
+
+	/**
+	 * @brief Increases towards the player or user
+	 */
+	uint32_t chunk_z;
+
+	/**
+	 * @brief X tile relative to the chunk
+	 */
+	uint32_t tile_x;
+
+	/**
+	 * @brief Y tile relative to the chunk
+	 */
+	uint32_t tile_y;
+} ChunkPosition;
+
+typedef struct TileChunk {
+	uint32_t *tiles;
+} TileChunk;
+
+/**
+ * @brief Origin of the map is bottom-left corner of the screen
+ */
+typedef struct Map {
+	/**
+	 * @brief Chunks are laid out in memory with z as the outermost dimension, then y, then x
+	 */
+	TileChunk *chunks;
+} Map;
+
+typedef struct Position {
+	/**
+	 * @brief Increases towards the right of the screen
+	 */
+	uint32_t tile_x;
+
+	/**
+	 * @brief Increases towards the top screen
+	 */
+	uint32_t tile_y;
+
+	/**
+	 * @brief Increases towards the player or user
+	 */
+	uint32_t tile_z;
+
+	/**
+	 * @brief Offset vector relative to the center of the tile in meters
+	 */
+	Vtwo tile_offset_m;
+} Position;
+
+typedef struct PositionDelta {
+	// Delta on x and y axis in meters
+	Vtwo delta_xy_m;
+
+	float delta_z_m;
+} PositionDelta;
+
+/**
+ * @brief Normalizes a single axis coordinate so the tile offset stays within [-TILE_RADIUS_M, TILE_RADIUS_M].
+ *
+ * Converts any whole-tile excess in @p tile_offset_f into discrete tile steps and adds them to @p tile.
+ * The world is toroidal, so tile indices wrap around without bounds checking.
+ *
+ * @param tile          Pointer to the tile index on one axis. Updated in place by the number of whole tiles
+ *                      spanned by the offset.
+ * @param tile_offset_f Pointer to the sub-tile offset in meters from the center of the tile. Reduced in place
+ *                      to the remainder after whole tiles are extracted.
+ * @return Always 1 (success).
+ */
+static inline uint32_t map_normalize_coord(uint32_t *tile, float *tile_offset_f)
+{
+	int tile_offset = float_round_to_int(*tile_offset_f / TILE_SIDE_M);
+
+	// World is toroidal
+	*tile = (unsigned)((int)*tile + tile_offset);
+
+	*tile_offset_f -= (float)(tile_offset)*TILE_SIDE_M;
+
+	assert(*tile_offset_f >= -TILE_RADIUS_M);
+	assert(*tile_offset_f <= TILE_RADIUS_M);
+
+	return 1U;
+}
+
+static inline ChunkPosition map_get_chunk_pos(uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
+{
+	ChunkPosition result;
+
+	result.chunk_x = tile_x >> CHUNK_SHIFT_BIT;
+	result.chunk_y = tile_y >> CHUNK_SHIFT_BIT;
+	result.chunk_z = tile_z;
+	result.tile_x = tile_x & CHUNK_MASK;
+	result.tile_y = tile_y & CHUNK_MASK;
+
+	return result;
+}
+
+static inline TileChunk *map_get_chunk(Map *map, uint32_t chunk_x, uint32_t chunk_y, uint32_t chunk_z)
+{
+	TileChunk *result = nullptr;
+
+	if (chunk_x < MAP_SIDE_X_CHK && chunk_y < MAP_SIDE_Y_CHK && chunk_z < MAP_SIDE_Z_CHK) {
+		result = &map->chunks[chunk_z * MAP_SIZE_XY_CHK + chunk_y * MAP_SIDE_X_CHK + chunk_x];
+	}
+
+	return result;
+}
+
+/**
+ * @brief Gets the tile type id
+ *
+ * @param map
+ * @param tile_x
+ * @param tile_y
+ * @param tile_z
+ * @return uint32_t
+ */
+static inline TileType map_get_tile_type(Map *map, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
+{
+	TileType tile_type = TILE_TYPE_NONE;
+
+	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
+	TileChunk *chunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+
+	if (chunk && chunk->tiles) {
+		assert(cpos.tile_x < CHUNK_SIDE_TL);
+		assert(cpos.tile_y < CHUNK_SIDE_TL);
+
+		tile_type = chunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x];
+	}
+
+	return tile_type;
+}
+
+/**
+ * @brief Normalizes a full 2D map position so both axis offsets stay within [-TILE_RADIUS_M, TILE_RADIUS_M].
+ *
+ * Calls map_normalize_coord on the x and y axes in sequence. Any whole-tile excess in the tile offsets is
+ * folded back into the discrete tile indices. The z axis and tile_z are left unchanged.
+ *
+ * @param pos Position to normalize in place.
+ * @return 1 on success, 0 if normalization of either axis fails.
+ */
+static uint32_t map_normalize_position(Position *pos)
+{
+	uint32_t was_success = map_normalize_coord(&pos->tile_x, &pos->tile_offset_m.x);
+
+	if (was_success) {
+		was_success = map_normalize_coord(&pos->tile_y, &pos->tile_offset_m.y);
+	}
+
+	return was_success;
+}
+
+static inline uint32_t tile_is_walkable(TileType tile_type)
+{
+	uint32_t is_walkable = tile_type == TILE_TYPE_EMPTY || tile_type == TILE_TYPE_STAIRS_UP ||
+	                       tile_type == TILE_TYPE_STAIRS_DOWN;
+
+	return is_walkable;
+}
+
+static uint32_t map_is_tile_walkable(Map *map, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
+{
+	TileType tile_type = map_get_tile_type(map, tile_x, tile_y, tile_z);
+	uint32_t is_walkable = tile_is_walkable(tile_type);
+
+	return is_walkable;
+}
+
+static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z,
+                               TileType tile_type)
+{
+	ChunkPosition cpos = map_get_chunk_pos(tile_x, tile_y, tile_z);
+	TileChunk *tilechunk = map_get_chunk(map, cpos.chunk_x, cpos.chunk_y, cpos.chunk_z);
+
+	assert(tilechunk);
+
+	if (!tilechunk->tiles) {
+		tilechunk->tiles = arena_push_array(arena, (size_t)CHUNK_SIZE_TL, sizeof(uint32_t));
+		for (uint32_t tile_idx = 0; tile_idx < CHUNK_SIZE_TL; ++tile_idx) {
+			tilechunk->tiles[tile_idx] = TILE_TYPE_EMPTY;
+		}
+	}
+
+	assert(cpos.tile_x < CHUNK_SIDE_TL);
+	assert(cpos.tile_y < CHUNK_SIDE_TL);
+
+	tilechunk->tiles[cpos.tile_y * CHUNK_SIDE_TL + cpos.tile_x] = tile_type;
+}
+
+/**
+ * @brief Sets the tile offset of a position.
+ *
+ * @param position Position to normalize in place.
+ * @param offset The new tile offset
+ * @return uint32_t 1 on success, 0 if normalization of either axis fails.
+ */
+static inline uint32_t position_set_offset(Position *position, Vtwo offset)
+{
+	position->tile_offset_m = offset;
+	uint32_t result = map_normalize_position(position);
+
+	return result;
+}
+
+/**
+ * @brief Calculates a - b
+ *
+ * @param a A position
+ * @param b Another position
+ * @return PositionDelta
+ */
+static PositionDelta position_substract(const Position *const a, const Position *const b)
+{
+	PositionDelta result = {};
+
+	Vtwo delta_xy_tile = {
+		.x = (float)a->tile_x - (float)b->tile_x,
+		.y = (float)a->tile_y - (float)b->tile_y,
+	};
+	float delta_tile_z = (float)a->tile_z - (float)b->tile_z;
+
+	Vtwo delta_xy_m = vtwo_scale(delta_xy_tile, TILE_SIDE_M);
+
+	Vtwo delta_tile_offset_m = vtwo_sub(a->tile_offset_m, b->tile_offset_m);
+	delta_xy_m = vtwo_add(delta_xy_m, delta_tile_offset_m);
+
+	result.delta_xy_m = delta_xy_m;
+	result.delta_z_m = delta_tile_z * TILE_SIDE_M;
+
+	return result;
+}
+
+
+// =============================================================================
+// Rendering
+// =============================================================================
+
+/**
+ * @brief (0,0) is on the bottom left corner.
+ * The byte order in a register (little endian) is AA RR GG BB
+ */
+typedef struct LoadedBitmap {
+	/**
+	 * @brief Width in pixels.
+	 */
+	uint32_t width_px;
+
+	/**
+	 * @brief Height in pixels.
+	 */
+	uint32_t height_px;
+
+	uint32_t *bottom_left_px;
+} LoadedBitmap;
+
+typedef struct HeroBitmaps {
+	// Top-left corner is the origin
+	int32_t align_x_px;
+
+	// Top-left corner is the origin
+	int32_t align_y_px;
+
+	LoadedBitmap head;
+	LoadedBitmap cape;
+	LoadedBitmap torso;
+} HeroBitmaps;
+
+/**
+ * @brief The byte order at increasing memory addresses is (BB GB RR AA).
+ * The byte order in a register (little endian) is (AA RR GG BB).
+ * The pixels order is bottom-up.
+ */
+#pragma pack(push, 1)
+typedef struct BitmapHeader {
+	uint16_t file_type;
+	uint32_t file_size;
+
+	uint16_t reserved_one;
+	uint16_t reserved_two;
+
+	uint32_t offset;
+
+	/**
+	 * @brief Size of this header in bytes
+	 */
+	uint32_t header_size_byte;
+
+	/**
+	 * @brief Width in pixels.
+	 * Negative height: Invalid. Kept for historical reasons.
+	 */
+	int32_t width_px;
+
+	/**
+	 * @brief Height in pixels.
+	 * Positive height: the bitmap is stored bottom-up (rows stored from bottom to top, the traditional BMP layout).
+	 * Negative height: the bitmap is stored top-down (rows stored from top to bottom).
+	 */
+	int32_t height_px;
+	uint16_t planes;
+
+	uint16_t bits_per_pixel;
+
+	uint32_t compression;
+
+	/**
+	 * @brief Size of the bitmap in bytes
+	 */
+	uint32_t bitmap_size_byte;
+
+	int32_t horz_resolution;
+	int32_t vert_resolution;
+
+	uint32_t colors_used;
+	uint32_t colors_important;
+
+	uint32_t red_mask;
+	uint32_t green_mask;
+	uint32_t blue_mask;
+} BitmapHeader;
+#pragma pack(pop)
+
+// =============================================================================
+// Game State
+// =============================================================================
+
+typedef struct World {
+	Map *map;
+} World;
+
+typedef enum HeroFacingDirection : uint8_t {
+	HERO_FACING_RIGHT,
+	HERO_FACING_UP,
+	HERO_FACING_LEFT,
+	HERO_FACING_DOWN,
+} HeroFacingDirection;
+
+typedef struct GameState {
+	Arena arena;
+	World *world;
+
+	Position camera_position;
+	Position hero_position;
+	Vtwo hero_velocity;
+
+	LoadedBitmap backdrop;
+
+	uint8_t hero_facing_direction;
+	HeroBitmaps hero_bitmaps[4];
+} GameState;
 
 /**
  * @brief
@@ -183,47 +592,46 @@ static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read
 	LoadedBitmap result = {};
 
 	ReadFileResult read_result = file_read_debug_func(filename, thread);
-	if (read_result.base_address == nullptr) {
-		return result;
-	}
 
-	BitmapHeader *bitmap = (BitmapHeader *)read_result.base_address;
+	if (read_result.base_address != nullptr) {
+		BitmapHeader *bitmap = (BitmapHeader *)read_result.base_address;
 
-	assert(bitmap->width_px >= 0);
-	assert(bitmap->height_px >= 0);
-	assert(bitmap->compression == 3);
+		assert(bitmap->width_px >= 0);
+		assert(bitmap->height_px >= 0);
+		assert(bitmap->compression == 3);
 
-	result.bottom_left_px = (uint32_t *)((unsigned char *)(read_result.base_address) + bitmap->offset);
-	result.width_px = (uint32_t)bitmap->width_px;
-	result.height_px = (uint32_t)bitmap->height_px;
+		result.bottom_left_px = (uint32_t *)((unsigned char *)(read_result.base_address) + bitmap->offset);
+		result.width_px = (uint32_t)bitmap->width_px;
+		result.height_px = (uint32_t)bitmap->height_px;
 
-	uint32_t alpha_mask = ~(bitmap->red_mask | bitmap->green_mask | bitmap->blue_mask);
+		uint32_t alpha_mask = ~(bitmap->red_mask | bitmap->green_mask | bitmap->blue_mask);
 
-	CtzResult red_scan = uint_ctz(bitmap->red_mask);
-	CtzResult green_scan = uint_ctz(bitmap->green_mask);
-	CtzResult blue_scan = uint_ctz(bitmap->blue_mask);
-	CtzResult alpha_scan = uint_ctz(alpha_mask);
+		CtzResult red_scan = uint_ctz(bitmap->red_mask);
+		CtzResult green_scan = uint_ctz(bitmap->green_mask);
+		CtzResult blue_scan = uint_ctz(bitmap->blue_mask);
+		CtzResult alpha_scan = uint_ctz(alpha_mask);
 
-	assert(red_scan.was_found);
-	assert(green_scan.was_found);
-	assert(blue_scan.was_found);
-	assert(alpha_scan.was_found);
+		assert(red_scan.was_found);
+		assert(green_scan.was_found);
+		assert(blue_scan.was_found);
+		assert(alpha_scan.was_found);
 
-	int32_t alpha_shift = 24 - (int32_t)alpha_scan.count;
-	int32_t red_shift = 16 - (int32_t)red_scan.count;
-	int32_t green_shift = 8 - (int32_t)green_scan.count;
-	int32_t blue_shift = 0 - (int32_t)blue_scan.count;
+		int32_t alpha_shift = 24 - (int32_t)alpha_scan.count;
+		int32_t red_shift = 16 - (int32_t)red_scan.count;
+		int32_t green_shift = 8 - (int32_t)green_scan.count;
+		int32_t blue_shift = 0 - (int32_t)blue_scan.count;
 
-	uint32_t *pixel = result.bottom_left_px;
-	for (uint32_t i = 0; i < (uint32_t)(bitmap->width_px * bitmap->height_px); ++i) {
-		uint32_t alpha = uint_rotl((*pixel & alpha_mask), alpha_shift);
-		uint32_t red = uint_rotl((*pixel & bitmap->red_mask), red_shift);
-		uint32_t green = uint_rotl((*pixel & bitmap->green_mask), green_shift);
-		uint32_t blue = uint_rotl((*pixel & bitmap->blue_mask), blue_shift);
+		uint32_t *pixel = result.bottom_left_px;
+		for (uint32_t i = 0; i < (uint32_t)(bitmap->width_px * bitmap->height_px); ++i) {
+			uint32_t alpha = uint_rotl((*pixel & alpha_mask), alpha_shift);
+			uint32_t red = uint_rotl((*pixel & bitmap->red_mask), red_shift);
+			uint32_t green = uint_rotl((*pixel & bitmap->green_mask), green_shift);
+			uint32_t blue = uint_rotl((*pixel & bitmap->blue_mask), blue_shift);
 
-		*pixel = alpha | red | green | blue;
+			*pixel = alpha | red | green | blue;
 
-		++pixel;
+			++pixel;
+		}
 	}
 
 	return result;
@@ -244,6 +652,15 @@ inline static void wall_test(float wall_x, float rel_x, float rel_y, float delta
 		}
 	}
 }
+
+// =============================================================================
+// Game API
+// =============================================================================
+
+static const Vtwo g_screen_offset = {
+	.x = -(float)TILE_RADIUS_PX,
+	.y = -(float)TILE_RADIUS_PX,
+};
 
 GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
@@ -999,8 +1416,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
 
 		Position new_hero_position = game_state->hero_position;
-		new_hero_position = game_state->hero_position;
-		Vtwo new_hero_tile_offset = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
+		Vtwo new_hero_tile_offset = vtwo_add(old_hero_position.tile_offset_m, hero_displacement);
 
 		if (position_set_offset(&new_hero_position, new_hero_tile_offset)) {
 #if 0
@@ -1061,16 +1477,16 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			game_state->hero_position = new_hero_position;
 		}
 #else
-			uint32_t start_tile_x = old_hero_position.tile_x;
-			uint32_t end_tile_x = new_hero_position.tile_x;
-			uint32_t start_tile_y = old_hero_position.tile_y;
-			uint32_t end_tile_y = new_hero_position.tile_y;
+			uint32_t start_tile_x = NUMBER_MIN(old_hero_position.tile_x, new_hero_position.tile_x);
+			uint32_t end_tile_x = NUMBER_MAX(old_hero_position.tile_x, new_hero_position.tile_x);
+			uint32_t start_tile_y = NUMBER_MIN(old_hero_position.tile_y, new_hero_position.tile_y);
+			uint32_t end_tile_y = NUMBER_MAX(old_hero_position.tile_y, new_hero_position.tile_y);
 
 			uint32_t tile_z = new_hero_position.tile_z;
 			float max_time = 1.0F;
 
-			for (uint32_t tile_y = start_tile_y; tile_y != end_tile_y; ++tile_y) {
-				for (uint32_t tile_x = start_tile_x; tile_x != end_tile_x; ++tile_x) {
+			for (uint32_t tile_y = start_tile_y; tile_y <= end_tile_y; ++tile_y) {
+				for (uint32_t tile_x = start_tile_x; tile_x <= end_tile_x; ++tile_x) {
 					Position test_tile = (Position){
 						.tile_x = tile_x,
 						.tile_y = tile_y,
@@ -1101,9 +1517,10 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			}
 
 			hero_displacement = vtwo_scale(hero_displacement, max_time);
-			new_hero_tile_offset = vtwo_add(game_state->hero_position.tile_offset_m, hero_displacement);
+			new_hero_position = game_state->hero_position;
+			new_hero_tile_offset = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
 
-			if (position_set_offset(&game_state->hero_position, new_hero_tile_offset)) {
+			if (position_set_offset(&new_hero_position, new_hero_tile_offset)) {
 				game_state->hero_position = new_hero_position;
 			}
 
