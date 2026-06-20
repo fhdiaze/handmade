@@ -222,7 +222,7 @@ FILE_WRITE_DEBUG(file_write_debug)
 		return result;
 	}
 
-	DWORD byteswritten;
+	DWORD byteswritten = 0;
 	if (!WriteFile(handle, memory, (DWORD)memorysize, &byteswritten, nullptr)) {
 		goto error_cleanup;
 	}
@@ -263,13 +263,28 @@ static void win_file_build_path(WinState *winstate, const char *const filename, 
 	              strlen(filename), filename, dest_count, dest);
 }
 
-static void win_file_build_input_path(WinState *winstate, unsigned slot_index, unsigned dest_count, char *dest)
+/**
+ * @brief
+ *
+ * @param winstate
+ * @param slot_index
+ * @param dest_count
+ * @param dest
+ * @return 1 on success, 0 if the building of the path failed.
+ */
+static uint32_t win_file_build_input_path(WinState *winstate, unsigned slot_index, unsigned dest_count, char *dest)
 {
+	uint32_t was_success = 0U;
+
 	assert(slot_index < REPLAY_MAX_SLOTS);
 
 	char filename[64];
-	sprintf(filename, "loopedit_%d.hmi", slot_index);
-	win_file_build_path(winstate, filename, dest_count, dest);
+	if (sprintf(filename, "loopedit_%d.hmi", slot_index) > 0) {
+		was_success = 1U;
+		win_file_build_path(winstate, filename, dest_count, dest);
+	}
+
+	return was_success;
 }
 
 /**
@@ -406,7 +421,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 		return;
 	}
 
-	LPDIRECTSOUND direct_sound;
+	LPDIRECTSOUND direct_sound = nullptr;
 	if (FAILED(dsound_create(nullptr, &direct_sound, nullptr))) {
 		// TODO(fredy): diagnostic
 		LIB_LOGE("Error creating the handler for direct sound");
@@ -434,7 +449,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 		.dwSize = sizeof(primbufferdesc),
 		.dwFlags = DSBCAPS_PRIMARYBUFFER,
 	};
-	LPDIRECTSOUNDBUFFER primbuffer;
+	LPDIRECTSOUNDBUFFER primbuffer = nullptr;
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &primbufferdesc, &primbuffer, nullptr))) {
 		// TODO(fredy): diagnostic
 		LIB_LOGE("Error creating the primary buffer (handle for the sound card)");
@@ -559,13 +574,13 @@ static void win_keyboard_process_message(ButtonState *newstate, uint32_t is_down
 static float win_xinput_process_stick_value(short value, short dead_zone)
 {
 	if (value < -dead_zone) {
-		return (float)value / 32768.0f;
+		return (float)value / 32768.0F;
 	}
 	if (value > dead_zone) {
-		return (float)value / 32767.0f;
+		return (float)value / 32767.0F;
 	}
 
-	return 0.0f;
+	return 0.0F;
 }
 
 /**
@@ -1112,7 +1127,10 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 	for (uint8_t slot_index = 0; slot_index < REPLAY_MAX_SLOTS; ++slot_index) {
 		ReplaySlot *replay_slot = &winstate.replay_slots[slot_index];
 
-		win_file_build_input_path(&winstate, slot_index, sizeof(replay_slot->filepath), replay_slot->filepath);
+		if (!win_file_build_input_path(&winstate, slot_index, sizeof(replay_slot->filepath),
+		                              replay_slot->filepath)) {
+			return EXIT_FAILURE;
+		}
 
 		replay_slot->file_handle = CreateFileA(replay_slot->filepath, GENERIC_WRITE | GENERIC_READ, 0, nullptr,
 		                                       CREATE_ALWAYS, 0, nullptr);
@@ -1307,8 +1325,8 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 
 		unsigned bytes_to_write = 0;
 
-		unsigned long play_cursor;
-		unsigned long write_cursor;
+		unsigned long play_cursor = 0;
+		unsigned long write_cursor = 0;
 		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(g_secbuffer, &play_cursor, &write_cursor))) {
 			if (!is_sound_valid) {
 				winsound.running_sample_index = write_cursor / winsound.bytes_per_sample;

@@ -10,7 +10,7 @@
 #include <time.h>
 
 // =============================================================================
-// Compiler Detection
+// Compiler detection
 // =============================================================================
 
 #ifndef LIB_COMPILER_MSVC
@@ -78,8 +78,7 @@ void *arena_push_array(Arena *arena, size_t count, size_t size)
 // Math
 // =============================================================================
 
-static constexpr float PIE = 3.14159265359F;
-
+#define PIE 3.14159265359F
 #define NUMBER_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
 #define NUMBER_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
 
@@ -153,7 +152,7 @@ inline unsigned int_abs(int value)
 }
 
 // =============================================================================
-// Ring Buffer
+// Ring buffer
 // =============================================================================
 
 /**
@@ -206,15 +205,13 @@ inline unsigned int_abs(int value)
 #define STRGY(n) STRINGIFY(n)
 
 #if DEBUG
-#define LIB_LOG_WRITE(fmt, ...)                                              \
-	do {                                                                 \
-		FILE *_pr_log_file = fopen("log.txt", "a+");                 \
-		if (_pr_log_file == nullptr) {                               \
-			break;                                               \
-		}                                                            \
-                                                                             \
-		(void)fprintf(_pr_log_file, fmt __VA_OPT__(, ) __VA_ARGS__); \
-		(void)fclose(_pr_log_file);                                  \
+#define LIB_LOG_WRITE(fmt, ...)                                                      \
+	do {                                                                         \
+		FILE *_pr_log_file = fopen("log.txt", "a+");                         \
+		if (_pr_log_file != nullptr) {                                       \
+			(void)fprintf(_pr_log_file, fmt __VA_OPT__(, ) __VA_ARGS__); \
+			(void)fclose(_pr_log_file);                                  \
+		}                                                                    \
 	} while (false)
 #else
 #define LIB_LOG_WRITE(fmt, ...) printf(fmt __VA_OPT__(, ) __VA_ARGS__)
@@ -294,8 +291,8 @@ inline unsigned int_abs(int value)
 // String
 // =============================================================================
 
-static void string_concat(const size_t one_count, const char *const restrict one, const size_t other_count,
-                          const char *const restrict other, const size_t destsize, char *const restrict dest)
+void string_concat(const size_t one_count, const char *const restrict one, const size_t other_count,
+                   const char *const restrict other, const size_t destsize, char *const restrict dest)
 {
 	for (unsigned i = 0; i < one_count; ++i) {
 		dest[i] = one[i];
@@ -309,7 +306,7 @@ static void string_concat(const size_t one_count, const char *const restrict one
 }
 
 // =============================================================================
-// Bit Operations
+// Bit operations
 // =============================================================================
 
 typedef struct CtzResult {
@@ -371,7 +368,7 @@ uint32_t uint_rotl(uint32_t value, int32_t shift)
 }
 
 // =============================================================================
-// Vector Math
+// Vector math
 // =============================================================================
 
 /**

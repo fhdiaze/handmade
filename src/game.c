@@ -308,7 +308,6 @@ static PositionDelta position_substract(const Position *const a, const Position 
 	return result;
 }
 
-
 // =============================================================================
 // Rendering
 // =============================================================================
@@ -397,68 +396,6 @@ typedef struct BitmapHeader {
 	uint32_t blue_mask;
 } BitmapHeader;
 #pragma pack(pop)
-
-// =============================================================================
-// Game State
-// =============================================================================
-
-typedef struct World {
-	Map *map;
-} World;
-
-typedef enum HeroFacingDirection : uint8_t {
-	HERO_FACING_RIGHT,
-	HERO_FACING_UP,
-	HERO_FACING_LEFT,
-	HERO_FACING_DOWN,
-} HeroFacingDirection;
-
-typedef struct GameState {
-	Arena arena;
-	World *world;
-
-	Position camera_position;
-	Position hero_position;
-	Vtwo hero_velocity;
-
-	LoadedBitmap backdrop;
-
-	uint8_t hero_facing_direction;
-	HeroBitmaps hero_bitmaps[4];
-} GameState;
-
-/**
- * @brief
- *
- * @param buffer
- * @param samples
- */
-static void sound_output_samples(GameSoundBuffer *buffer, GameState *game_state, unsigned tonehz)
-{
-	float tone_volume = 3000;
-	size_t wave_period = buffer->samples_per_sec / tonehz;
-	int16_t *sample_out = buffer->samples;
-	float sample_value = 0;
-	for (size_t i = 0; i < buffer->sample_count; ++i) {
-#if 0
-		float sine_value = sinf(game_state->tsine);
-		sample_value = sine_value * tone_volume;
-#else
-		sample_value = 0;
-#endif
-		*sample_out = (int16_t)sample_value; // channel one
-		++sample_out;
-		*sample_out = (int16_t)sample_value; // channel two
-		++sample_out;
-
-#if 0
-		game_state->tsine += 2.0F * PIE / (float_t)wave_period;
-		if (game_state->tsine > 2.0F * PIE) {
-			game_state->tsine -= 2.0f * PIE;
-		}
-#endif
-	}
-}
 
 /**
  * @brief max_x and max_y not included
@@ -584,7 +521,12 @@ static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buf
 }
 
 /**
+ * @brief
  *
+ * @param filename
+ * @param file_read_debug_func
+ * @param thread
+ * @return LoadedBitmap
  */
 static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read_debug_func *file_read_debug_func,
                                            ThreadContext *thread)
@@ -636,6 +578,76 @@ static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read
 
 	return result;
 }
+
+// =============================================================================
+// Game State
+// =============================================================================
+
+typedef struct World {
+	Map *map;
+} World;
+
+typedef enum HeroFacingDirection : uint8_t {
+	HERO_FACING_RIGHT,
+	HERO_FACING_UP,
+	HERO_FACING_LEFT,
+	HERO_FACING_DOWN,
+} HeroFacingDirection;
+
+typedef struct GameState {
+	Arena arena;
+	World *world;
+
+	Position camera_position;
+	Position hero_position;
+	Vtwo hero_velocity;
+
+	LoadedBitmap backdrop;
+
+	HeroBitmaps hero_bitmaps[4];
+	uint8_t hero_facing_direction;
+} GameState;
+
+// =============================================================================
+// Sound
+// =============================================================================
+
+/**
+ * @brief
+ *
+ * @param buffer
+ * @param samples
+ */
+static void sound_output_samples(GameSoundBuffer *buffer, GameState *game_state, unsigned tonehz)
+{
+	float tone_volume = 3000;
+	size_t wave_period = buffer->samples_per_sec / tonehz;
+	int16_t *sample_out = buffer->samples;
+	float sample_value = 0;
+	for (size_t i = 0; i < buffer->sample_count; ++i) {
+#if 0
+		float sine_value = sinf(game_state->tsine);
+		sample_value = sine_value * tone_volume;
+#else
+		sample_value = 0;
+#endif
+		*sample_out = (int16_t)sample_value; // channel one
+		++sample_out;
+		*sample_out = (int16_t)sample_value; // channel two
+		++sample_out;
+
+#if 0
+		game_state->tsine += 2.0F * PIE / (float_t)wave_period;
+		if (game_state->tsine > 2.0F * PIE) {
+			game_state->tsine -= 2.0f * PIE;
+		}
+#endif
+	}
+}
+
+// =============================================================================
+// Collision detection
+// =============================================================================
 
 inline static void wall_test(float wall_x, float rel_x, float rel_y, float delta_x, float delta_y, float *max_time,
                              float min_y, float max_y)

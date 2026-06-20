@@ -8,18 +8,56 @@
 
 #include "lib.h"
 
-#define GAME_DLL_NAME "game.dll"
+// =============================================================================
+// Common
+// =============================================================================
+
+typedef struct ThreadContext {
+	unsigned placeholder;
+} ThreadContext;
 
 // =============================================================================
-// Input
+// Platform API
 // =============================================================================
+
+#if DEBUG
+
+#define MEMORY_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
+
+typedef struct ReadFileResult {
+	size_t size_byte;
+	void *base_address;
+} ReadFileResult;
+
+#define FILE_READ_DEBUG(name) ReadFileResult name(const char *const filename, ThreadContext *thread)
+#define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
+#define FILE_WRITE_DEBUG(name) \
+	uint8_t name(const char *const filename, size_t memorysize, void *memory, ThreadContext *thread)
+
+typedef FILE_READ_DEBUG(file_read_debug_func);
+
+typedef FILE_FREE_DEBUG(file_free_debug_func);
+
+typedef FILE_WRITE_DEBUG(file_write_debug_func);
+
+#else // DEBUG
+
+#define MEMORY_BASE_ADDRESS (nullptr)
+
+#endif // DEBUG
+
+// =============================================================================
+// Game API
+// =============================================================================
+
+#define GAME_DLL_NAME "game.dll"
 
 #define MAX_MOUSE_BUTTONS 5
 #define MAX_CONTROLLERS 5
 #define MAX_CONTROLLER_BUTTONS 12
 
 typedef struct ButtonState {
-	// half transition count per frame
+	// Half transition count per frame
 	unsigned half_transition_count;
 	uint8_t ended_down;
 } ButtonState;
@@ -76,17 +114,6 @@ typedef struct GameInput {
 	ControllerState controllers[MAX_CONTROLLERS];
 } GameInput;
 
-static inline ControllerState *input_get_controller(GameInput *input, size_t controller_index)
-{
-	assert(controller_index < MAX_CONTROLLERS);
-
-	return &input->controllers[controller_index];
-}
-
-// =============================================================================
-// Rendering
-// =============================================================================
-
 /**
  * @brief (0,0) is on the top left corner.
  * The byte order in a register (little endian) is AA RR GG BB
@@ -105,57 +132,11 @@ typedef struct GameOffscreenBuffer {
 	unsigned bytes_per_pixel;
 } GameOffscreenBuffer;
 
-// =============================================================================
-// Audio
-// =============================================================================
-
 typedef struct GameSoundBuffer {
 	unsigned samples_per_sec;
 	unsigned sample_count;
 	int16_t *samples;
 } GameSoundBuffer;
-
-// =============================================================================
-// Platform and Game API Shared
-// =============================================================================
-
-typedef struct ThreadContext {
-	unsigned placeholder;
-} ThreadContext;
-
-// =============================================================================
-// Platform API
-// =============================================================================
-
-#if DEBUG
-
-#define MEMORY_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
-
-typedef struct ReadFileResult {
-	size_t size_byte;
-	void *base_address;
-} ReadFileResult;
-
-#define FILE_READ_DEBUG(name) ReadFileResult name(const char *const filename, ThreadContext *thread)
-#define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
-#define FILE_WRITE_DEBUG(name) \
-	uint8_t name(const char *const filename, size_t memorysize, void *memory, ThreadContext *thread)
-
-typedef FILE_READ_DEBUG(file_read_debug_func);
-
-typedef FILE_FREE_DEBUG(file_free_debug_func);
-
-typedef FILE_WRITE_DEBUG(file_write_debug_func);
-
-#else // DEBUG
-
-#define MEMORY_BASE_ADDRESS (nullptr)
-
-#endif // DEBUG
-
-// =============================================================================
-// Game API
-// =============================================================================
 
 typedef struct Storage {
 	size_t permanent_storage_size_byte; // permanent storage in bytes
@@ -170,6 +151,13 @@ typedef struct Storage {
 
 	uint8_t is_initialized;
 } Storage;
+
+static inline ControllerState *input_get_controller(GameInput *input, size_t controller_index)
+{
+	assert(controller_index < MAX_CONTROLLERS);
+
+	return &input->controllers[controller_index];
+}
 
 /**
  * @brief Updates the game status and renders it
