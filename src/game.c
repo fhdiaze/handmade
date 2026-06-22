@@ -445,14 +445,16 @@ static void offscreen_render_rectangle(GameOffscreenBuffer *back_buffer, Vtwo vm
 }
 
 /**
- * @brief Renders a bitmap inside another one on CPU
+ * @brief Alpha-blends a source bitmap into a target offscreen buffer on the CPU.
+ *        The blit region is clipped to whichever boundary (target or source) is
+ *        reached first, so no bounds check is needed by the caller.
  *
- * @param target
- * @param target_offset_x_px_f
- * @param target_offset_y_px_f
- * @param source
- * @param source_offset_x_px_f
- * @param source_offset_y_px_f
+ * @param back_buffer Destination offscreen buffer (top-down, ARGB).
+ * @param target_offset_x_px_f X pixel offset into the destination buffer where the blit starts.
+ * @param target_offset_y_px_f Y pixel offset into the destination buffer where the blit starts.
+ * @param bitmap Source bitmap to draw (bottom-up, ARGB).
+ * @param source_offset_x_px_f X pixel offset into the source bitmap to start reading from.
+ * @param source_offset_y_px_f Y pixel offset into the source bitmap to start reading from.
  */
 static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buffer, float target_offset_x_px_f,
                                     float target_offset_y_px_f, const LoadedBitmap *const restrict bitmap,
@@ -467,10 +469,10 @@ static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buf
 	assert(source_offset_x_px_f >= 0.0F);
 	assert(source_offset_y_px_f >= 0.0F);
 
-	uint32_t target_offset_x_px = (unsigned)float_round_to_int(target_offset_x_px_f);
-	uint32_t target_offset_y_px = (unsigned)float_round_to_int(target_offset_y_px_f);
-	uint32_t source_offset_x_px = (unsigned)float_round_to_int(source_offset_x_px_f);
-	uint32_t source_offset_y_px = (unsigned)float_round_to_int(source_offset_y_px_f);
+	uint32_t target_offset_x_px = float_round_to_uint(target_offset_x_px_f);
+	uint32_t target_offset_y_px = float_round_to_uint(target_offset_y_px_f);
+	uint32_t source_offset_x_px = float_round_to_uint(source_offset_x_px_f);
+	uint32_t source_offset_y_px = float_round_to_uint(source_offset_y_px_f);
 
 	assert(target_offset_x_px < back_buffer->width_px);
 	assert(target_offset_y_px < back_buffer->height_px);
@@ -583,6 +585,16 @@ static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read
 // Game State
 // =============================================================================
 
+// Dimensions in meters
+#define HERO_HEIGHT_M (0.5F) //(1.4F)
+#define HERO_WIDTH_M (1.0F) // (0.75F * HERO_HEIGHT_M)
+#define HERO_HEIGHT_RADIUS_M (0.5F * HERO_HEIGHT_M)
+#define HERO_WIDTH_RADIUS_M (0.5F * HERO_WIDTH_M)
+
+// Dimensions in tiles
+#define HERO_WIDTH_T (float_ceil_to_uint(HERO_WIDTH_M / TILE_SIDE_M))
+#define HERO_HEIGHT_T (float_ceil_to_uint(HERO_HEIGHT_M / TILE_SIDE_M))
+
 typedef struct World {
 	Map *map;
 } World;
@@ -593,6 +605,12 @@ typedef enum HeroFacingDirection : uint8_t {
 	HERO_FACING_LEFT,
 	HERO_FACING_DOWN,
 } HeroFacingDirection;
+
+typedef struct Entity {
+	float width;
+	float height;
+	HeroFacingDirection facing;
+} Entity;
 
 typedef struct GameState {
 	Arena arena;
@@ -677,9 +695,6 @@ static const Vtwo g_screen_offset = {
 GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
 	assert(sizeof(GameState) <= Storage->permanent_storage_size_byte);
-
-	float player_height_m = 1.4F;
-	float player_width_m = 0.75F * player_height_m;
 
 	GameState *game_state = Storage->permanent_storage;
 	Arena *arena = &game_state->arena;
@@ -1494,8 +1509,18 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			uint32_t start_tile_y = NUMBER_MIN(old_hero_position.tile_y, new_hero_position.tile_y);
 			uint32_t end_tile_y = NUMBER_MAX(old_hero_position.tile_y, new_hero_position.tile_y);
 
+			// Adjust the search space to take into acount the hero dimensions
+			start_tile_x -= HERO_WIDTH_T;
+			start_tile_y -= HERO_HEIGHT_T;
+			end_tile_x += HERO_WIDTH_T;
+			end_tile_y += HERO_HEIGHT_T;
+
 			uint32_t tile_z = new_hero_position.tile_z;
 			float max_time = 1.0F;
+
+			// Assert that the search space is small. 32 is not an special or particular number.
+			assert(end_tile_x - start_tile_x < 32);
+			assert(end_tile_y - start_tile_y < 32);
 
 			for (uint32_t tile_y = start_tile_y; tile_y <= end_tile_y; ++tile_y) {
 				for (uint32_t tile_x = start_tile_x; tile_x <= end_tile_x; ++tile_x) {
@@ -1506,8 +1531,11 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 					};
 
 					if (!map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
-						Vtwo min_corner = { .x = -TILE_RADIUS_M, .y = -TILE_RADIUS_M };
-						Vtwo max_corner = { .x = TILE_RADIUS_M, .y = TILE_RADIUS_M };
+						// Applying Minkowski algebra
+						float radius_h = 0.5F * (TILE_SIDE_M + HERO_HEIGHT_M);
+						float radius_w = 0.5F * (TILE_SIDE_M + HERO_WIDTH_M);
+						Vtwo min_corner = { .x = -radius_w, .y = -radius_h };
+						Vtwo max_corner = { .x = radius_w, .y = radius_h };
 
 						Vtwo tile_to_hero =
 							position_substract(&old_hero_position, &test_tile).delta_xy_m;
@@ -1526,6 +1554,11 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 						          min_corner.x, max_corner.x);
 					}
 				}
+			}
+
+			if (max_time < 1.0F) {
+				game_state->hero_velocity.x = 0.0F;
+				game_state->hero_velocity.y = 0.0F;
 			}
 
 			hero_displacement = vtwo_scale(hero_displacement, max_time);
@@ -1667,22 +1700,22 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		float player_green = 1.0F;
 		float player_blue = 0.0F;
 
-		Vtwo camera_hero_xy_delta = vtwo_scale(delta_position.delta_xy_m, TILE_PIXELS_PER_METER);
+		Vtwo camera_hero_xy_delta_px = vtwo_scale(delta_position.delta_xy_m, TILE_PIXELS_PER_METER);
 		// Flipping as screen and world y grow in different directions
-		camera_hero_xy_delta = vtwo_flip_y(camera_hero_xy_delta);
-		Vtwo player_ground_point = vtwo_add(bitmap_center_px, camera_hero_xy_delta);
+		camera_hero_xy_delta_px = vtwo_flip_y(camera_hero_xy_delta_px);
+		Vtwo player_ground_point_px = vtwo_add(bitmap_center_px, camera_hero_xy_delta_px);
 		Vtwo player_diagonal = {
-			.x = player_width_m * TILE_PIXELS_PER_METER,
-			.y = player_height_m * TILE_PIXELS_PER_METER,
+			.x = HERO_WIDTH_M * TILE_PIXELS_PER_METER,
+			.y = HERO_HEIGHT_M * TILE_PIXELS_PER_METER,
 		};
-		Vtwo player_delta = vtwo_scale_x(player_diagonal, 0.5F);
-		Vtwo player_min = vtwo_sub(player_ground_point, player_delta);
+		Vtwo player_delta = vtwo_scale(player_diagonal, 0.5F);
+		Vtwo player_min = vtwo_sub(player_ground_point_px, player_delta);
 		Vtwo player_max = vtwo_add(player_min, player_diagonal);
 
 		offscreen_render_rectangle(back_buffer, player_min, player_max, player_red, player_green, player_blue);
 
-		float target_offset_x_px = player_ground_point.x - (float)hero_bitmaps->align_x_px;
-		float target_offset_y_px = player_ground_point.y - (float)hero_bitmaps->align_y_px;
+		float target_offset_x_px = player_ground_point_px.x - (float)hero_bitmaps->align_x_px;
+		float target_offset_y_px = player_ground_point_px.y - (float)hero_bitmaps->align_y_px;
 		float source_offset_x_px = 0.0F;
 		float source_offset_y_px = 0.0F;
 

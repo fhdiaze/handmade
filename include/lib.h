@@ -133,9 +133,27 @@ inline uint32_t float_round_to_uint(float value)
 	return result;
 }
 
-inline float float_floor(float value)
+inline int32_t float_floor_to_int(float value)
 {
-	return floorf(value);
+	int32_t result = (int32_t)floorf(value);
+
+	return result;
+}
+
+inline uint32_t float_ceil_to_uint(float value)
+{
+	assert(value >= 0.0F);
+
+	uint32_t result = (uint32_t)ceilf(value);
+
+	return result;
+}
+
+inline int32_t float_ceil_to_int(float value)
+{
+	int32_t result = (int32_t)ceilf(value);
+
+	return result;
 }
 
 inline float float_square(float value)
