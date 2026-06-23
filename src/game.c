@@ -587,7 +587,7 @@ static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read
 
 // Dimensions in meters
 #define HERO_HEIGHT_M (0.5F) //(1.4F)
-#define HERO_WIDTH_M (1.0F) // (0.75F * HERO_HEIGHT_M)
+#define HERO_WIDTH_M (1.0F)  // (0.75F * HERO_HEIGHT_M)
 #define HERO_HEIGHT_RADIUS_M (0.5F * HERO_HEIGHT_M)
 #define HERO_WIDTH_RADIUS_M (0.5F * HERO_WIDTH_M)
 
@@ -667,9 +667,11 @@ static void sound_output_samples(GameSoundBuffer *buffer, GameState *game_state,
 // Collision detection
 // =============================================================================
 
-inline static void wall_test(float wall_x, float rel_x, float rel_y, float delta_x, float delta_y, float *max_time,
+inline static uint32_t wall_test(float wall_x, float rel_x, float rel_y, float delta_x, float delta_y, float *max_time,
                              float min_y, float max_y)
 {
+	uint32_t was_wall_hit = 0U;
+
 	float t_epsilon = 0.0001F;
 
 	if (delta_x != 0.0F) {
@@ -678,9 +680,12 @@ inline static void wall_test(float wall_x, float rel_x, float rel_y, float delta
 		if (t_result >= 0.0F && *max_time > t_result) {
 			if (y >= min_y && y <= max_y) {
 				*max_time = max(0.0F, t_result - t_epsilon);
+				was_wall_hit = 1U;
 			}
 		}
 	}
+
+	return was_wall_hit;
 }
 
 // =============================================================================
@@ -1517,6 +1522,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 			uint32_t tile_z = new_hero_position.tile_z;
 			float max_time = 1.0F;
+			Vtwo wall_normal = {};
 
 			// Assert that the search space is small. 32 is not an special or particular number.
 			assert(end_tile_x - start_tile_x < 32);
@@ -1556,11 +1562,6 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				}
 			}
 
-			if (max_time < 1.0F) {
-				game_state->hero_velocity.x = 0.0F;
-				game_state->hero_velocity.y = 0.0F;
-			}
-
 			hero_displacement = vtwo_scale(hero_displacement, max_time);
 			new_hero_position = game_state->hero_position;
 			new_hero_tile_offset = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
@@ -1568,6 +1569,13 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			if (position_set_offset(&new_hero_position, new_hero_tile_offset)) {
 				game_state->hero_position = new_hero_position;
 			}
+
+			if (max_time < 1.0F) {
+				game_state->hero_velocity.x = 0.0F;
+				game_state->hero_velocity.y = 0.0F;
+			}
+
+			game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, );
 
 #endif
 		}
@@ -1604,22 +1612,22 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		Position *camera_position = &game_state->camera_position;
 
 		// Vector to move from the camera to the hero position in the map
-		PositionDelta delta_position =
+		PositionDelta camera_to_hero_delta_position =
 			position_substract(&game_state->hero_position, &game_state->camera_position);
 
-		if (delta_position.delta_xy_m.x > 9.0F * TILE_SIDE_M) {
+		if (camera_to_hero_delta_position.delta_xy_m.x > 9.0F * TILE_SIDE_M) {
 			game_state->camera_position.tile_x += 17;
 		}
 
-		if (delta_position.delta_xy_m.x < -9.0F * TILE_SIDE_M) {
+		if (camera_to_hero_delta_position.delta_xy_m.x < -9.0F * TILE_SIDE_M) {
 			game_state->camera_position.tile_x -= 17;
 		}
 
-		if (delta_position.delta_xy_m.y > 5.0F * TILE_SIDE_M) {
+		if (camera_to_hero_delta_position.delta_xy_m.y > 5.0F * TILE_SIDE_M) {
 			game_state->camera_position.tile_y += 9;
 		}
 
-		if (delta_position.delta_xy_m.y < -5.0F * TILE_SIDE_M) {
+		if (camera_to_hero_delta_position.delta_xy_m.y < -5.0F * TILE_SIDE_M) {
 			game_state->camera_position.tile_y -= 9;
 		}
 
@@ -1700,10 +1708,13 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		float player_green = 1.0F;
 		float player_blue = 0.0F;
 
-		Vtwo camera_hero_xy_delta_px = vtwo_scale(delta_position.delta_xy_m, TILE_PIXELS_PER_METER);
+		camera_to_hero_delta_position =
+			position_substract(&game_state->hero_position, &game_state->camera_position);
+		Vtwo camera_hero_delta_xy_px =
+			vtwo_scale(camera_to_hero_delta_position.delta_xy_m, TILE_PIXELS_PER_METER);
 		// Flipping as screen and world y grow in different directions
-		camera_hero_xy_delta_px = vtwo_flip_y(camera_hero_xy_delta_px);
-		Vtwo player_ground_point_px = vtwo_add(bitmap_center_px, camera_hero_xy_delta_px);
+		camera_hero_delta_xy_px = vtwo_flip_y(camera_hero_delta_xy_px);
+		Vtwo player_ground_point_px = vtwo_add(bitmap_center_px, camera_hero_delta_xy_px);
 		Vtwo player_diagonal = {
 			.x = HERO_WIDTH_M * TILE_PIXELS_PER_METER,
 			.y = HERO_HEIGHT_M * TILE_PIXELS_PER_METER,
