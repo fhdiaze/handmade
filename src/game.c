@@ -668,7 +668,7 @@ static void sound_output_samples(GameSoundBuffer *buffer, GameState *game_state,
 // =============================================================================
 
 inline static uint32_t wall_test(float wall_x, float rel_x, float rel_y, float delta_x, float delta_y, float *max_time,
-                             float min_y, float max_y)
+                                 float min_y, float max_y)
 {
 	uint32_t was_wall_hit = 0U;
 
@@ -677,6 +677,7 @@ inline static uint32_t wall_test(float wall_x, float rel_x, float rel_y, float d
 	if (delta_x != 0.0F) {
 		float t_result = (wall_x - rel_x) / delta_x;
 		float y = delta_y * t_result + rel_y;
+
 		if (t_result >= 0.0F && *max_time > t_result) {
 			if (y >= min_y && y <= max_y) {
 				*max_time = max(0.0F, t_result - t_epsilon);
@@ -1309,12 +1310,12 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			0x563604f, 0x35ac04f, 0x4c738db, 0x017a190, 0x4755a31, 0x2ab670c, 0x2f19157, 0x41e6bc9,
 			0x31ddcf7, 0x2be4744, 0x40d7216, 0x1d22e0e, 0x1e5adbe, 0x2c9c0e2, 0x4c37b3b, 0x3bf31fd,
 		};
-		uint8_t is_left_door = 0U;
-		uint8_t is_right_door = 0U;
-		uint8_t is_top_door = 0U;
-		uint8_t is_bottom_door = 0U;
-		uint8_t is_stairs_up = 0U;
-		uint8_t is_stairs_down = 0U;
+		uint32_t is_left_door = 0U;
+		uint32_t is_right_door = 0U;
+		uint32_t is_top_door = 0U;
+		uint32_t is_bottom_door = 0U;
+		uint32_t is_stairs_up = 0U;
+		uint32_t is_stairs_down = 0U;
 		uint32_t tile_z = 0;
 		for (uint32_t screen_idx = 0; screen_idx < 100; ++screen_idx) {
 			assert(random_num_idx < RANDOM_NUMS_COUNT);
@@ -1323,7 +1324,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			random_choice = random_nums[random_num_idx] % options;
 
 			is_stairs_up = random_choice == 2 ? !tile_z : is_stairs_up;
-			is_stairs_down = random_choice == 2 ? !!tile_z : is_stairs_down;
+			is_stairs_down = random_choice == 2 ? tile_z : is_stairs_down;
 			is_right_door = random_choice == 1;
 			is_top_door = random_choice == 0;
 
@@ -1403,7 +1404,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		}
 
 		Vtwo hero_acceleration = {};
-		float hero_acceleration_scale = controller->actionup.ended_down ? 70.0F : 50.0F;
+		float hero_acceleration_scale = controller->actionup.ended_down ? 90.0F : 50.0F;
 
 		if (controller->is_analog) {
 			hero_acceleration.x = controller->stick_avg_x;
@@ -1436,13 +1437,16 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		}
 
 		hero_acceleration = vtwo_scale(hero_acceleration, hero_acceleration_scale);
+		// Apply the drag
 		hero_acceleration = vtwo_sub(hero_acceleration, vtwo_scale(game_state->hero_velocity, 7.0F));
 
 		float time_delta_sec_sq = float_square(input->time_delta_sec);
+
+		// Kinematic equation: 1/2*a*t^2
 		Vtwo acceleration_displacement = vtwo_scale(hero_acceleration, 0.5F * time_delta_sec_sq);
+
+		// Kinematic equation: v*t
 		Vtwo velocity_displacement = vtwo_scale(game_state->hero_velocity, input->time_delta_sec);
-		game_state->hero_velocity =
-			vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec), game_state->hero_velocity);
 
 		// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
 		Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
@@ -1573,10 +1577,14 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			if (max_time < 1.0F) {
 				game_state->hero_velocity.x = 0.0F;
 				game_state->hero_velocity.y = 0.0F;
+			} else {
+				// Kinematic equation: v' = a*t + v
+				game_state->hero_velocity =
+					vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec),
+				                 game_state->hero_velocity);
 			}
 
-			game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, );
-
+			// game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, );
 #endif
 		}
 
@@ -1690,7 +1698,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 					min_point = vtwo_add(min_point, g_screen_offset);
 					min_point = vtwo_add(min_point, camera_tile_offset);
 
-					Vtwo max_point = vtwo_add_scalar(min_point, (float)TILE_SIDE_PX);
+					Vtwo max_point = vtwo_add_scalar(min_point, (float)TILE_SIDE_PX * 0.9F);
 
 					if (game_state->hero_position.tile_y == tile_row &&
 					    game_state->hero_position.tile_x == tile_col) {
