@@ -667,12 +667,30 @@ static void sound_output_samples(GameSoundBuffer *buffer, GameState *game_state,
 // Collision detection
 // =============================================================================
 
+/**
+ * @brief Tests whether a moving entity hits a wall segment during its movement step.
+ *
+ * Uses parametric ray-casting to determine if the entity's path intersects the wall.
+ * The wall is treated as a vertical line at @p wall_x, bounded vertically by
+ * [@p min_y, @p max_y]. If a valid hit is found, @p max_time is clamped to just
+ * before the collision time to prevent tunnelling.
+ *
+ * @param wall_x X coordinate of the vertical wall.
+ * @param rel_x Entity's X position relative to the wall's reference frame.
+ * @param rel_y Entity's Y position relative to the wall's reference frame.
+ * @param delta_x X component of the entity's movement vector for this step.
+ * @param delta_y Y component of the entity's movement vector for this step.
+ * @param max_time In/out. The current maximum allowable travel time (t in [0,1]).
+ *                 Updated to the hit time (minus epsilon) when a hit occurs.
+ * @param min_y Minimum Y extent of the wall segment.
+ * @param max_y Maximum Y extent of the wall segment.
+ * @return 0 if the wall was not hit, 1 if a valid collision was detected.
+ */
 inline static uint32_t wall_test(float wall_x, float rel_x, float rel_y, float delta_x, float delta_y, float *max_time,
                                  float min_y, float max_y)
 {
 	uint32_t was_wall_hit = 0U;
-
-	float t_epsilon = 0.0001F;
+	float t_epsilon = 0.00001F;
 
 	if (delta_x != 0.0F) {
 		float t_result = (wall_x - rel_x) / delta_x;
@@ -1451,6 +1469,10 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
 		Vtwo hero_displacement = vtwo_add(acceleration_displacement, velocity_displacement);
 
+		// Kinematic equation: v' = a*t + v
+		game_state->hero_velocity =
+			vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec), game_state->hero_velocity);
+
 		Position new_hero_position = game_state->hero_position;
 		Vtwo new_hero_tile_offset = vtwo_add(old_hero_position.tile_offset_m, hero_displacement);
 
@@ -1525,66 +1547,77 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			end_tile_y += HERO_HEIGHT_T;
 
 			uint32_t tile_z = new_hero_position.tile_z;
-			float max_time = 1.0F;
-			Vtwo wall_normal = {};
 
 			// Assert that the search space is small. 32 is not an special or particular number.
 			assert(end_tile_x - start_tile_x < 32);
 			assert(end_tile_y - start_tile_y < 32);
 
-			for (uint32_t tile_y = start_tile_y; tile_y <= end_tile_y; ++tile_y) {
-				for (uint32_t tile_x = start_tile_x; tile_x <= end_tile_x; ++tile_x) {
-					Position test_tile = (Position){
-						.tile_x = tile_x,
-						.tile_y = tile_y,
-						.tile_z = tile_z,
-					};
+			float remaining_time = 1.0F;
+			Position test_tile = {};
+			for (uint32_t i = 0; i < 4; ++i) {
+				float max_time = 1.0F;
+				Vtwo wall_normal = {};
+				for (uint32_t tile_y = start_tile_y; tile_y <= end_tile_y; ++tile_y) {
+					for (uint32_t tile_x = start_tile_x; tile_x <= end_tile_x; ++tile_x) {
+						test_tile.tile_x = tile_x;
+						test_tile.tile_y = tile_y;
+						test_tile.tile_z = tile_z;
 
-					if (!map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
-						// Applying Minkowski algebra
-						float radius_h = 0.5F * (TILE_SIDE_M + HERO_HEIGHT_M);
-						float radius_w = 0.5F * (TILE_SIDE_M + HERO_WIDTH_M);
-						Vtwo min_corner = { .x = -radius_w, .y = -radius_h };
-						Vtwo max_corner = { .x = radius_w, .y = radius_h };
+						if (!map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
+							// Applying Minkowski algebra
+							float radius_h = 0.5F * (TILE_SIDE_M + HERO_HEIGHT_M);
+							float radius_w = 0.5F * (TILE_SIDE_M + HERO_WIDTH_M);
+							Vtwo min_corner = { .x = -radius_w, .y = -radius_h };
+							Vtwo max_corner = { .x = radius_w, .y = radius_h };
 
-						Vtwo tile_to_hero =
-							position_substract(&old_hero_position, &test_tile).delta_xy_m;
+							Vtwo tile_to_hero =
+								position_substract(&old_hero_position, &test_tile)
+									.delta_xy_m;
 
-						wall_test(min_corner.x, tile_to_hero.x, tile_to_hero.y,
-						          hero_displacement.x, hero_displacement.y, &max_time,
-						          min_corner.y, max_corner.y);
-						wall_test(max_corner.x, tile_to_hero.x, tile_to_hero.y,
-						          hero_displacement.x, hero_displacement.y, &max_time,
-						          min_corner.y, max_corner.y);
-						wall_test(min_corner.y, tile_to_hero.y, tile_to_hero.x,
-						          hero_displacement.y, hero_displacement.x, &max_time,
-						          min_corner.x, max_corner.x);
-						wall_test(max_corner.y, tile_to_hero.y, tile_to_hero.x,
-						          hero_displacement.y, hero_displacement.x, &max_time,
-						          min_corner.x, max_corner.x);
+							if (wall_test(min_corner.x, tile_to_hero.x, tile_to_hero.y,
+							              hero_displacement.x, hero_displacement.y,
+							              &max_time, min_corner.y, max_corner.y)) {
+								wall_normal = (Vtwo){ .x = -1.0F, .y = 0.0F };
+							}
+
+							if (wall_test(max_corner.x, tile_to_hero.x, tile_to_hero.y,
+							              hero_displacement.x, hero_displacement.y,
+							              &max_time, min_corner.y, max_corner.y)) {
+								wall_normal = (Vtwo){ .x = 1.0F, .y = 0.0F };
+							}
+
+							if (wall_test(min_corner.y, tile_to_hero.y, tile_to_hero.x,
+							              hero_displacement.y, hero_displacement.x,
+							              &max_time, min_corner.x, max_corner.x)) {
+								wall_normal = (Vtwo){ .x = 0.0F, .y = -1.0F };
+							}
+
+							if (wall_test(max_corner.y, tile_to_hero.y, tile_to_hero.x,
+							              hero_displacement.y, hero_displacement.x,
+							              &max_time, min_corner.x, max_corner.x)) {
+								wall_normal = (Vtwo){ .x = 0.0F, .y = 1.0F };
+							}
+						}
 					}
 				}
+
+				new_hero_position = game_state->hero_position;
+				new_hero_tile_offset = vtwo_add(new_hero_position.tile_offset_m,
+				                                vtwo_scale(hero_displacement, max_time));
+				if (position_set_offset(&new_hero_position, new_hero_tile_offset)) {
+					game_state->hero_position = new_hero_position;
+				}
+
+				float s_on_r_axis = vtwo_dot(game_state->hero_velocity, wall_normal);
+				Vtwo v_towards_r_axis = vtwo_scale(wall_normal, s_on_r_axis);
+				game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, v_towards_r_axis);
+
+				float d_on_r_axis = vtwo_dot(hero_displacement, wall_normal);
+				Vtwo d_towards_r_axis = vtwo_scale(wall_normal, d_on_r_axis);
+				hero_displacement = vtwo_sub(hero_displacement, d_towards_r_axis);
+
+				remaining_time -= max_time * remaining_time;
 			}
-
-			hero_displacement = vtwo_scale(hero_displacement, max_time);
-			new_hero_position = game_state->hero_position;
-			new_hero_tile_offset = vtwo_add(new_hero_position.tile_offset_m, hero_displacement);
-
-			if (position_set_offset(&new_hero_position, new_hero_tile_offset)) {
-				game_state->hero_position = new_hero_position;
-			}
-
-			if (max_time < 1.0F) {
-				game_state->hero_velocity.x = 0.0F;
-				game_state->hero_velocity.y = 0.0F;
-			} else {
-				// Kinematic equation: v' = a*t + v
-				game_state->hero_velocity =
-					vtwo_add(vtwo_scale(hero_acceleration, input->time_delta_sec),
-				                 game_state->hero_velocity);
-			}
-
-			// game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, );
 #endif
 		}
 
