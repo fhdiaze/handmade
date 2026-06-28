@@ -599,18 +599,36 @@ typedef struct World {
 	Map *map;
 } World;
 
-typedef enum HeroFacingDirection : uint8_t {
+typedef enum FacingDirection : uint8_t {
 	HERO_FACING_RIGHT,
 	HERO_FACING_UP,
 	HERO_FACING_LEFT,
 	HERO_FACING_DOWN,
-} HeroFacingDirection;
+} FacingDirection;
 
-typedef struct Entity {
-	float width;
-	float height;
-	HeroFacingDirection facing;
-} Entity;
+typedef struct HighEntity {
+	uint8_t exists;
+	Vtwo pos;
+	Vtwo vel;
+	FacingDirection facing;
+} HighEntity;
+
+typedef struct LowEntity {
+	Position pos;
+	FacingDirection facing;
+} LowEntity;
+
+typedef struct DormantEntity {
+	Position pos;
+	float w;
+	float h;
+} DormantEntity;
+
+typedef enum EntityStatus : uint8_t {
+	ENTITY_STATUS_HIGH,
+	ENTITY_STATUS_LOW,
+	ENTITY_STATUS_DORMANT,
+} EntityStatus;
 
 typedef struct GameState {
 	Arena arena;
@@ -623,6 +641,13 @@ typedef struct GameState {
 	LoadedBitmap backdrop;
 
 	HeroBitmaps hero_bitmaps[4];
+
+	uint32_t entity_count;
+	EntityStatus entity_status[256];
+	HighEntity high_entities[256];
+	LowEntity low_entities[256];
+	DormantEntity dormant_entities[256];
+
 	uint8_t hero_facing_direction;
 } GameState;
 
@@ -772,6 +797,12 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
+		game_state->camera_position.tile_x = 17 / 2;
+		game_state->camera_position.tile_y = 9 / 2;
+		game_state->camera_position.tile_z = 0;
+		game_state->camera_position.tile_offset_m.x = 0.0F;
+		game_state->camera_position.tile_offset_m.y = 0.0F;
+
 		game_state->hero_facing_direction = 0;
 
 		game_state->hero_position.tile_x = 1;
@@ -779,12 +810,6 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		game_state->hero_position.tile_z = 0;
 		game_state->hero_position.tile_offset_m.x = 0.0F;
 		game_state->hero_position.tile_offset_m.y = 0.0F;
-
-		game_state->camera_position.tile_x = 17 / 2;
-		game_state->camera_position.tile_y = 9 / 2;
-		game_state->camera_position.tile_z = 0;
-		game_state->camera_position.tile_offset_m.x = 0.0F;
-		game_state->camera_position.tile_offset_m.y = 0.0F;
 
 		game_state->hero_velocity.x = 0.0F;
 		game_state->hero_velocity.y = 0.0F;
@@ -1478,7 +1503,6 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		if (position_set_offset(&new_hero_position, new_hero_tile_offset)) {
 #if 0
-
 		Position left_bottom_pos = new_hero_position;
 		left_bottom_pos.tile_offset_m.x -= player_width_m * 0.5F;
 		if (!map_normalize_position(&left_bottom_pos)) {
@@ -1554,7 +1578,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 			float remaining_time = 1.0F;
 			Position test_tile = {};
-			for (uint32_t i = 0; i < 4; ++i) {
+			for (uint32_t i = 0; i < 4 && remaining_time > 0.0F; ++i) {
 				float max_time = 1.0F;
 				Vtwo wall_normal = {};
 				for (uint32_t tile_y = start_tile_y; tile_y <= end_tile_y; ++tile_y) {
@@ -1571,7 +1595,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 							Vtwo max_corner = { .x = radius_w, .y = radius_h };
 
 							Vtwo tile_to_hero =
-								position_substract(&old_hero_position, &test_tile)
+								position_substract(&game_state->hero_position,
+							                           &test_tile)
 									.delta_xy_m;
 
 							if (wall_test(min_corner.x, tile_to_hero.x, tile_to_hero.y,
@@ -1608,13 +1633,14 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 					game_state->hero_position = new_hero_position;
 				}
 
-				float s_on_r_axis = vtwo_dot(game_state->hero_velocity, wall_normal);
-				Vtwo v_towards_r_axis = vtwo_scale(wall_normal, s_on_r_axis);
-				game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, v_towards_r_axis);
+				float speed_on_r_axis = vtwo_dot(game_state->hero_velocity, wall_normal);
+				Vtwo velocity_towards_r_axis = vtwo_scale(wall_normal, speed_on_r_axis);
+				game_state->hero_velocity =
+					vtwo_sub(game_state->hero_velocity, velocity_towards_r_axis);
 
-				float d_on_r_axis = vtwo_dot(hero_displacement, wall_normal);
-				Vtwo d_towards_r_axis = vtwo_scale(wall_normal, d_on_r_axis);
-				hero_displacement = vtwo_sub(hero_displacement, d_towards_r_axis);
+				float displacement_on_r_axis = vtwo_dot(hero_displacement, wall_normal);
+				Vtwo displacement_towards_r_axis = vtwo_scale(wall_normal, displacement_on_r_axis);
+				hero_displacement = vtwo_sub(hero_displacement, displacement_towards_r_axis);
 
 				remaining_time -= max_time * remaining_time;
 			}
@@ -1731,7 +1757,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 					min_point = vtwo_add(min_point, g_screen_offset);
 					min_point = vtwo_add(min_point, camera_tile_offset);
 
-					Vtwo max_point = vtwo_add_scalar(min_point, (float)TILE_SIDE_PX * 0.9F);
+					Vtwo max_point = vtwo_add_scalar(min_point, (float)TILE_SIDE_PX);
 
 					if (game_state->hero_position.tile_y == tile_row &&
 					    game_state->hero_position.tile_x == tile_col) {

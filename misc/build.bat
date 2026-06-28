@@ -88,14 +88,32 @@ if "%Architecture%"=="x86" (
 )
 
 if "%BuildMode%"=="debug" (
-    set "Flags=!Flags! -g -gcodeview -O0 -DDEBUG -Wl,/DEBUG:FULL -fms-runtime-lib=static_dbg"
+    set "Flags=!Flags! -g"
+    set "Flags=!Flags! -gcodeview"
+    set "Flags=!Flags! -O0"
+    set "Flags=!Flags! -DDEBUG"
+    set "Flags=!Flags! -Wl,/DEBUG:FULL"
+    set "Flags=!Flags! -fms-runtime-lib=static_dbg"
+    @REM set "Flags=!Flags! -fsanitize=address"
+    @REM set "Flags=!Flags! -fno-omit-frame-pointer"
     echo Building in DEBUG mode...
 ) else (
-    set "Flags=!Flags! -O3 -DNDEBUG -flto -Wl,/opt:ref -Wl,/opt:icf -fms-runtime-lib=static"
+    set "Flags=!Flags! -O3"
+    set "Flags=!Flags! -DNDEBUG"
+    set "Flags=!Flags! -flto"
+    set "Flags=!Flags! -Wl,/opt:ref"
+    set "Flags=!Flags! -Wl,/opt:icf"
+    set "Flags=!Flags! -fms-runtime-lib=static"
     echo Building in RELEASE mode...
 )
 
-set "GameFlags=!Flags! -Wl,/MAP:%Outdir%/%GameFileName%.map,/MAPINFO:EXPORTS -Wl,/EXPORT:sound_create_samples -Wl,/EXPORT:game_update_and_render -Wl,/PDB:%Outdir%/game_%random%.pdb -shared"
+set "GameFlags=!Flags!"
+set "GameFlags=!GameFlags! -Wl,/MAP:%Outdir%/%GameFileName%.map"
+set "GameFlags=!GameFlags! -Wl,/MAPINFO:EXPORTS"
+set "GameFlags=!GameFlags! -Wl,/EXPORT:sound_create_samples"
+set "GameFlags=!GameFlags! -Wl,/EXPORT:game_update_and_render"
+set "GameFlags=!GameFlags! -Wl,/PDB:%Outdir%/game_%random%.pdb"
+set "GameFlags=!GameFlags! -shared"
 
 echo Building game dll...
 echo.
@@ -122,7 +140,13 @@ if %LiveBuild% equ 1 (
     exit /b 0
 )
 
-set "PlatformFlags=!Flags! -luser32 -lgdi32 -lwinmm -Wl,/subsystem:windows -Wl,/MAP:%Outdir%/%PlatformFileName%.map,/MAPINFO:EXPORTS"
+set "PlatformFlags=!Flags!"
+set "PlatformFlags=!PlatformFlags! -luser32"
+set "PlatformFlags=!PlatformFlags! -lgdi32"
+set "PlatformFlags=!PlatformFlags! -lwinmm"
+set "PlatformFlags=!PlatformFlags! -Wl,/subsystem:windows"
+set "PlatformFlags=!PlatformFlags! -Wl,/MAP:%Outdir%/%PlatformFileName%.map"
+set "PlatformFlags=!PlatformFlags! -Wl,/MAPINFO:EXPORTS"
 
 echo Building platform exe...
 echo.

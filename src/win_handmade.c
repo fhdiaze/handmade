@@ -243,7 +243,7 @@ static uint8_t win_file_get_exe_path(WinState *winstate)
 {
 	unsigned long exe_path_length = GetModuleFileNameA(nullptr, winstate->exe_path, MAX_FILE_PATH);
 	if (exe_path_length == 0 || exe_path_length == MAX_FILE_PATH) {
-		LIB_LOGE("unable to get the executable path");
+		LOG_ERROR("unable to get the executable path");
 		return 0U;
 	}
 
@@ -298,7 +298,7 @@ static inline uint32_t win_file_get_last_write_time(const char *const file_path,
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
 	if (!GetFileAttributesExA(file_path, GetFileExInfoStandard, &data)) {
-		LIB_LOGE("unable to check the timestamp of the file: %s", file_path);
+		LOG_ERROR("unable to check the timestamp of the file: %s", file_path);
 		return 0U;
 	}
 
@@ -322,7 +322,7 @@ static uint32_t win_code_load_game(GameCode *game_code, const char *const gamedl
 
 	FILETIME dll_lock_last_write_time = {};
 	if (win_file_get_last_write_time(gamedll_lock_path, &dll_lock_last_write_time)) {
-		LIB_LOGE("unable to read the dll, waiting for pdb file");
+		LOG_ERROR("unable to read the dll, waiting for pdb file");
 		return result_code;
 	}
 
@@ -333,7 +333,7 @@ static uint32_t win_code_load_game(GameCode *game_code, const char *const gamedl
 
 	if (!CopyFileA(gamedll_path, tmpdll_path, 0U)) {
 		DWORD error = GetLastError();
-		LIB_LOGE("unable to copy the dll: '%s', error: %lu", gamedll_path, error);
+		LOG_ERROR("unable to copy the dll: '%s', error: %lu", gamedll_path, error);
 		return result_code;
 	}
 
@@ -353,7 +353,7 @@ static uint32_t win_code_load_game(GameCode *game_code, const char *const gamedl
 		game_code->sound_create_samples = nullptr;
 		game_code->update_and_render = nullptr;
 
-		LIB_LOGE("unable to load the dll: '%s'", gamedll_path);
+		LOG_ERROR("unable to load the dll: '%s'", gamedll_path);
 	}
 
 	assert(game_code->is_valid);
@@ -409,7 +409,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	HMODULE dsound_lib = LoadLibraryA("dsound.dll");
 	if (!dsound_lib) {
 		// TODO(fredy): diagnostic
-		LIB_LOGE("Error loading dsound.dll");
+		LOG_ERROR("Error loading dsound.dll");
 		return;
 	}
 
@@ -417,14 +417,14 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 		(direct_sound_create_func *)GetProcAddress(dsound_lib, "DirectSoundCreate");
 	if (!dsound_create) {
 		// TODO(fredy): diagnostic
-		LIB_LOGE("Error getting DirectSoundCreate function");
+		LOG_ERROR("Error getting DirectSoundCreate function");
 		return;
 	}
 
 	LPDIRECTSOUND direct_sound = nullptr;
 	if (FAILED(dsound_create(nullptr, &direct_sound, nullptr))) {
 		// TODO(fredy): diagnostic
-		LIB_LOGE("Error creating the handler for direct sound");
+		LOG_ERROR("Error creating the handler for direct sound");
 		return;
 	}
 
@@ -441,7 +441,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 
 	if (FAILED(IDirectSound_SetCooperativeLevel(direct_sound, winhandle, DSSCL_PRIORITY))) {
 		// TODO(fredy): diagnostic
-		LIB_LOGE("Error setting the cooperative level for direct sound");
+		LOG_ERROR("Error setting the cooperative level for direct sound");
 	}
 
 	// NOTE(fredy): create the primary buffer
@@ -452,12 +452,12 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	LPDIRECTSOUNDBUFFER primbuffer = nullptr;
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &primbufferdesc, &primbuffer, nullptr))) {
 		// TODO(fredy): diagnostic
-		LIB_LOGE("Error creating the primary buffer (handle for the sound card)");
+		LOG_ERROR("Error creating the primary buffer (handle for the sound card)");
 	}
 
 	if (FAILED(IDirectSoundBuffer_SetFormat(primbuffer, &waveformat))) {
 		// TODO(fredy): diagnostic
-		LIB_LOGE("Error setting the format for the primary buffer");
+		LOG_ERROR("Error setting the format for the primary buffer");
 	}
 
 	// NOTE(fredy): create the secondary buffer
@@ -468,7 +468,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	};
 	if (FAILED(IDirectSound_CreateSoundBuffer(direct_sound, &secbufferdesc, &g_secbuffer, nullptr))) {
 		// TODO(fredy): diagnostic
-		LIB_LOGE("Error creating the secondary buffer");
+		LOG_ERROR("Error creating the secondary buffer");
 	}
 }
 
@@ -1038,7 +1038,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 	win_offscreen_resize_section(&g_win_back_buffer, 960, 540);
 
 	if (!RegisterClassA(&winclass)) {
-		LIB_LOGE("error registering the window class");
+		LOG_ERROR("error registering the window class");
 		return EXIT_FAILURE;
 	}
 
@@ -1046,7 +1046,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 	                                 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr,
 	                                 hinstance, nullptr);
 	if (!winhandle) {
-		LIB_LOGE("error creating the window");
+		LOG_ERROR("error creating the window");
 		return EXIT_FAILURE;
 	}
 
@@ -1075,7 +1075,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 	win_sound_clear_buffer(&winsound);
 
 	if (FAILED(IDirectSoundBuffer_Play(g_secbuffer, 0, 0, DSBPLAY_LOOPING))) {
-		LIB_LOGE("Error playing dsound secondary buffer");
+		LOG_ERROR("Error playing dsound secondary buffer");
 		return EXIT_FAILURE;
 	}
 
@@ -1403,7 +1403,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 
 			float test_secs_elapsed_for_frame = win_clock_elapsed_secs(last_counter, win_clock_get_wall());
 			if (test_secs_elapsed_for_frame > target_secs_per_frame) {
-				LIB_LOGW("missed sleep: %fs elapsed for frame", (double)test_secs_elapsed_for_frame);
+				LOG_WARN("missed sleep: %fs elapsed for frame", (double)test_secs_elapsed_for_frame);
 			}
 
 			while (secs_elapsed_for_frame < target_secs_per_frame) {
@@ -1411,7 +1411,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 			}
 		} else {
 			// missed frame rate!
-			LIB_LOGW("missed frame rate: %fs elapsed for frame", (double)secs_elapsed_for_frame);
+			LOG_WARN("missed frame rate: %fs elapsed for frame", (double)secs_elapsed_for_frame);
 		}
 
 		LARGE_INTEGER end_counter = win_clock_get_wall();
@@ -1462,7 +1462,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 		float fps = 1000.0F / ms_per_frame;
 		float mega_cycles_per_frame = (float)cycles_elapsed / 1000000.0F;
 
-		LIB_LOGI("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps, (double)mega_cycles_per_frame);
+		LOG_INFO("%fms/f, %ff/s, %fmc/f", (double)ms_per_frame, (double)fps, (double)mega_cycles_per_frame);
 #endif
 
 #if 0

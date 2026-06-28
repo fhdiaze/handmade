@@ -1,11 +1,14 @@
 # Handmade hero
 
-## Arch
+## Architecture
 Virtualising the game for the OS (platform)
 
-- "->" means use
-
-os -> platform <-> core
+```mermaid
+graph TD
+    os --> platform
+    platform --> core
+    core --> platform
+```
 
 ## Unity build
 

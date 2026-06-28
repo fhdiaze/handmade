@@ -200,114 +200,11 @@ inline unsigned int_abs(int value)
 	((end) >= (start) ? ((test) >= (start) && (test) <= (end)) : ((test) >= (start) || (test) <= (end)))
 
 // =============================================================================
-// Logging
-// =============================================================================
-
-#define LIB_LOG_TSTAMP_BUF_SIZE 32
-#define LIB_LOG_LEVEL_ALL 0UL
-#define LIB_LOG_LEVEL_TRACE 1UL
-#define LIB_LOG_LEVEL_DEBUG 2UL
-#define LIB_LOG_LEVEL_INFO 3UL
-#define LIB_LOG_LEVEL_WARN 4UL
-#define LIB_LOG_LEVEL_ERROR 5UL
-#define LIB_LOG_LEVEL_FATAL 6UL
-#define LIB_LOG_LEVEL_OFF 7UL
-
-// Defines what is the minimum priority of a message to be logged.
-// Anything with higher priority is going to be logged.
-#ifndef LIB_LOG_LEVEL
-#define LIB_LOG_LEVEL LIB_LOG_LEVEL_ALL
-#endif // LIB_LOG_LEVEL
-
-#define STRINGIFY(n) #n
-#define STRGY(n) STRINGIFY(n)
-
-#if DEBUG
-#define LIB_LOG_WRITE(fmt, ...)                                                      \
-	do {                                                                         \
-		FILE *_pr_log_file = fopen("log.txt", "a+");                         \
-		if (_pr_log_file != nullptr) {                                       \
-			(void)fprintf(_pr_log_file, fmt __VA_OPT__(, ) __VA_ARGS__); \
-			(void)fclose(_pr_log_file);                                  \
-		}                                                                    \
-	} while (false)
-#else
-#define LIB_LOG_WRITE(fmt, ...) printf(fmt __VA_OPT__(, ) __VA_ARGS__)
-#endif
-
-#define LIB_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                                   \
-	do {                                                                                                  \
-		char _pr_tstamp_str[LIB_LOG_TSTAMP_BUF_SIZE];                                                 \
-		struct timespec _pr_ts;                                                                       \
-		struct tm _pr_tm;                                                                             \
-                                                                                                              \
-		if (!timespec_get(&_pr_ts, TIME_UTC)) {                                                       \
-			break;                                                                                \
-		}                                                                                             \
-		if (gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                                      \
-			break;                                                                                \
-		}                                                                                             \
-		if (strftime(_pr_tstamp_str, LIB_LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm) == 0) {               \
-			break;                                                                                \
-		}                                                                                             \
-                                                                                                              \
-		LIB_LOG_WRITE("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str, _pr_ts.tv_nsec, \
-		              file_name, func_name, STRGY(line_number) __VA_OPT__(, ) __VA_ARGS__);           \
-	} while (false)
-
-#define LIB_LOG_MSG_NOOP(...) ((void)0)
-
-// Logs a trace message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_TRACE
-// Usage: LIB_LOGD("Log trace: x=%d", x);
-#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_TRACE
-#define LIB_LOGT(fmt, ...) LIB_LOG_MSG('T', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
-#else
-#define LIB_LOGT(fmt, ...) LIB_LOG_MSG_NOOP()
-#endif // logt
-
-// Logs a debug message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_DEBUG.
-// Usage: LIB_LOGD("log debug: x=%d", x);
-#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_DEBUG
-#define LIB_LOGD(fmt, ...) LIB_LOG_MSG('D', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
-#else
-#define LIB_LOGD(fmt, ...) LIB_LOG_MSG_NOOP()
-#endif // LIB_LOGD
-
-// Logs an information message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_INFO
-// Usage: LIB_LOGI("Log info: x=%d", x);
-#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_INFO
-#define LIB_LOGI(fmt, ...) LIB_LOG_MSG('I', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
-#else
-#define LIB_LOGI(fmt, ...) LIB_LOG_MSG_NOOP()
-#endif // LIB_LOGI
-
-// Logs a warning message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_WARN
-// Usage: LIB_LOGW("Log warn: x=%d", x);
-#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_WARN
-#define LIB_LOGW(fmt, ...) LIB_LOG_MSG('W', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
-#else
-#define LIB_LOGW(fmt, ...) LIB_LOG_MSG_NOOP()
-#endif // LIB_LOGW
-
-// Logs an error message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_ERROR
-// Usage: LIB_LOGE("Log error: x=%d", x);
-#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_ERROR
-#define LIB_LOGE(fmt, ...) LIB_LOG_MSG('E', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
-#else
-#define LIB_LOGE(fmt, ...) LIB_LOG_MSG_NOOP()
-#endif // LIB_LOGE
-
-// Logs a fatal message if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_FATAL
-// Usage: LIB_LOGF("Log fatal: x=%d", x);
-#if LIB_LOG_LEVEL <= LIB_LOG_LEVEL_FATAL
-#define LIB_LOGF(fmt, ...) LIB_LOG_MSG('F', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
-#else
-#define LIB_LOGF(fmt, ...) LIB_LOG_MSG_NOOP()
-#endif // LIB_LOGF
-
-// =============================================================================
 // String
 // =============================================================================
+
+#define STRINGIFY(n) #n
+#define XSTRINGIFY(n) STRINGIFY(n)
 
 void string_concat(const size_t one_count, const char *const restrict one, const size_t other_count,
                    const char *const restrict other, const size_t destsize, char *const restrict dest)
@@ -322,6 +219,109 @@ void string_concat(const size_t one_count, const char *const restrict one, const
 
 	dest[one_count + other_count] = '\0';
 }
+
+// =============================================================================
+// Logging
+// =============================================================================
+
+#define LOG_TSTAMP_BUF_SIZE 32
+#define LOG_LEVEL_ALL 0UL
+#define LOG_LEVEL_TRACE 1UL
+#define LOG_LEVEL_DEBUG 2UL
+#define LOG_LEVEL_INFO 3UL
+#define LOG_LEVEL_WARN 4UL
+#define LOG_LEVEL_ERROR 5UL
+#define LOG_LEVEL_FATAL 6UL
+#define LOG_LEVEL_OFF 7UL
+
+// Defines what is the minimum priority of a message to be logged.
+// Anything with higher priority is going to be logged.
+#ifndef LOG_LEVEL
+#define LOG_LEVEL LOG_LEVEL_ALL
+#endif // LOG_LEVEL
+
+#if DEBUG
+#define IMPL_LOG_WRITE(fmt, ...)                                                     \
+	do {                                                                         \
+		FILE *_pr_log_file = fopen("log.txt", "a+");                         \
+		if (_pr_log_file != nullptr) {                                       \
+			(void)fprintf(_pr_log_file, fmt __VA_OPT__(, ) __VA_ARGS__); \
+			(void)fclose(_pr_log_file);                                  \
+		}                                                                    \
+	} while (false)
+#else
+#define IMPL_LOG_WRITE(fmt, ...) printf(fmt __VA_OPT__(, ) __VA_ARGS__)
+#endif
+
+#define IMPL_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                                   \
+	do {                                                                                                   \
+		char _pr_tstamp_str[LOG_TSTAMP_BUF_SIZE];                                                      \
+		struct timespec _pr_ts;                                                                        \
+		struct tm _pr_tm;                                                                              \
+                                                                                                               \
+		if (!timespec_get(&_pr_ts, TIME_UTC)) {                                                        \
+			break;                                                                                 \
+		}                                                                                              \
+		if (gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                                       \
+			break;                                                                                 \
+		}                                                                                              \
+		if (strftime(_pr_tstamp_str, LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm) == 0) {                    \
+			break;                                                                                 \
+		}                                                                                              \
+                                                                                                               \
+		IMPL_LOG_WRITE("%c[%s.%09ldZ] %s:%s:%s: " fmt "\n", log_level, _pr_tstamp_str, _pr_ts.tv_nsec, \
+		               file_name, func_name, XSTRINGIFY(line_number) __VA_OPT__(, ) __VA_ARGS__);      \
+	} while (false)
+
+#define IMPL_LOG_MSG_NOOP(...) ((void)0)
+
+// Logs a trace message if LOG_LEVEL <= LOG_LEVEL_TRACE
+// Usage: LOG_TRACE("Log trace: x=%d", x);
+#if LOG_LEVEL <= LOG_LEVEL_TRACE
+#define LOG_TRACE(fmt, ...) IMPL_LOG_MSG('T', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define LOG_TRACE(fmt, ...) IMPL_LOG_MSG_NOOP()
+#endif // LOG_TRACE
+
+// Logs a debug message if LOG_LEVEL <= LOG_LEVEL_DEBUG.
+// Usage: LOG_DEBUG("log debug: x=%d", x);
+#if LOG_LEVEL <= LOG_LEVEL_DEBUG
+#define LOG_DEBUG(fmt, ...) IMPL_LOG_MSG('D', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define LOG_DEBUG(fmt, ...) IMPL_LOG_MSG_NOOP()
+#endif // LOG_DEBUG
+
+// Logs an information message if LOG_LEVEL <= LOG_LEVEL_INFO
+// Usage: LOG_INFO("Log info: x=%d", x);
+#if LOG_LEVEL <= LOG_LEVEL_INFO
+#define LOG_INFO(fmt, ...) IMPL_LOG_MSG('I', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define LOG_INFO(fmt, ...) IMPL_LOG_MSG_NOOP()
+#endif // LOG_INFO
+
+// Logs a warning message if LOG_LEVEL <= LOG_LEVEL_WARN
+// Usage: LOG_WARN("Log warn: x=%d", x);
+#if LOG_LEVEL <= LOG_LEVEL_WARN
+#define LOG_WARN(fmt, ...) IMPL_LOG_MSG('W', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define LOG_WARN(fmt, ...) IMPL_LOG_MSG_NOOP()
+#endif // LOG_WARN
+
+// Logs an error message if LOG_LEVEL <= LOG_LEVEL_ERROR
+// Usage: LOG_ERROR("Log error: x=%d", x);
+#if LOG_LEVEL <= LOG_LEVEL_ERROR
+#define LOG_ERROR(fmt, ...) IMPL_LOG_MSG('E', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define LOG_ERROR(fmt, ...) IMPL_LOG_MSG_NOOP()
+#endif // LOG_ERROR
+
+// Logs a fatal message if LOG_LEVEL <= LOG_LEVEL_FATAL
+// Usage: LOG_FATAL("Log fatal: x=%d", x);
+#if LOG_LEVEL <= LOG_LEVEL_FATAL
+#define LOG_FATAL(fmt, ...) IMPL_LOG_MSG('F', fmt, __FILE__, __func__, __LINE__, __VA_ARGS__)
+#else
+#define LOG_FATAL(fmt, ...) IMPL_LOG_MSG_NOOP()
+#endif // LOG_FATAL
 
 // =============================================================================
 // Bit operations
