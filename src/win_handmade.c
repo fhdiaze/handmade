@@ -143,7 +143,7 @@ static WINDOWPLACEMENT g_window_position = {
 
 static void win_window_toggle_fullscreen(HWND winhandle)
 {
-	uint32_t window_style = GetWindowLong(winhandle, GWL_STYLE);
+	uint32_t window_style = (uint32_t)GetWindowLong(winhandle, GWL_STYLE);
 	if (window_style & WS_OVERLAPPEDWINDOW) {
 		MONITORINFO monitor_info = {
 			.cbSize = sizeof(monitor_info),

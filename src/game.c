@@ -607,10 +607,10 @@ typedef enum FacingDirection : uint8_t {
 } FacingDirection;
 
 typedef struct HighEntity {
-	uint8_t exists;
 	Vtwo pos;
 	Vtwo vel;
 	FacingDirection facing;
+	uint8_t exists;
 } HighEntity;
 
 typedef struct LowEntity {
