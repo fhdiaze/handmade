@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdio.h> // IWYU pragma: keep
+#include <string.h>
 #include <time.h>
 
 // =============================================================================
@@ -44,34 +45,42 @@
 #define GB_TO_BYTES(_pr_v) (MB_TO_BYTES(_pr_v) * 1024)
 #define TB_TO_BYTES(_pr_v) (GB_TO_BYTES(_pr_v) * 1024)
 
+#define ARENA_PUSH_ARRAY(arena, type, count) (type *)arena_push((arena), sizeof(type) * (count))
+#define ARENA_PUSH_STRUCT(arena, type) (type *)arena_push((arena), sizeof(type))
+
+#define ARENA_PUSH_ARRAY_ZERO(arena, type, count) (type *)arena_push_zero((arena), sizeof(type) * (count))
+#define ARENA_PUSH_STRUCT_ZERO(arena, type) (type *)arena_push_zero((arena), sizeof(type))
+
 typedef struct Arena {
-	size_t capacity_byte;
+	size_t capacity_bytes;
 	unsigned char *base_address;
-	size_t used_byte;
+	size_t used_bytes;
 } Arena;
 
 void arena_init(Arena *restrict arena, const size_t size, unsigned char *const restrict base)
 {
-	arena->capacity_byte = size;
+	arena->capacity_bytes = size;
 	arena->base_address = base;
-	arena->used_byte = 0;
+	arena->used_bytes = 0;
 }
 
-void *arena_push_size(Arena *arena, size_t size)
+void *arena_push(Arena *arena, size_t size)
 {
-	assert(arena->used_byte + size <= arena->capacity_byte);
+	assert(arena->used_bytes + size <= arena->capacity_bytes);
 
-	void *result = arena->base_address + arena->used_byte;
-	arena->used_byte += size;
+	void *result = arena->base_address + arena->used_bytes;
+	arena->used_bytes += size;
 
 	return result;
 }
 
-void *arena_push_array(Arena *arena, size_t count, size_t size)
+void *arena_push_zero(Arena *arena, size_t size)
 {
-	void *result = arena_push_size(arena, count * size);
+	void *result = arena_push(arena, size);
 
-	return result;
+	memset(result, 0, size);
+
+	return nullptr;
 }
 
 // =============================================================================

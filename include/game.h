@@ -163,7 +163,7 @@ static inline ControllerState *input_get_controller(GameInput *input, size_t con
  * @brief Updates the game status and renders it
  */
 #define GAME_UPDATE_AND_RENDER(name) \
-	void name(GameOffscreenBuffer *back_buffer, ThreadContext *thread, Storage *Storage, GameInput *input)
+	void name(GameOffscreenBuffer *back_buffer, ThreadContext *thread, Storage *storage, GameInput *input)
 typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 
 #define SOUND_CREATE_SAMPLES(name) void name(GameSoundBuffer *soundbuff, ThreadContext *thread, Storage *memory)
