@@ -1,4 +1,4 @@
-#include "game.c"
+#include "handmade.c"
 
 struct Plat_Window {
 	int handle;

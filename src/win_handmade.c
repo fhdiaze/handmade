@@ -10,7 +10,7 @@
 #include <stdio.h>
 #include <xinput.h>
 
-#include "game.h"
+#include "handmade.h"
 #include "lib.h"
 
 // macros
@@ -1008,7 +1008,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	char tmpgamedll_path[MAX_FILE_PATH];
 	char gamedll_lock_path[MAX_FILE_PATH];
 
-	file_build_path(&win_state, GAME_DLL_NAME, sizeof(gamedll_path), gamedll_path);
+	file_build_path(&win_state, HANDMADE_DLL_NAME, sizeof(gamedll_path), gamedll_path);
 	file_build_path(&win_state, "lock.tmp", sizeof(gamedll_lock_path), gamedll_lock_path);
 
 	if (sprintf(tmpgamedll_filename, "handmade_game_tmp_%lu.dll", GetCurrentTime()) < 0) {

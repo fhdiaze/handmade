@@ -16,20 +16,20 @@ graph TD
 graph TD
     lin["src/lin_handmade.c"]
     win["src/win_handmade.c"]
-    game_c["src/game.c"]
-    game_h["include/game.h"]
+    handmade_c["src/handmade.c"]
+    handmade_h["include/handmade.h"]
     lib_h["include/lib.h"]
 
     win_sys["<windows.h> / <dsound.h> / <xinput.h> / <stdint.h> / <stdio.h>"]
-    game_sys["<assert.h> / <limits.h> / <stddef.h> / <stdint.h> / <stdlib.h>"]
+    std_lib["<assert.h> / <limits.h> / <stddef.h> / <stdint.h> / <stdlib.h>"]
     lib_sys["<assert.h> / <math.h> / <stdint.h> / <stdio.h> / <time.h> / <intrin.h>"]
 
-    lin -->|"#include (unity build)"| game_c
-    game_c --> game_h
-    game_c --> game_sys
-    win --> game_h
+    lin -->|"#include (unity build)"| handmade_c
+    handmade_c --> handmade_h
+    handmade_c --> std_lib
+    win --> handmade_h
     win --> lib_h
     win --> win_sys
-    game_h --> lib_h
+    handmade_h --> lib_h
     lib_h --> lib_sys
 ```

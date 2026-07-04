@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "game.h"
+#include "handmade.h"
 #include "lib.h"
 
 #define RANDOM_NUMS_COUNT 4096
@@ -800,7 +800,6 @@ inline static Entity game_get_entity(GameState *game_state, uint32_t idx)
 {
 	Entity entity = {};
 
-	assert(idx > 0 && "Id 0 is for null entity");
 	assert(idx < game_state->entity_count);
 
 	entity.residence = game_state->entity_residences[idx];
@@ -813,6 +812,7 @@ inline static Entity game_get_entity(GameState *game_state, uint32_t idx)
 
 static void game_set_entity_residence(GameState *game_state, Entity entity, EntityResidence residence)
 {
+	// assert(idx > 0 && "Id 0 is for null entity");
 	// game_state->entity_residences[entity_idx] = residence;
 }
 
@@ -844,7 +844,7 @@ static uint32_t game_add_entity(GameState *game_state)
 
 	uint32_t idx = game_state->entity_count++;
 
-	game_state->entity_residences[idx] = ENTITY_RESIDENCE_DORMANT;
+	game_state->entity_residences[idx] = ENTITY_RESIDENCE_NONEXISTENT;
 	game_state->dormant_entities[idx] = (DormantEntity){};
 	game_state->low_entities[idx] = (LowEntity){};
 	game_state->high_entities[idx] = (HighEntity){};
@@ -1637,7 +1637,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			continue;
 		}
 
-		Entity controlled_entity = game_get_entity(game_state, controller_idx);
+		Entity controlled_entity =
+			game_get_entity(game_state, game_state->player_idx_for_controller[controller_idx]);
 
 		if (controlled_entity.residence != ENTITY_RESIDENCE_NONEXISTENT) {
 			Vtwo entity_acceleration = {};

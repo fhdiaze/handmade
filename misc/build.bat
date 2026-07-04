@@ -39,7 +39,7 @@ if /i not "%Architecture%"=="x86" if /i not "%Architecture%"=="x64" (
     exit /b 1
 )
 
-set "CoreFileName=game"
+set "CoreFileName=handmade"
 set "PlatformFileName=win_handmade"
 set "PlatformFilePath=.\src\%PlatformFileName%.c"
 set "CoreFilePath=.\src\%CoreFileName%.c"
