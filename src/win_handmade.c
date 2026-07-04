@@ -141,37 +141,37 @@ static WINDOWPLACEMENT g_window_position = {
 	.length = sizeof(g_window_position),
 };
 
-static void win_window_toggle_fullscreen(HWND winhandle)
+static void window_toggle_fullscreen(HWND win_handle)
 {
-	uint32_t window_style = (uint32_t)GetWindowLong(winhandle, GWL_STYLE);
+	uint32_t window_style = (uint32_t)GetWindowLong(win_handle, GWL_STYLE);
 	if (window_style & WS_OVERLAPPEDWINDOW) {
 		MONITORINFO monitor_info = {
 			.cbSize = sizeof(monitor_info),
 		};
-		if (GetWindowPlacement(winhandle, &g_window_position) &&
-		    GetMonitorInfo(MonitorFromWindow(winhandle, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
-			SetWindowLong(winhandle, GWL_STYLE, (int32_t)(window_style & ~(uint32_t)WS_OVERLAPPEDWINDOW));
-			SetWindowPos(winhandle, HWND_TOP, monitor_info.rcMonitor.left, monitor_info.rcMonitor.top,
+		if (GetWindowPlacement(win_handle, &g_window_position) &&
+		    GetMonitorInfo(MonitorFromWindow(win_handle, MONITOR_DEFAULTTOPRIMARY), &monitor_info)) {
+			SetWindowLong(win_handle, GWL_STYLE, (int32_t)(window_style & ~(uint32_t)WS_OVERLAPPEDWINDOW));
+			SetWindowPos(win_handle, HWND_TOP, monitor_info.rcMonitor.left, monitor_info.rcMonitor.top,
 			             monitor_info.rcMonitor.right - monitor_info.rcMonitor.left,
 			             monitor_info.rcMonitor.bottom - monitor_info.rcMonitor.top,
 			             SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 		}
 	} else {
-		SetWindowLong(winhandle, GWL_STYLE, (int32_t)(window_style | WS_OVERLAPPEDWINDOW));
-		SetWindowPlacement(winhandle, &g_window_position);
-		SetWindowPos(winhandle, nullptr, 0, 0, 0, 0,
+		SetWindowLong(win_handle, GWL_STYLE, (int32_t)(window_style | WS_OVERLAPPEDWINDOW));
+		SetWindowPlacement(win_handle, &g_window_position);
+		SetWindowPos(win_handle, nullptr, 0, 0, 0, 0,
 		             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOOWNERZORDER | SWP_FRAMECHANGED);
 	}
 }
 
-FILE_FREE_DEBUG(plat_file_free_debug)
+FILE_FREE_DEBUG(file_free_debug)
 {
 	if (memory) {
 		VirtualFree(memory, 0, MEM_RELEASE);
 	}
 }
 
-FILE_READ_DEBUG(plat_file_read_debug)
+FILE_READ_DEBUG(file_read_debug)
 {
 	ReadFileResult result = {};
 	HANDLE handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
@@ -195,7 +195,7 @@ FILE_READ_DEBUG(plat_file_read_debug)
 		goto error_cleanup;
 	}
 
-	result.size_byte = filesize;
+	result.size_bytes = filesize;
 
 	CloseHandle(handle);
 
@@ -206,10 +206,10 @@ error_cleanup:
 		CloseHandle(handle);
 	}
 
-	plat_file_free_debug(thread, result.base_address);
+	file_free_debug(thread, result.base_address);
 
 	result.base_address = nullptr;
-	result.size_byte = 0;
+	result.size_bytes = 0;
 
 	return result;
 }
@@ -239,7 +239,7 @@ error_cleanup:
 	return 0U;
 }
 
-static uint8_t win_file_get_exe_path(WinState *winstate)
+static uint8_t file_get_exe_path(WinState *winstate)
 {
 	unsigned long exe_path_length = GetModuleFileNameA(nullptr, winstate->exe_path, MAX_FILE_PATH);
 	if (exe_path_length == 0 || exe_path_length == MAX_FILE_PATH) {
@@ -257,7 +257,7 @@ static uint8_t win_file_get_exe_path(WinState *winstate)
 	return 1U;
 }
 
-static void win_file_build_path(WinState *winstate, const char *const filename, const unsigned dest_count, char *dest)
+static void file_build_path(WinState *winstate, const char *const filename, const unsigned dest_count, char *dest)
 {
 	string_concat((size_t)(winstate->exe_path_last_slash - winstate->exe_path + 1), winstate->exe_path,
 	              strlen(filename), filename, dest_count, dest);
@@ -272,7 +272,7 @@ static void win_file_build_path(WinState *winstate, const char *const filename, 
  * @param dest
  * @return 1 on success, 0 if the building of the path failed.
  */
-static uint32_t win_file_build_input_path(WinState *winstate, unsigned slot_index, unsigned dest_count, char *dest)
+static uint32_t file_build_input_path(WinState *winstate, unsigned slot_index, unsigned dest_count, char *dest)
 {
 	uint32_t was_success = 0U;
 
@@ -281,7 +281,7 @@ static uint32_t win_file_build_input_path(WinState *winstate, unsigned slot_inde
 	char filename[64];
 	if (sprintf(filename, "loopedit_%d.hmi", slot_index) > 0) {
 		was_success = 1U;
-		win_file_build_path(winstate, filename, dest_count, dest);
+		file_build_path(winstate, filename, dest_count, dest);
 	}
 
 	return was_success;
@@ -294,7 +294,7 @@ static uint32_t win_file_build_input_path(WinState *winstate, unsigned slot_inde
  * @param result
  * @return The result code, 0 if error
  */
-static inline uint32_t win_file_get_last_write_time(const char *const file_path, FILETIME *result)
+static inline uint32_t file_get_last_write_time(const char *const file_path, FILETIME *result)
 {
 	WIN32_FILE_ATTRIBUTE_DATA data;
 	if (!GetFileAttributesExA(file_path, GetFileExInfoStandard, &data)) {
@@ -315,19 +315,19 @@ static inline uint32_t win_file_get_last_write_time(const char *const file_path,
  * @param game_code
  * @return The result code, 0 if error
  */
-static uint32_t win_code_load_game(GameCode *game_code, const char *const gamedll_path, const char *const tmpdll_path,
-                                   const char *const gamedll_lock_path)
+static uint32_t code_load_game(GameCode *game_code, const char *const gamedll_path, const char *const tmpdll_path,
+                               const char *const gamedll_lock_path)
 {
 	uint32_t result_code = 0U;
 
 	FILETIME dll_lock_last_write_time = {};
-	if (win_file_get_last_write_time(gamedll_lock_path, &dll_lock_last_write_time)) {
+	if (file_get_last_write_time(gamedll_lock_path, &dll_lock_last_write_time)) {
 		LOG_ERROR("unable to read the dll, waiting for pdb file");
 		return result_code;
 	}
 
 	FILETIME dll_last_write_time = {};
-	if (!win_file_get_last_write_time(gamedll_path, &dll_last_write_time)) {
+	if (!file_get_last_write_time(gamedll_path, &dll_last_write_time)) {
 		return result_code;
 	}
 
@@ -361,7 +361,7 @@ static uint32_t win_code_load_game(GameCode *game_code, const char *const gamedl
 	return game_code->is_valid;
 }
 
-static uint8_t win_code_unload_game(GameCode *game_code)
+static uint8_t code_unload_game(GameCode *game_code)
 {
 	if (game_code->game_dll) {
 		if (!FreeLibrary(game_code->game_dll)) {
@@ -377,7 +377,7 @@ static uint8_t win_code_unload_game(GameCode *game_code)
 	return 1U;
 }
 
-static void win_xinput_load(void)
+static void xinput_load(void)
 {
 	HMODULE xinput_lib = LoadLibraryA("xinput1_4.dll");
 
@@ -404,7 +404,7 @@ static void win_xinput_load(void)
 /*
 * TODO(fredy): it looks like direct sound is deprecated
 */
-static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffersize)
+static void sound_init(HWND winhandle, size_t samples_per_sec, size_t buffersize)
 {
 	HMODULE dsound_lib = LoadLibraryA("dsound.dll");
 	if (!dsound_lib) {
@@ -472,7 +472,7 @@ static void win_sound_init(HWND winhandle, size_t samples_per_sec, size_t buffer
 	}
 }
 
-static void win_sound_clear_buffer(WinSoundOutput *sound_output)
+static void sound_clear_buffer(WinSoundOutput *sound_output)
 {
 	void *region_one = nullptr;
 	DWORD region_one_size = 0;
@@ -511,8 +511,8 @@ static void win_sound_clear_buffer(WinSoundOutput *sound_output)
  * @param bytes_to_write
  * @param soundbuff game sound buffer
  */
-static void win_sound_fill_buffer(WinSoundOutput *soundout, size_t byte_to_lock, size_t bytes_to_write,
-                                  GameSoundBuffer *soundbuff)
+static void sound_fill_buffer(WinSoundOutput *soundout, size_t byte_to_lock, size_t bytes_to_write,
+                              GameSoundBuffer *soundbuff)
 {
 	void *region_one;
 	unsigned long region_one_size;
@@ -556,7 +556,7 @@ static void win_sound_fill_buffer(WinSoundOutput *soundout, size_t byte_to_lock,
 	}
 }
 
-static void win_keyboard_process_message(ButtonState *newstate, uint32_t is_down)
+static void keyboard_process_message(ButtonState *newstate, uint32_t is_down)
 {
 	if (newstate->ended_down != is_down) {
 		newstate->ended_down = (uint8_t)is_down;
@@ -571,7 +571,7 @@ static void win_keyboard_process_message(ButtonState *newstate, uint32_t is_down
  * @param dead_zone
  * @return float
  */
-static float win_xinput_process_stick_value(short value, short dead_zone)
+static float xinput_process_stick_value(short value, short dead_zone)
 {
 	if (value < -dead_zone) {
 		return (float)value / 32768.0F;
@@ -591,14 +591,14 @@ static float win_xinput_process_stick_value(short value, short dead_zone)
  * @param buttonbit
  * @param newstate
  */
-static void win_xinput_process_button(DWORD xinput_button_state, ButtonState *oldstate, DWORD buttonbit,
+static void xinput_process_button(DWORD xinput_button_state, ButtonState *oldstate, DWORD buttonbit,
                                       ButtonState *newstate)
 {
 	newstate->ended_down = (xinput_button_state & buttonbit) == buttonbit;
 	newstate->half_transition_count = oldstate->ended_down != newstate->ended_down;
 }
 
-static void win_input_begin_recording(WinState *winstate)
+static void input_begin_recording(WinState *winstate)
 {
 	ReplaySlot *replay_slot = &winstate->replay_slots[winstate->replay_slot_index];
 
@@ -617,13 +617,13 @@ static void win_input_begin_recording(WinState *winstate)
 	winstate->replay_status = WIN_REPLAY_RECORD;
 }
 
-static void win_input_end_recording(WinState *winstate)
+static void input_end_recording(WinState *winstate)
 {
 	assert(winstate->replay_file_handle);
 	winstate->replay_status = WIN_REPLAY_RECORDED;
 }
 
-static void win_input_begin_playback(WinState *winstate)
+static void input_begin_playback(WinState *winstate)
 {
 	ReplaySlot *replay_slot = &winstate->replay_slots[winstate->replay_slot_index];
 
@@ -642,20 +642,20 @@ static void win_input_begin_playback(WinState *winstate)
 	winstate->replay_status = WIN_REPLAY_PLAYBACK;
 }
 
-static void win_input_end_playback(WinState *winstate)
+static void input_end_playback(WinState *winstate)
 {
 	assert(winstate->replay_file_handle);
 	winstate->replay_status = WIN_REPLAY_NORMAL;
 }
 
-static void win_input_record(WinState *winstate, GameInput *input)
+static void input_record(WinState *winstate, GameInput *input)
 {
 	assert(winstate->replay_file_handle);
 	unsigned long bytes_written = 0;
 	WriteFile(winstate->replay_file_handle, input, sizeof(*input), &bytes_written, nullptr);
 }
 
-static void win_input_playback(WinState *winstate, GameInput *input)
+static void input_playback(WinState *winstate, GameInput *input)
 {
 	assert(winstate->replay_file_handle);
 
@@ -664,8 +664,8 @@ static void win_input_playback(WinState *winstate, GameInput *input)
 	assert(ReadFile(winstate->replay_file_handle, input, sizeof(*input), &bytes_read, nullptr));
 
 	if (!bytes_read) {
-		win_input_end_playback(winstate);
-		win_input_begin_playback(winstate);
+		input_end_playback(winstate);
+		input_begin_playback(winstate);
 
 		ReadFile(winstate->replay_file_handle, input, sizeof(*input), &bytes_read, nullptr);
 	}
@@ -673,7 +673,7 @@ static void win_input_playback(WinState *winstate, GameInput *input)
 	assert(bytes_read == sizeof(*input));
 }
 
-static void win_window_pump_messages(WinState *winstate, ControllerState *keyboard_controller)
+static void window_pump_messages(WinState *winstate, ControllerState *keyboard_controller)
 {
 	MSG msg;
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -692,29 +692,29 @@ static void win_window_pump_messages(WinState *winstate, ControllerState *keyboa
 
 			if (was_down != is_down) {
 				if (vk_code == 'K') {
-					win_keyboard_process_message(&keyboard_controller->moveup, is_down);
+					keyboard_process_message(&keyboard_controller->moveup, is_down);
 				} else if (vk_code == 'H') {
-					win_keyboard_process_message(&keyboard_controller->moveleft, is_down);
+					keyboard_process_message(&keyboard_controller->moveleft, is_down);
 				} else if (vk_code == 'J') {
-					win_keyboard_process_message(&keyboard_controller->movedown, is_down);
+					keyboard_process_message(&keyboard_controller->movedown, is_down);
 				} else if (vk_code == 'L') {
-					win_keyboard_process_message(&keyboard_controller->moveright, is_down);
+					keyboard_process_message(&keyboard_controller->moveright, is_down);
 				} else if (vk_code == 'Q') {
-					win_keyboard_process_message(&keyboard_controller->left_shoulder, is_down);
+					keyboard_process_message(&keyboard_controller->left_shoulder, is_down);
 				} else if (vk_code == 'E') {
-					win_keyboard_process_message(&keyboard_controller->right_shoulder, is_down);
+					keyboard_process_message(&keyboard_controller->right_shoulder, is_down);
 				} else if (vk_code == VK_CONTROL) {
-					win_keyboard_process_message(&keyboard_controller->actionup, is_down);
+					keyboard_process_message(&keyboard_controller->actionup, is_down);
 				} else if (vk_code == VK_LEFT) {
-					win_keyboard_process_message(&keyboard_controller->actionleft, is_down);
+					keyboard_process_message(&keyboard_controller->actionleft, is_down);
 				} else if (vk_code == VK_DOWN) {
-					win_keyboard_process_message(&keyboard_controller->actiondown, is_down);
+					keyboard_process_message(&keyboard_controller->actiondown, is_down);
 				} else if (vk_code == VK_RIGHT) {
-					win_keyboard_process_message(&keyboard_controller->actionright, is_down);
+					keyboard_process_message(&keyboard_controller->actionright, is_down);
 				} else if (vk_code == VK_ESCAPE) {
-					win_keyboard_process_message(&keyboard_controller->back, is_down);
+					keyboard_process_message(&keyboard_controller->back, is_down);
 				} else if (vk_code == VK_SPACE) {
-					win_keyboard_process_message(&keyboard_controller->start, is_down);
+					keyboard_process_message(&keyboard_controller->start, is_down);
 				}
 #if DEBUG
 				else if (vk_code == 'P') {
@@ -725,13 +725,13 @@ static void win_window_pump_messages(WinState *winstate, ControllerState *keyboa
 					if (is_down) {
 						if (winstate->replay_status == WIN_REPLAY_NORMAL) {
 							winstate->replay_slot_index = 0;
-							win_input_begin_recording(winstate);
+							input_begin_recording(winstate);
 						} else if (winstate->replay_status == WIN_REPLAY_RECORD) {
-							win_input_end_recording(winstate);
+							input_end_recording(winstate);
 						} else if (winstate->replay_status == WIN_REPLAY_RECORDED) {
-							win_input_begin_playback(winstate);
+							input_begin_playback(winstate);
 						} else { // it was in playback mode
-							win_input_end_playback(winstate);
+							input_end_playback(winstate);
 						}
 					}
 #endif
@@ -745,7 +745,7 @@ static void win_window_pump_messages(WinState *winstate, ControllerState *keyboa
 
 					if (vk_code == VK_F11 && was_alt_key_down) {
 						if (msg.hwnd) {
-							win_window_toggle_fullscreen(msg.hwnd);
+							window_toggle_fullscreen(msg.hwnd);
 						}
 					}
 				}
@@ -760,7 +760,7 @@ static void win_window_pump_messages(WinState *winstate, ControllerState *keyboa
 	}
 }
 
-static WindowDimensions win_window_get_dimensions(HWND winhandle)
+static WindowDimensions window_get_dimensions(HWND winhandle)
 {
 	WindowDimensions result;
 	RECT client_rec;
@@ -776,7 +776,7 @@ static WindowDimensions win_window_get_dimensions(HWND winhandle)
 /*
  * dib: device independent bitmap
  */
-static void win_offscreen_resize_section(WinOffscreenBuffer *back_buffer, unsigned win_width, unsigned win_height)
+static void offscreen_resize_section(WinOffscreenBuffer *back_buffer, unsigned win_width, unsigned win_height)
 {
 	if (back_buffer->top_left_px) {
 		VirtualFree(back_buffer->top_left_px, 0, MEM_RELEASE);
@@ -801,8 +801,8 @@ static void win_offscreen_resize_section(WinOffscreenBuffer *back_buffer, unsign
 	back_buffer->pitch_bytes = back_buffer->width * back_buffer->bytes_per_pixel;
 }
 
-static void win_window_display_offscreen_buffer(HDC device_context, WinOffscreenBuffer *back_buffer, long win_width,
-                                                long win_height)
+static void window_display_offscreen_buffer(HDC device_context, WinOffscreenBuffer *back_buffer, long win_width,
+                                            long win_height)
 {
 	if (win_width >= 2 * (int)back_buffer->width && win_height >= 2 * (int)back_buffer->height) {
 		StretchDIBits(device_context, 0, 0, win_width, win_height, 0, 0, (int)back_buffer->width,
@@ -823,9 +823,8 @@ static void win_window_display_offscreen_buffer(HDC device_context, WinOffscreen
 	}
 }
 
-static LRESULT CALLBACK win_window_handle_callback(HWND window, [[__maybe_unused__]] UINT msg,
-                                                   [[__maybe_unused__]] WPARAM wparam,
-                                                   [[__maybe_unused__]] LPARAM lparam)
+static LRESULT CALLBACK window_handle_callback(HWND window, [[__maybe_unused__]] UINT msg,
+                                               [[__maybe_unused__]] WPARAM wparam, [[__maybe_unused__]] LPARAM lparam)
 {
 	LRESULT result = 0;
 
@@ -855,8 +854,8 @@ static LRESULT CALLBACK win_window_handle_callback(HWND window, [[__maybe_unused
 	case WM_PAINT: {
 		PAINTSTRUCT paint;
 		HDC dchandle = BeginPaint(window, &paint);
-		WindowDimensions windim = win_window_get_dimensions(window);
-		win_window_display_offscreen_buffer(dchandle, &g_win_back_buffer, windim.width, windim.height);
+		WindowDimensions win_dim = window_get_dimensions(window);
+		window_display_offscreen_buffer(dchandle, &g_win_back_buffer, win_dim.width, win_dim.height);
 		EndPaint(window, &paint);
 	} break;
 	default: {
@@ -868,7 +867,7 @@ static LRESULT CALLBACK win_window_handle_callback(HWND window, [[__maybe_unused
 	return result;
 }
 
-static inline LARGE_INTEGER win_clock_get_wall(void)
+static inline LARGE_INTEGER clock_get_wall(void)
 {
 	LARGE_INTEGER counter;
 	QueryPerformanceCounter(&counter);
@@ -876,7 +875,7 @@ static inline LARGE_INTEGER win_clock_get_wall(void)
 	return counter;
 }
 
-static inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER end)
+static inline float clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER end)
 {
 	return (float)(end.QuadPart - start.QuadPart) / (float)g_perf_count_frequency;
 }
@@ -889,7 +888,7 @@ static inline float win_clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER en
  * @param top pixel index
  * @param bottom pixel index
  */
-static void win_bitmap_draw_vertical_debug(WinOffscreenBuffer *bitmap, unsigned x, unsigned top, unsigned bottom,
+static void bitmap_draw_vertical_debug(WinOffscreenBuffer *bitmap, unsigned x, unsigned top, unsigned bottom,
                                            unsigned color)
 {
 	assert(x >= 0 && x < bitmap->width);
@@ -907,13 +906,13 @@ static void win_bitmap_draw_vertical_debug(WinOffscreenBuffer *bitmap, unsigned 
 	}
 }
 
-static inline void winoffs_draw_sound_mark_debug(WinOffscreenBuffer *back_buffer, WinSoundOutput *soundout,
+static inline void offscreen_draw_sound_mark_debug(WinOffscreenBuffer *back_buffer, WinSoundOutput *soundout,
                                                  float pixels_per_byte, unsigned pad_x, unsigned top, unsigned bottom,
                                                  unsigned value, uint32_t color)
 {
 	assert(value < soundout->buffsize);
 	unsigned x = pad_x + (unsigned)(pixels_per_byte * (float)value);
-	win_bitmap_draw_vertical_debug(back_buffer, x, top, bottom, color);
+	bitmap_draw_vertical_debug(back_buffer, x, top, bottom, color);
 }
 
 /**
@@ -925,7 +924,7 @@ static inline void winoffs_draw_sound_mark_debug(WinOffscreenBuffer *back_buffer
  * @param soundout
  * @param target_secs_per_frame
  */
-static void win_offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer, unsigned last_cursors_marks_size,
+static void offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer, unsigned last_cursors_marks_size,
                                                 DebugTimeMark *last_cursors_marks, unsigned current_mark_index,
                                                 WinSoundOutput *winsound)
 {
@@ -953,17 +952,17 @@ static void win_offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer,
 
 			first_top = top;
 
-			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
 			                              current_mark.output_play_cursor, play_color);
-			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
 			                              current_mark.output_write_cursor, write_color);
 
 			top += pad_y + line_height;
 			bottom += pad_y + line_height;
 
-			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
 			                              current_mark.output_location, play_color);
-			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
 			                              RING_ADD(winsound->buffsize, current_mark.output_location,
 			                                       current_mark.output_byte_count),
 			                              write_color);
@@ -971,108 +970,108 @@ static void win_offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer,
 			top += pad_y + line_height;
 			bottom += pad_y + line_height;
 
-			winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, first_top, bottom,
+			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, first_top, bottom,
 			                              current_mark.frame_flip_byte, frame_flip_byte_color);
 		}
 
-		winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
 		                              current_mark.flip_play_cursor, play_color);
 
-		winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
 		                              RING_SUB(winsound->buffsize, current_mark.flip_play_cursor,
 		                                       480 * winsound->bytes_per_sample),
 		                              play_window_color);
-		winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
 		                              RING_ADD(winsound->buffsize, current_mark.flip_play_cursor,
 		                                       480 * winsound->bytes_per_sample),
 		                              play_window_color);
 
-		winoffs_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
+		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
 		                              current_mark.flip_write_cursor, write_color);
 	}
 }
 
-int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevinstance,
-                     [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nCmdShow)
+int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevInstance,
+                     [[__maybe_unused__]] LPSTR lpCmdLine, [[__maybe_unused__]] int nShowCmd)
 {
 	// NOTE(): never use MAX_PATH in user-facing code. it is dangerous.
-	WinState winstate = {};
+	WinState win_state = {};
 
 	LARGE_INTEGER perf_count_frequency_result;
 	QueryPerformanceFrequency(&perf_count_frequency_result);
 	g_perf_count_frequency = perf_count_frequency_result.QuadPart;
 
-	win_file_get_exe_path(&winstate);
+	file_get_exe_path(&win_state);
 
 	char tmpgamedll_filename[MAX_FILE_PATH];
 	char gamedll_path[MAX_FILE_PATH];
 	char tmpgamedll_path[MAX_FILE_PATH];
 	char gamedll_lock_path[MAX_FILE_PATH];
 
-	win_file_build_path(&winstate, GAME_DLL_NAME, sizeof(gamedll_path), gamedll_path);
-	win_file_build_path(&winstate, "lock.tmp", sizeof(gamedll_lock_path), gamedll_lock_path);
+	file_build_path(&win_state, GAME_DLL_NAME, sizeof(gamedll_path), gamedll_path);
+	file_build_path(&win_state, "lock.tmp", sizeof(gamedll_lock_path), gamedll_lock_path);
 
 	if (sprintf(tmpgamedll_filename, "handmade_game_tmp_%lu.dll", GetCurrentTime()) < 0) {
 		return EXIT_FAILURE;
 	}
-	win_file_build_path(&winstate, tmpgamedll_filename, sizeof(tmpgamedll_path), tmpgamedll_path);
+	file_build_path(&win_state, tmpgamedll_filename, sizeof(tmpgamedll_path), tmpgamedll_path);
 
 	// sets the scheduler granularity to 1ms, so that our Sleep() can be more granular
 	unsigned desire_scheduler_ms = 1;
 	uint8_t is_granular_sleep = timeBeginPeriod(desire_scheduler_ms) == TIMERR_NOERROR;
 
-	win_xinput_load();
+	xinput_load();
 
 #if DEBUG
 	g_show_cursor_debug = 1U;
 #endif
 
-	WNDCLASSA winclass = {
+	WNDCLASSA win_class = {
 		.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-		.lpfnWndProc = win_window_handle_callback,
-		.hInstance = hinstance,
+		.lpfnWndProc = window_handle_callback,
+		.hInstance = hInstance,
 		.hCursor = LoadCursorA(nullptr, IDC_ARROW),
 		.lpszClassName = "HandmadeHeroWindowClass",
 	};
 
-	win_offscreen_resize_section(&g_win_back_buffer, 960, 540);
+	offscreen_resize_section(&g_win_back_buffer, 960, 540);
 
-	if (!RegisterClassA(&winclass)) {
+	if (!RegisterClassA(&win_class)) {
 		LOG_ERROR("error registering the window class");
 		return EXIT_FAILURE;
 	}
 
-	HWND winhandle = CreateWindowExA(0, winclass.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+	HWND winhandle = CreateWindowExA(0, win_class.lpszClassName, "Handmade Hero", WS_OVERLAPPEDWINDOW | WS_VISIBLE,
 	                                 CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, CW_USEDEFAULT, nullptr, nullptr,
-	                                 hinstance, nullptr);
+	                                 hInstance, nullptr);
 	if (!winhandle) {
 		LOG_ERROR("error creating the window");
 		return EXIT_FAILURE;
 	}
 
-	HDC dchandle = GetDC(winhandle);
+	HDC dc_handle = GetDC(winhandle);
 
-	WinSoundOutput winsound = {
+	WinSoundOutput win_sound = {
 		.samples_per_sec = 48000,
 		.bytes_per_sample = sizeof(uint16_t) * 2,
 	};
 
-	unsigned monitorhz = 60;
-	unsigned win_monitorhz = (unsigned)GetDeviceCaps(dchandle, VREFRESH);
-	if (win_monitorhz > 1) {
-		monitorhz = win_monitorhz;
+	unsigned monitor_hz = 60;
+	unsigned win_monitor_hz = (unsigned)GetDeviceCaps(dc_handle, VREFRESH);
+	if (win_monitor_hz > 1) {
+		monitor_hz = win_monitor_hz;
 	}
 
-	float gamehz = (float)monitorhz / 2.0F;
-	float target_secs_per_frame = 1.0F / gamehz;
-	unsigned bytes_per_sec = winsound.samples_per_sec * winsound.bytes_per_sample;
+	float game_hz = (float)monitor_hz / 2.0F;
+	float target_secs_per_frame = 1.0F / game_hz;
+	unsigned bytes_per_sec = win_sound.samples_per_sec * win_sound.bytes_per_sample;
 	unsigned bytes_per_frame = (unsigned)((float)bytes_per_sec * target_secs_per_frame);
 
-	winsound.safety_bytes = bytes_per_frame / 3; // 1/3 of the samples per frame
-	winsound.buffsize = bytes_per_sec;           // 1 second of sound
+	win_sound.safety_bytes = bytes_per_frame / 3; // 1/3 of the samples per frame
+	win_sound.buffsize = bytes_per_sec;           // 1 second of sound
 
-	win_sound_init(winhandle, winsound.samples_per_sec, winsound.buffsize);
-	win_sound_clear_buffer(&winsound);
+	sound_init(winhandle, win_sound.samples_per_sec, win_sound.buffsize);
+	sound_clear_buffer(&win_sound);
 
 	if (FAILED(IDirectSoundBuffer_Play(g_secbuffer, 0, 0, DSBPLAY_LOOPING))) {
 		LOG_ERROR("Error playing dsound secondary buffer");
@@ -1107,38 +1106,38 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 #endif // debug sound
 
 	int16_t *samples =
-		(int16_t *)VirtualAlloc(nullptr, winsound.buffsize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+		(int16_t *)VirtualAlloc(nullptr, win_sound.buffsize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	Storage Storage = {
-		.plat_file_free_debug = plat_file_free_debug,
-		.plat_file_read_debug = plat_file_read_debug,
+		.plat_file_free_debug = file_free_debug,
+		.plat_file_read_debug = file_read_debug,
 		.file_write_debug = file_write_debug,
 	};
-	Storage.permanent_storage_size_byte = MB_TO_BYTES(64ULL);
-	Storage.transient_storage_size_byte = GB_TO_BYTES(1ULL);
+	Storage.permanent_storage_size_bytes = MB_TO_BYTES(64ULL);
+	Storage.transient_storage_size_bytes = GB_TO_BYTES(1ULL);
 
-	winstate.gamemem_size = Storage.permanent_storage_size_byte + Storage.transient_storage_size_byte;
-	winstate.gamemem =
-		VirtualAlloc(MEMORY_BASE_ADDRESS, winstate.gamemem_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	win_state.gamemem_size = Storage.permanent_storage_size_bytes + Storage.transient_storage_size_bytes;
+	win_state.gamemem =
+		VirtualAlloc(MEMORY_BASE_ADDRESS, win_state.gamemem_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	Storage.permanent_storage = winstate.gamemem;
-	Storage.transient_storage = (unsigned char *)Storage.permanent_storage + Storage.permanent_storage_size_byte;
+	Storage.permanent_storage = win_state.gamemem;
+	Storage.transient_storage = (unsigned char *)Storage.permanent_storage + Storage.permanent_storage_size_bytes;
 
 	for (uint8_t slot_index = 0; slot_index < REPLAY_MAX_SLOTS; ++slot_index) {
-		ReplaySlot *replay_slot = &winstate.replay_slots[slot_index];
+		ReplaySlot *replay_slot = &win_state.replay_slots[slot_index];
 
-		if (!win_file_build_input_path(&winstate, slot_index, sizeof(replay_slot->filepath),
-		                              replay_slot->filepath)) {
+		if (!file_build_input_path(&win_state, slot_index, sizeof(replay_slot->filepath),
+		                           replay_slot->filepath)) {
 			return EXIT_FAILURE;
 		}
 
 		replay_slot->file_handle = CreateFileA(replay_slot->filepath, GENERIC_WRITE | GENERIC_READ, 0, nullptr,
 		                                       CREATE_ALWAYS, 0, nullptr);
 		replay_slot->file_map = CreateFileMapping(replay_slot->file_handle, nullptr, PAGE_READWRITE,
-		                                          HIDWORD(winstate.gamemem_size),
-		                                          LODWORD(winstate.gamemem_size), nullptr);
+		                                          HIDWORD(win_state.gamemem_size),
+		                                          LODWORD(win_state.gamemem_size), nullptr);
 		replay_slot->memory =
-			MapViewOfFile(replay_slot->file_map, FILE_MAP_ALL_ACCESS, 0, 0, winstate.gamemem_size);
+			MapViewOfFile(replay_slot->file_map, FILE_MAP_ALL_ACCESS, 0, 0, win_state.gamemem_size);
 	}
 
 	if (!samples || !Storage.permanent_storage || !Storage.transient_storage) {
@@ -1146,7 +1145,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 	}
 
 	GameSoundBuffer game_soundbuff = {
-		.samples_per_sec = winsound.samples_per_sec,
+		.samples_per_sec = win_sound.samples_per_sec,
 		.samples = samples,
 	};
 
@@ -1157,8 +1156,8 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 	GameInput *new_input = &inputs[0];
 	GameInput *old_input = &inputs[1];
 
-	LARGE_INTEGER last_counter = win_clock_get_wall();
-	LARGE_INTEGER flip_wall_clock = win_clock_get_wall();
+	LARGE_INTEGER last_counter = clock_get_wall();
+	LARGE_INTEGER flip_wall_clock = clock_get_wall();
 
 	// constexpr unsigned debug_last_cursor_marks_size = 30;
 	// unsigned debug_last_cursor_mark_index = 0;
@@ -1170,24 +1169,23 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 
 	GameCode game_code = {};
 	FILETIME gamedll_last_write_time = {};
-	if (!win_code_load_game(&game_code, gamedll_path, tmpgamedll_path, gamedll_lock_path)) {
+	if (!code_load_game(&game_code, gamedll_path, tmpgamedll_path, gamedll_lock_path)) {
 		return EXIT_FAILURE;
 	}
 
 	size_t last_cycle_count = __rdtsc();
 	while (g_is_running) {
-		OutputDebugStringA("LPCSTR lpOutputString");
 		new_input->time_delta_sec = target_secs_per_frame;
 
-		if (win_file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
+		if (file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
 		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&
-		    win_code_unload_game(&game_code)) {
+		    code_unload_game(&game_code)) {
 			if (sprintf(tmpgamedll_filename, "game_tmp_%lu.dll", GetCurrentTime()) < 0) {
 				return EXIT_FAILURE;
 			}
-			win_file_build_path(&winstate, tmpgamedll_filename, sizeof(tmpgamedll_path), tmpgamedll_path);
+			file_build_path(&win_state, tmpgamedll_filename, sizeof(tmpgamedll_path), tmpgamedll_path);
 
-			win_code_load_game(&game_code, gamedll_path, tmpgamedll_path, gamedll_lock_path);
+			code_load_game(&game_code, gamedll_path, tmpgamedll_path, gamedll_lock_path);
 		}
 
 		/**
@@ -1203,7 +1201,7 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 			new_keyboard_controller->buttons[i].ended_down = old_keyboard_controller->buttons[i].ended_down;
 		}
 
-		win_window_pump_messages(&winstate, new_keyboard_controller);
+		window_pump_messages(&win_state, new_keyboard_controller);
 
 		if (g_is_pause) {
 			continue;
@@ -1215,11 +1213,11 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 		new_input->mouse_x = (unsigned)cursor_pos.x;
 		new_input->mouse_y = (unsigned)cursor_pos.y;
 		new_input->mouse_z = 0;
-		win_keyboard_process_message(&new_input->mouse_back, GetAsyncKeyState(VK_XBUTTON1) < 0);
-		win_keyboard_process_message(&new_input->mouse_forward, GetAsyncKeyState(VK_XBUTTON2) < 0);
-		win_keyboard_process_message(&new_input->mouse_main, GetKeyState(VK_LBUTTON) < 0);
-		win_keyboard_process_message(&new_input->mouse_middle, GetAsyncKeyState(VK_MBUTTON) < 0);
-		win_keyboard_process_message(&new_input->mouse_secondary, GetKeyState(VK_RBUTTON) < 0);
+		keyboard_process_message(&new_input->mouse_back, GetAsyncKeyState(VK_XBUTTON1) < 0);
+		keyboard_process_message(&new_input->mouse_forward, GetAsyncKeyState(VK_XBUTTON2) < 0);
+		keyboard_process_message(&new_input->mouse_main, GetKeyState(VK_LBUTTON) < 0);
+		keyboard_process_message(&new_input->mouse_middle, GetAsyncKeyState(VK_MBUTTON) < 0);
+		keyboard_process_message(&new_input->mouse_secondary, GetKeyState(VK_RBUTTON) < 0);
 
 		// +1 Taking into account keyboard controller
 		unsigned short max_controller_count = XUSER_MAX_COUNT;
@@ -1244,9 +1242,9 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 			XINPUT_GAMEPAD *pad = &state.Gamepad;
 
 			new_controller->stick_avg_x =
-				win_xinput_process_stick_value(pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+				xinput_process_stick_value(pad->sThumbLX, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
 			new_controller->stick_avg_y =
-				win_xinput_process_stick_value(pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
+				xinput_process_stick_value(pad->sThumbLY, XINPUT_GAMEPAD_LEFT_THUMB_DEADZONE);
 
 			if (new_controller->stick_avg_x != 0.0F || new_controller->stick_avg_y != 0.0F) {
 				new_controller->is_analog = 1U;
@@ -1273,32 +1271,32 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 			}
 
 			float threshold = 0.5F;
-			win_xinput_process_button(new_controller->stick_avg_x < -threshold ? 1 : 0,
+			xinput_process_button(new_controller->stick_avg_x < -threshold ? 1 : 0,
 			                          &old_controller->moveleft, 1, &new_controller->moveleft);
-			win_xinput_process_button(new_controller->stick_avg_x > threshold ? 1 : 0,
+			xinput_process_button(new_controller->stick_avg_x > threshold ? 1 : 0,
 			                          &old_controller->moveright, 1, &new_controller->moveright);
-			win_xinput_process_button(new_controller->stick_avg_y < -threshold ? 1 : 0,
+			xinput_process_button(new_controller->stick_avg_y < -threshold ? 1 : 0,
 			                          &old_controller->movedown, 1, &new_controller->movedown);
-			win_xinput_process_button(new_controller->stick_avg_y > threshold ? 1 : 0,
+			xinput_process_button(new_controller->stick_avg_y > threshold ? 1 : 0,
 			                          &old_controller->moveup, 1, &new_controller->moveup);
 
-			win_xinput_process_button(pad->wButtons, &old_controller->actiondown, XINPUT_GAMEPAD_A,
+			xinput_process_button(pad->wButtons, &old_controller->actiondown, XINPUT_GAMEPAD_A,
 			                          &new_controller->actiondown);
-			win_xinput_process_button(pad->wButtons, &old_controller->actionright, XINPUT_GAMEPAD_B,
+			xinput_process_button(pad->wButtons, &old_controller->actionright, XINPUT_GAMEPAD_B,
 			                          &new_controller->actionright);
-			win_xinput_process_button(pad->wButtons, &old_controller->actionleft, XINPUT_GAMEPAD_X,
+			xinput_process_button(pad->wButtons, &old_controller->actionleft, XINPUT_GAMEPAD_X,
 			                          &new_controller->actionleft);
-			win_xinput_process_button(pad->wButtons, &old_controller->actionup, XINPUT_GAMEPAD_Y,
+			xinput_process_button(pad->wButtons, &old_controller->actionup, XINPUT_GAMEPAD_Y,
 			                          &new_controller->actionup);
 
-			win_xinput_process_button(pad->wButtons, &old_controller->left_shoulder,
+			xinput_process_button(pad->wButtons, &old_controller->left_shoulder,
 			                          XINPUT_GAMEPAD_LEFT_SHOULDER, &new_controller->left_shoulder);
-			win_xinput_process_button(pad->wButtons, &old_controller->right_shoulder,
+			xinput_process_button(pad->wButtons, &old_controller->right_shoulder,
 			                          XINPUT_GAMEPAD_RIGHT_SHOULDER, &new_controller->right_shoulder);
 
-			win_xinput_process_button(pad->wButtons, &old_controller->start, XINPUT_GAMEPAD_START,
+			xinput_process_button(pad->wButtons, &old_controller->start, XINPUT_GAMEPAD_START,
 			                          &new_controller->start);
-			win_xinput_process_button(pad->wButtons, &old_controller->back, XINPUT_GAMEPAD_BACK,
+			xinput_process_button(pad->wButtons, &old_controller->back, XINPUT_GAMEPAD_BACK,
 			                          &new_controller->back);
 		}
 
@@ -1312,12 +1310,12 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 		bitmap.pitch_bytes = g_win_back_buffer.pitch_bytes;
 		bitmap.bytes_per_pixel = g_win_back_buffer.bytes_per_pixel;
 
-		if (winstate.replay_status == WIN_REPLAY_RECORD) {
-			win_input_record(&winstate, new_input);
+		if (win_state.replay_status == WIN_REPLAY_RECORD) {
+			input_record(&win_state, new_input);
 		}
 
-		if (winstate.replay_status == WIN_REPLAY_PLAYBACK) {
-			win_input_playback(&winstate, new_input);
+		if (win_state.replay_status == WIN_REPLAY_PLAYBACK) {
+			input_playback(&win_state, new_input);
 		}
 		if (game_code.update_and_render) {
 			game_code.update_and_render(&bitmap, &thread, &Storage, new_input);
@@ -1329,18 +1327,18 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 		unsigned long write_cursor = 0;
 		if (SUCCEEDED(IDirectSoundBuffer_GetCurrentPosition(g_secbuffer, &play_cursor, &write_cursor))) {
 			if (!is_sound_valid) {
-				winsound.running_sample_index = write_cursor / winsound.bytes_per_sample;
+				win_sound.running_sample_index = write_cursor / win_sound.bytes_per_sample;
 				is_sound_valid = 1U;
 			}
 
 			// NOTE(fredy): Compute how much sound to write and where
 			unsigned byte_to_lock =
-				(winsound.running_sample_index * winsound.bytes_per_sample) % winsound.buffsize;
+				(win_sound.running_sample_index * win_sound.bytes_per_sample) % win_sound.buffsize;
 
-			float secs_from_flip = win_clock_elapsed_secs(flip_wall_clock, win_clock_get_wall());
+			float secs_from_flip = clock_elapsed_secs(flip_wall_clock, clock_get_wall());
 			float secs_to_flip = target_secs_per_frame - secs_from_flip;
 			unsigned bytes_to_flip = (unsigned)(secs_to_flip * (float)bytes_per_sec);
-			unsigned frame_flip_byte = RING_ADD(winsound.buffsize, play_cursor, bytes_to_flip);
+			unsigned frame_flip_byte = RING_ADD(win_sound.buffsize, play_cursor, bytes_to_flip);
 			unsigned sound_flip_byte = RING_IS_BETWEEN(play_cursor, frame_flip_byte, write_cursor) ?
 			                                   // Sound has low latency
 			                                   frame_flip_byte :
@@ -1352,11 +1350,11 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 			//          bytes_to_flip, frame_flip_byte, sound_flip_byte);
 
 			unsigned target_cursor =
-				RING_ADD(winsound.buffsize, sound_flip_byte, bytes_per_frame + winsound.safety_bytes);
+				RING_ADD(win_sound.buffsize, sound_flip_byte, bytes_per_frame + win_sound.safety_bytes);
 
-			bytes_to_write = RING_DIFF(winsound.buffsize, byte_to_lock, target_cursor);
+			bytes_to_write = RING_DIFF(win_sound.buffsize, byte_to_lock, target_cursor);
 
-			game_soundbuff.sample_count = bytes_to_write / winsound.bytes_per_sample;
+			game_soundbuff.sample_count = bytes_to_write / win_sound.bytes_per_sample;
 			if (game_code.sound_create_samples) {
 				game_code.sound_create_samples(&game_soundbuff, &thread, &Storage);
 			}
@@ -1382,14 +1380,14 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 				bytes_to_write, sound_latency_bytes, (double)sound_latency_secs);
 #endif
 
-			win_sound_fill_buffer(&winsound, byte_to_lock, bytes_to_write, &game_soundbuff);
+			sound_fill_buffer(&win_sound, byte_to_lock, bytes_to_write, &game_soundbuff);
 
 		} else {
 			is_sound_valid = 0U;
 		}
 
-		LARGE_INTEGER work_counter = win_clock_get_wall();
-		float work_secs_elapsed = win_clock_elapsed_secs(last_counter, work_counter);
+		LARGE_INTEGER work_counter = clock_get_wall();
+		float work_secs_elapsed = clock_elapsed_secs(last_counter, work_counter);
 
 		float secs_elapsed_for_frame = work_secs_elapsed;
 		if (secs_elapsed_for_frame < target_secs_per_frame) {
@@ -1401,24 +1399,24 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 				}
 			}
 
-			float test_secs_elapsed_for_frame = win_clock_elapsed_secs(last_counter, win_clock_get_wall());
+			float test_secs_elapsed_for_frame = clock_elapsed_secs(last_counter, clock_get_wall());
 			if (test_secs_elapsed_for_frame > target_secs_per_frame) {
 				LOG_WARN("missed sleep: %fs elapsed for frame", (double)test_secs_elapsed_for_frame);
 			}
 
 			while (secs_elapsed_for_frame < target_secs_per_frame) {
-				secs_elapsed_for_frame = win_clock_elapsed_secs(last_counter, win_clock_get_wall());
+				secs_elapsed_for_frame = clock_elapsed_secs(last_counter, clock_get_wall());
 			}
 		} else {
 			// missed frame rate!
 			LOG_WARN("missed frame rate: %fs elapsed for frame", (double)secs_elapsed_for_frame);
 		}
 
-		LARGE_INTEGER end_counter = win_clock_get_wall();
-		float ms_per_frame = 1000.0F * win_clock_elapsed_secs(last_counter, end_counter);
+		LARGE_INTEGER end_counter = clock_get_wall();
+		float ms_per_frame = 1000.0F * clock_elapsed_secs(last_counter, end_counter);
 		last_counter = end_counter;
 
-		WindowDimensions windim = win_window_get_dimensions(winhandle);
+		WindowDimensions windim = window_get_dimensions(winhandle);
 
 #if 0
  		win_bitmap_draw_sound_sync_debug(&global_bitmap, debug_last_cursor_marks_size,
@@ -1427,9 +1425,9 @@ int CALLBACK WinMain(HINSTANCE hinstance, [[__maybe_unused__]] HINSTANCE hprevin
 #endif
 
 		// Flip the frame
-		win_window_display_offscreen_buffer(dchandle, &g_win_back_buffer, windim.width, windim.height);
+		window_display_offscreen_buffer(dc_handle, &g_win_back_buffer, windim.width, windim.height);
 
-		flip_wall_clock = win_clock_get_wall();
+		flip_wall_clock = clock_get_wall();
 
 #if 0
 		{

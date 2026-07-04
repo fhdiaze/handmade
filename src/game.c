@@ -145,7 +145,6 @@ static inline uint32_t map_normalize_coord(uint32_t *tile, float *tile_offset_f)
 {
 	int tile_offset = float_round_to_int(*tile_offset_f / TILE_SIDE_M);
 
-	// World is toroidal
 	*tile = (unsigned)((int)*tile + tile_offset);
 
 	*tile_offset_f -= (float)(tile_offset)*TILE_SIDE_M;
@@ -671,7 +670,9 @@ static void game_move_entity(GameState *game_state, Entity entity, Vtwo accelera
 	}
 
 	// Apply the drag
-	acceleration = vtwo_sub(acceleration, vtwo_scale(entity.high->vel, 7.0F));
+	float speed = 50.0F;
+	acceleration = vtwo_scale(acceleration, speed);
+	acceleration = vtwo_sub(acceleration, vtwo_scale(entity.high->vel, 8.0F));
 
 	float time_delta_sec_sq = float_square(time_delta_sec);
 
@@ -799,6 +800,7 @@ inline static Entity game_get_entity(GameState *game_state, uint32_t idx)
 {
 	Entity entity = {};
 
+	assert(idx > 0 && "Id 0 is for null entity");
 	assert(idx < game_state->entity_count);
 
 	entity.residence = game_state->entity_residences[idx];
@@ -809,7 +811,7 @@ inline static Entity game_get_entity(GameState *game_state, uint32_t idx)
 	return entity;
 }
 
-static void entity_set_residence(GameState *game_state, Entity entity, EntityResidence residence)
+static void game_set_entity_residence(GameState *game_state, Entity entity, EntityResidence residence)
 {
 	// game_state->entity_residences[entity_idx] = residence;
 }
@@ -818,22 +820,20 @@ static void game_init_hero(GameState *game_state, uint32_t entity_idx)
 {
 	Entity hero = game_get_entity(game_state, entity_idx);
 
-	hero.residence = ENTITY_RESIDENCE_HIGH;
-
 	hero.high->facing = HERO_FACING_RIGHT;
 	hero.high->vel = (Vtwo){ .x = 0.0F, .y = 0.0F };
 
 	hero.dormant->pos.tile_x = 1;
 	hero.dormant->pos.tile_y = 3;
 	hero.dormant->pos.tile_z = 0;
-
 	hero.dormant->pos.offset_m.x = 0.0F;
 	hero.dormant->pos.offset_m.y = 0.0F;
-
 	hero.dormant->height = 0.5F;
 	hero.dormant->width = 1.0F;
 
-	if (game_state->entity_residences[entity_idx] == ENTITY_RESIDENCE_NONEXISTENT) {
+	game_set_entity_residence(game_state, hero, ENTITY_RESIDENCE_HIGH);
+
+	if (game_state->entity_residences[game_state->entity_tracked_by_camera_idx] == ENTITY_RESIDENCE_NONEXISTENT) {
 		game_state->entity_tracked_by_camera_idx = entity_idx;
 	}
 }
@@ -944,7 +944,7 @@ static const Vtwo g_screen_offset = {
 
 GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
-	assert(sizeof(GameState) <= storage->permanent_storage_size_byte);
+	assert(sizeof(GameState) <= storage->permanent_storage_size_bytes);
 
 	GameState *game_state = (GameState *)storage->permanent_storage;
 	Arena *arena = &game_state->arena;
@@ -1007,7 +1007,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		game_state->camera_position.offset_m.x = 0.0F;
 		game_state->camera_position.offset_m.y = 0.0F;
 
-		arena_init(&game_state->arena, storage->permanent_storage_size_byte - sizeof(GameState),
+		arena_init(&game_state->arena, storage->permanent_storage_size_bytes - sizeof(GameState),
 		           (unsigned char *)storage->permanent_storage + sizeof(GameState));
 
 		game_state->world = arena_push(&game_state->arena, sizeof(*game_state->world));
@@ -1724,8 +1724,10 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		for (int32_t tile_row_offset = -10; tile_row_offset < 10; ++tile_row_offset) {
 			for (int32_t tile_col_offset = -20; tile_col_offset < 20; ++tile_col_offset) {
-				uint32_t tile_col = (uint32_t)((int32_t)game_state->camera_position.tile_x + tile_col_offset);
-				uint32_t tile_row = (uint32_t)((int32_t)game_state->camera_position.tile_y + tile_row_offset);
+				uint32_t tile_col =
+					(uint32_t)((int32_t)game_state->camera_position.tile_x + tile_col_offset);
+				uint32_t tile_row =
+					(uint32_t)((int32_t)game_state->camera_position.tile_y + tile_row_offset);
 				uint32_t level = game_state->camera_position.tile_z;
 
 				uint32_t tile_type_id = map_get_tile_type(map, tile_col, tile_row, level);
@@ -1838,7 +1840,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 SOUND_CREATE_SAMPLES(sound_create_samples)
 {
-	assert(sizeof(GameState) <= memory->permanent_storage_size_byte);
+	assert(sizeof(GameState) <= memory->permanent_storage_size_bytes);
 
 	GameState *game_state = memory->permanent_storage;
 	sound_output_samples(soundbuff, game_state, 400);

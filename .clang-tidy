@@ -7,4 +7,5 @@ Checks: "*,
     -llvmlibc-restrict-system-libc-headers,
     -readability-magic-numbers,
     -cppcoreguidelines-avoid-magic-numbers,
-    -readability-math-missing-parentheses"
+    -readability-math-missing-parentheses,
+    -readability-function-cognitive-complexity"

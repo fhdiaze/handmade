@@ -25,7 +25,7 @@ typedef struct ThreadContext {
 #define MEMORY_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
 
 typedef struct ReadFileResult {
-	size_t size_byte;
+	size_t size_bytes;
 	void *base_address;
 } ReadFileResult;
 
@@ -139,10 +139,10 @@ typedef struct GameSoundBuffer {
 } GameSoundBuffer;
 
 typedef struct Storage {
-	size_t permanent_storage_size_byte; // permanent storage in bytes
+	size_t permanent_storage_size_bytes; // permanent storage in bytes
 	void *permanent_storage;            // This should be zero initialized
 
-	size_t transient_storage_size_byte; // transient storage in bytes
+	size_t transient_storage_size_bytes; // transient storage in bytes
 	void *transient_storage;            // This should be zero initialized
 
 	file_free_debug_func *plat_file_free_debug;

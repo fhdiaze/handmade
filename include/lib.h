@@ -57,28 +57,28 @@ typedef struct Arena {
 	size_t used_bytes;
 } Arena;
 
-void arena_init(Arena *restrict arena, const size_t size, unsigned char *const restrict base)
+void arena_init(Arena *restrict arena, const size_t size_bytes, unsigned char *const restrict base)
 {
-	arena->capacity_bytes = size;
+	arena->capacity_bytes = size_bytes;
 	arena->base_address = base;
 	arena->used_bytes = 0;
 }
 
-void *arena_push(Arena *arena, size_t size)
+void *arena_push(Arena *arena, size_t size_bytes)
 {
-	assert(arena->used_bytes + size <= arena->capacity_bytes);
+	assert(arena->used_bytes + size_bytes <= arena->capacity_bytes);
 
 	void *result = arena->base_address + arena->used_bytes;
-	arena->used_bytes += size;
+	arena->used_bytes += size_bytes;
 
 	return result;
 }
 
-void *arena_push_zero(Arena *arena, size_t size)
+void *arena_push_zero(Arena *arena, size_t size_bytes)
 {
-	void *result = arena_push(arena, size);
+	void *result = arena_push(arena, size_bytes);
 
-	memset(result, 0, size);
+	memset(result, 0, size_bytes);
 
 	return nullptr;
 }
