@@ -399,7 +399,8 @@ uint32_t uint_rotl(uint32_t value, int32_t shift)
 // =============================================================================
 
 /**
- * @brief Vector in plane
+ * @brief
+ *
  */
 typedef union Vtwo {
 	struct {

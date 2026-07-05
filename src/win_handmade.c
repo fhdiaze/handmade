@@ -1175,7 +1175,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 	size_t last_cycle_count = __rdtsc();
 	while (g_is_running) {
-		new_input->time_delta_sec = target_secs_per_frame;
+		new_input->time_delta_secs = target_secs_per_frame;
 
 		if (file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
 		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&
@@ -1305,8 +1305,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 		 */
 
 		bitmap.top_left_px = g_win_back_buffer.top_left_px;
-		bitmap.width_px = g_win_back_buffer.width;
-		bitmap.height_px = g_win_back_buffer.height;
+		bitmap.width_pxs = g_win_back_buffer.width;
+		bitmap.height_pxs = g_win_back_buffer.height;
 		bitmap.pitch_bytes = g_win_back_buffer.pitch_bytes;
 		bitmap.bytes_per_pixel = g_win_back_buffer.bytes_per_pixel;
 

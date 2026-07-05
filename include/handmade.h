@@ -97,7 +97,7 @@ typedef struct GameInput {
 	unsigned mouse_y;
 	unsigned mouse_z; // mouse wheel
 
-	float time_delta_sec;
+	float time_delta_secs;
 
 	union {
 		ButtonState mouse_buttons[MAX_MOUSE_BUTTONS];
@@ -122,10 +122,10 @@ typedef struct GameOffscreenBuffer {
 	void *top_left_px;
 
 	// width in pixels
-	unsigned width_px;
+	unsigned width_pxs;
 
 	// Height in pixels
-	unsigned height_px;
+	unsigned height_pxs;
 
 	// Size of a row in bytes
 	unsigned pitch_bytes;
