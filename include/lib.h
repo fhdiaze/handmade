@@ -233,7 +233,7 @@ void string_concat(const size_t one_count, const char *const restrict one, const
 // Logging
 // =============================================================================
 
-#define LOG_TSTAMP_BUF_SIZE 32
+#define LOG_TSTAMP_BUF_SIZE_BYTES 32
 #define LOG_LEVEL_ALL 0UL
 #define LOG_LEVEL_TRACE 1UL
 #define LOG_LEVEL_DEBUG 2UL
@@ -264,7 +264,7 @@ void string_concat(const size_t one_count, const char *const restrict one, const
 
 #define IMPL_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                                   \
 	do {                                                                                                   \
-		char _pr_tstamp_str[LOG_TSTAMP_BUF_SIZE];                                                      \
+		char _pr_tstamp_str[LOG_TSTAMP_BUF_SIZE_BYTES];                                                      \
 		struct timespec _pr_ts;                                                                        \
 		struct tm _pr_tm;                                                                              \
                                                                                                                \
@@ -274,7 +274,7 @@ void string_concat(const size_t one_count, const char *const restrict one, const
 		if (gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                                       \
 			break;                                                                                 \
 		}                                                                                              \
-		if (strftime(_pr_tstamp_str, LOG_TSTAMP_BUF_SIZE, "%FT%T", &_pr_tm) == 0) {                    \
+		if (strftime(_pr_tstamp_str, LOG_TSTAMP_BUF_SIZE_BYTES, "%FT%T", &_pr_tm) == 0) {                    \
 			break;                                                                                 \
 		}                                                                                              \
                                                                                                                \
@@ -360,13 +360,13 @@ CtzResult uint_ctz(uint32_t value)
 #elif LIB_COMPILER_LLVM
 	if (value != 0U) {
 		result.was_found = 1U;
-		result.index = (unsigned long)__builtin_ctz(value);
+		result.count = (unsigned long)__builtin_ctz(value);
 	}
 #else
 	for (uint8_t test = 0; test < 32; ++test) {
 		if (value & (1U << test)) {
 			result.was_found = 1U;
-			result.index = test;
+			result.count = test;
 
 			break;
 		}
