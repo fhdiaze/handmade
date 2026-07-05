@@ -117,8 +117,8 @@ typedef enum ReplayStatus : uint8_t {
 } ReplayStatus;
 
 typedef struct WinState {
-	size_t gamemem_size_bytes;
-	void *gamemem;
+	size_t memory_size_bytes;
+	void *memory_base_address;
 
 	ReplaySlot replay_slots[REPLAY_MAX_SLOTS];
 	HANDLE replay_file_handle;
@@ -526,7 +526,7 @@ static void sound_fill_buffer(WinSoundOutput *soundout, size_t byte_to_lock, siz
 
 	size_t region_sample_count = region_one_size / soundout->bytes_per_sample;
 	int16_t *sample_out = (int16_t *)region_one;
-	int16_t *sample_in = soundbuff->samples;
+	int16_t *sample_in = soundbuff->samples_base_address;
 	for (size_t i = 0; i < region_sample_count; ++i) {
 		*sample_out = *sample_in; // channel one
 		++sample_out;
@@ -592,7 +592,7 @@ static float xinput_process_stick_value(short value, short dead_zone)
  * @param newstate
  */
 static void xinput_process_button(DWORD xinput_button_state, ButtonState *oldstate, DWORD buttonbit,
-                                      ButtonState *newstate)
+                                  ButtonState *newstate)
 {
 	newstate->ended_down = (xinput_button_state & buttonbit) == buttonbit;
 	newstate->half_transition_count = oldstate->ended_down != newstate->ended_down;
@@ -609,10 +609,10 @@ static void input_begin_recording(WinState *winstate)
 	assert(winstate->replay_file_handle);
 
 	LARGE_INTEGER filepos;
-	filepos.QuadPart = (long long)winstate->gamemem_size_bytes;
+	filepos.QuadPart = (long long)winstate->memory_size_bytes;
 	SetFilePointerEx(winstate->replay_file_handle, filepos, nullptr, FILE_BEGIN);
 
-	CopyMemory(replay_slot->memory, winstate->gamemem, winstate->gamemem_size_bytes);
+	CopyMemory(replay_slot->memory, winstate->memory_base_address, winstate->memory_size_bytes);
 
 	winstate->replay_status = WIN_REPLAY_RECORD;
 }
@@ -634,10 +634,10 @@ static void input_begin_playback(WinState *winstate)
 	assert(winstate->replay_file_handle);
 
 	LARGE_INTEGER filepos;
-	filepos.QuadPart = (long long)winstate->gamemem_size_bytes;
+	filepos.QuadPart = (long long)winstate->memory_size_bytes;
 	SetFilePointerEx(winstate->replay_file_handle, filepos, nullptr, FILE_BEGIN);
 
-	CopyMemory(winstate->gamemem, replay_slot->memory, winstate->gamemem_size_bytes);
+	CopyMemory(winstate->memory_base_address, replay_slot->memory, winstate->memory_size_bytes);
 
 	winstate->replay_status = WIN_REPLAY_PLAYBACK;
 }
@@ -794,8 +794,8 @@ static void offscreen_resize_section(WinOffscreenBuffer *back_buffer, unsigned w
 	back_buffer->info.bmiHeader.biBitCount = 32;
 	back_buffer->info.bmiHeader.biCompression = BI_RGB;
 
-	size_t bitmap_memory_size =
-		(size_t)(back_buffer->width_pxs) * (size_t)(back_buffer->height_pxs) * (size_t)(back_buffer->bytes_per_pixel);
+	size_t bitmap_memory_size = (size_t)(back_buffer->width_pxs) * (size_t)(back_buffer->height_pxs) *
+	                            (size_t)(back_buffer->bytes_per_pixel);
 
 	back_buffer->top_left_px = VirtualAlloc(nullptr, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 	back_buffer->pitch_bytes = back_buffer->width_pxs * back_buffer->bytes_per_pixel;
@@ -806,8 +806,8 @@ static void window_display_offscreen_buffer(HDC device_context, WinOffscreenBuff
 {
 	if (win_width >= 2 * (int)back_buffer->width_pxs && win_height >= 2 * (int)back_buffer->height_pxs) {
 		StretchDIBits(device_context, 0, 0, win_width, win_height, 0, 0, (int)back_buffer->width_pxs,
-		              (int)back_buffer->height_pxs, back_buffer->top_left_px, &back_buffer->info, DIB_RGB_COLORS,
-		              SRCCOPY);
+		              (int)back_buffer->height_pxs, back_buffer->top_left_px, &back_buffer->info,
+		              DIB_RGB_COLORS, SRCCOPY);
 	} else {
 		int offset_x = 10;
 		int offset_y = 10;
@@ -817,9 +817,10 @@ static void window_display_offscreen_buffer(HDC device_context, WinOffscreenBuff
 		PatBlt(device_context, 0, offset_y + (int)back_buffer->height_pxs, win_width,
 		       win_height - offset_y - (int)back_buffer->height_pxs, BLACKNESS);
 		PatBlt(device_context, 0, 0, offset_x, win_height, BLACKNESS);
-		StretchDIBits(device_context, offset_x, offset_y, (int)back_buffer->width_pxs, (int)back_buffer->height_pxs, 0,
-		              0, (int)back_buffer->width_pxs, (int)back_buffer->height_pxs, back_buffer->top_left_px,
-		              &back_buffer->info, DIB_RGB_COLORS, SRCCOPY);
+		StretchDIBits(device_context, offset_x, offset_y, (int)back_buffer->width_pxs,
+		              (int)back_buffer->height_pxs, 0, 0, (int)back_buffer->width_pxs,
+		              (int)back_buffer->height_pxs, back_buffer->top_left_px, &back_buffer->info,
+		              DIB_RGB_COLORS, SRCCOPY);
 	}
 }
 
@@ -889,7 +890,7 @@ static inline float clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER end)
  * @param bottom pixel index
  */
 static void bitmap_draw_vertical_debug(WinOffscreenBuffer *bitmap, unsigned x, unsigned top, unsigned bottom,
-                                           unsigned color)
+                                       unsigned color)
 {
 	assert(x >= 0 && x < bitmap->width_pxs);
 	assert(bottom >= 0 && bottom < bitmap->height_pxs);
@@ -907,8 +908,8 @@ static void bitmap_draw_vertical_debug(WinOffscreenBuffer *bitmap, unsigned x, u
 }
 
 static inline void offscreen_draw_sound_mark_debug(WinOffscreenBuffer *back_buffer, WinSoundOutput *soundout,
-                                                 float pixels_per_byte, unsigned pad_x, unsigned top, unsigned bottom,
-                                                 unsigned value, uint32_t color)
+                                                   float pixels_per_byte, unsigned pad_x, unsigned top, unsigned bottom,
+                                                   unsigned value, uint32_t color)
 {
 	assert(value < soundout->buffsize_bytes);
 	unsigned x = pad_x + (unsigned)(pixels_per_byte * (float)value);
@@ -925,8 +926,8 @@ static inline void offscreen_draw_sound_mark_debug(WinOffscreenBuffer *back_buff
  * @param target_secs_per_frame
  */
 static void offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer, unsigned last_cursors_marks_size,
-                                                DebugTimeMark *last_cursors_marks, unsigned current_mark_index,
-                                                WinSoundOutput *winsound)
+                                            DebugTimeMark *last_cursors_marks, unsigned current_mark_index,
+                                            WinSoundOutput *winsound)
 {
 	unsigned pad_x = 16;
 	unsigned pad_y = 16;
@@ -953,41 +954,41 @@ static void offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer, uns
 			first_top = top;
 
 			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-			                              current_mark.output_play_cursor, play_color);
+			                                current_mark.output_play_cursor, play_color);
 			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-			                              current_mark.output_write_cursor, write_color);
+			                                current_mark.output_write_cursor, write_color);
 
 			top += pad_y + line_height;
 			bottom += pad_y + line_height;
 
 			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-			                              current_mark.output_location, play_color);
+			                                current_mark.output_location, play_color);
 			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-			                              RING_ADD(winsound->buffsize_bytes, current_mark.output_location,
-			                                       current_mark.output_byte_count),
-			                              write_color);
+			                                RING_ADD(winsound->buffsize_bytes, current_mark.output_location,
+			                                         current_mark.output_byte_count),
+			                                write_color);
 
 			top += pad_y + line_height;
 			bottom += pad_y + line_height;
 
-			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, first_top, bottom,
-			                              current_mark.frame_flip_byte, frame_flip_byte_color);
+			offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, first_top,
+			                                bottom, current_mark.frame_flip_byte, frame_flip_byte_color);
 		}
 
 		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-		                              current_mark.flip_play_cursor, play_color);
+		                                current_mark.flip_play_cursor, play_color);
 
 		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-		                              RING_SUB(winsound->buffsize_bytes, current_mark.flip_play_cursor,
-		                                       480 * winsound->bytes_per_sample),
-		                              play_window_color);
+		                                RING_SUB(winsound->buffsize_bytes, current_mark.flip_play_cursor,
+		                                         480 * winsound->bytes_per_sample),
+		                                play_window_color);
 		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-		                              RING_ADD(winsound->buffsize_bytes, current_mark.flip_play_cursor,
-		                                       480 * winsound->bytes_per_sample),
-		                              play_window_color);
+		                                RING_ADD(winsound->buffsize_bytes, current_mark.flip_play_cursor,
+		                                         480 * winsound->bytes_per_sample),
+		                                play_window_color);
 
 		offscreen_draw_sound_mark_debug(back_buffer, winsound, pixels_per_byte, pad_x, top, bottom,
-		                              current_mark.flip_write_cursor, write_color);
+		                                current_mark.flip_write_cursor, write_color);
 	}
 }
 
@@ -1068,7 +1069,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	unsigned bytes_per_frame = (unsigned)((float)bytes_per_sec * target_secs_per_frame);
 
 	win_sound.safety_bytes = bytes_per_frame / 3; // 1/3 of the samples per frame
-	win_sound.buffsize_bytes = bytes_per_sec;           // 1 second of sound
+	win_sound.buffsize_bytes = bytes_per_sec;     // 1 second of sound
 
 	sound_init(winhandle, win_sound.samples_per_sec, win_sound.buffsize_bytes);
 	sound_clear_buffer(&win_sound);
@@ -1113,15 +1114,15 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 		.plat_file_read_debug = file_read_debug,
 		.file_write_debug = file_write_debug,
 	};
-	Storage.permanent_storage_size_bytes = MB_TO_BYTES(64ULL);
-	Storage.transient_storage_size_bytes = GB_TO_BYTES(1ULL);
+	Storage.permanent_size_bytes = MB_TO_BYTES(64ULL);
+	Storage.transient_size_bytes = GB_TO_BYTES(1ULL);
 
-	win_state.gamemem_size_bytes = Storage.permanent_storage_size_bytes + Storage.transient_storage_size_bytes;
-	win_state.gamemem =
-		VirtualAlloc(MEMORY_BASE_ADDRESS, win_state.gamemem_size_bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+	win_state.memory_size_bytes = Storage.permanent_size_bytes + Storage.transient_size_bytes;
+	win_state.memory_base_address = VirtualAlloc(MEMORY_BASE_ADDRESS, win_state.memory_size_bytes,
+	                                             MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	Storage.permanent_storage = win_state.gamemem;
-	Storage.transient_storage = (unsigned char *)Storage.permanent_storage + Storage.permanent_storage_size_bytes;
+	Storage.permanent_base_address = win_state.memory_base_address;
+	Storage.transient_base_address = (unsigned char *)Storage.permanent_base_address + Storage.permanent_size_bytes;
 
 	for (uint8_t slot_index = 0; slot_index < REPLAY_MAX_SLOTS; ++slot_index) {
 		ReplaySlot *replay_slot = &win_state.replay_slots[slot_index];
@@ -1134,19 +1135,19 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 		replay_slot->file_handle = CreateFileA(replay_slot->filepath, GENERIC_WRITE | GENERIC_READ, 0, nullptr,
 		                                       CREATE_ALWAYS, 0, nullptr);
 		replay_slot->file_map = CreateFileMapping(replay_slot->file_handle, nullptr, PAGE_READWRITE,
-		                                          HIDWORD(win_state.gamemem_size_bytes),
-		                                          LODWORD(win_state.gamemem_size_bytes), nullptr);
+		                                          HIDWORD(win_state.memory_size_bytes),
+		                                          LODWORD(win_state.memory_size_bytes), nullptr);
 		replay_slot->memory =
-			MapViewOfFile(replay_slot->file_map, FILE_MAP_ALL_ACCESS, 0, 0, win_state.gamemem_size_bytes);
+			MapViewOfFile(replay_slot->file_map, FILE_MAP_ALL_ACCESS, 0, 0, win_state.memory_size_bytes);
 	}
 
-	if (!samples || !Storage.permanent_storage || !Storage.transient_storage) {
+	if (!samples || !Storage.permanent_base_address || !Storage.transient_base_address) {
 		return EXIT_FAILURE;
 	}
 
 	GameSoundBuffer game_soundbuff = {
 		.samples_per_sec = win_sound.samples_per_sec,
-		.samples = samples,
+		.samples_base_address = samples,
 	};
 
 	ThreadContext thread = {};
@@ -1272,32 +1273,32 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 			float threshold = 0.5F;
 			xinput_process_button(new_controller->stick_avg_x < -threshold ? 1 : 0,
-			                          &old_controller->moveleft, 1, &new_controller->moveleft);
+			                      &old_controller->moveleft, 1, &new_controller->moveleft);
 			xinput_process_button(new_controller->stick_avg_x > threshold ? 1 : 0,
-			                          &old_controller->moveright, 1, &new_controller->moveright);
+			                      &old_controller->moveright, 1, &new_controller->moveright);
 			xinput_process_button(new_controller->stick_avg_y < -threshold ? 1 : 0,
-			                          &old_controller->movedown, 1, &new_controller->movedown);
-			xinput_process_button(new_controller->stick_avg_y > threshold ? 1 : 0,
-			                          &old_controller->moveup, 1, &new_controller->moveup);
+			                      &old_controller->movedown, 1, &new_controller->movedown);
+			xinput_process_button(new_controller->stick_avg_y > threshold ? 1 : 0, &old_controller->moveup,
+			                      1, &new_controller->moveup);
 
 			xinput_process_button(pad->wButtons, &old_controller->actiondown, XINPUT_GAMEPAD_A,
-			                          &new_controller->actiondown);
+			                      &new_controller->actiondown);
 			xinput_process_button(pad->wButtons, &old_controller->actionright, XINPUT_GAMEPAD_B,
-			                          &new_controller->actionright);
+			                      &new_controller->actionright);
 			xinput_process_button(pad->wButtons, &old_controller->actionleft, XINPUT_GAMEPAD_X,
-			                          &new_controller->actionleft);
+			                      &new_controller->actionleft);
 			xinput_process_button(pad->wButtons, &old_controller->actionup, XINPUT_GAMEPAD_Y,
-			                          &new_controller->actionup);
+			                      &new_controller->actionup);
 
 			xinput_process_button(pad->wButtons, &old_controller->left_shoulder,
-			                          XINPUT_GAMEPAD_LEFT_SHOULDER, &new_controller->left_shoulder);
+			                      XINPUT_GAMEPAD_LEFT_SHOULDER, &new_controller->left_shoulder);
 			xinput_process_button(pad->wButtons, &old_controller->right_shoulder,
-			                          XINPUT_GAMEPAD_RIGHT_SHOULDER, &new_controller->right_shoulder);
+			                      XINPUT_GAMEPAD_RIGHT_SHOULDER, &new_controller->right_shoulder);
 
 			xinput_process_button(pad->wButtons, &old_controller->start, XINPUT_GAMEPAD_START,
-			                          &new_controller->start);
+			                      &new_controller->start);
 			xinput_process_button(pad->wButtons, &old_controller->back, XINPUT_GAMEPAD_BACK,
-			                          &new_controller->back);
+			                      &new_controller->back);
 		}
 
 		/**
@@ -1332,8 +1333,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 			}
 
 			// NOTE(fredy): Compute how much sound to write and where
-			unsigned byte_to_lock =
-				(win_sound.running_sample_index * win_sound.bytes_per_sample) % win_sound.buffsize_bytes;
+			unsigned byte_to_lock = (win_sound.running_sample_index * win_sound.bytes_per_sample) %
+			                        win_sound.buffsize_bytes;
 
 			float secs_from_flip = clock_elapsed_secs(flip_wall_clock, clock_get_wall());
 			float secs_to_flip = target_secs_per_frame - secs_from_flip;
@@ -1349,12 +1350,12 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 			//          (double)secs_from_flip, (double)secs_to_flip, bytes_per_frame,
 			//          bytes_to_flip, frame_flip_byte, sound_flip_byte);
 
-			unsigned target_cursor =
-				RING_ADD(win_sound.buffsize_bytes, sound_flip_byte, bytes_per_frame + win_sound.safety_bytes);
+			unsigned target_cursor = RING_ADD(win_sound.buffsize_bytes, sound_flip_byte,
+			                                  bytes_per_frame + win_sound.safety_bytes);
 
 			bytes_to_write = RING_DIFF(win_sound.buffsize_bytes, byte_to_lock, target_cursor);
 
-			game_soundbuff.sample_count = bytes_to_write / win_sound.bytes_per_sample;
+			game_soundbuff.samples_count = bytes_to_write / win_sound.bytes_per_sample;
 			if (game_code.sound_create_samples) {
 				game_code.sound_create_samples(&game_soundbuff, &thread, &Storage);
 			}

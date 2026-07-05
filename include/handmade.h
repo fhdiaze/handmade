@@ -134,16 +134,16 @@ typedef struct GameOffscreenBuffer {
 
 typedef struct GameSoundBuffer {
 	unsigned samples_per_sec;
-	unsigned sample_count;
-	int16_t *samples;
+	unsigned samples_count;
+	int16_t *samples_base_address;
 } GameSoundBuffer;
 
 typedef struct Storage {
-	size_t permanent_storage_size_bytes; // permanent storage in bytes
-	void *permanent_storage;            // This should be zero initialized
+	size_t permanent_size_bytes;  // permanent storage in bytes
+	void *permanent_base_address; // This should be zero initialized
 
-	size_t transient_storage_size_bytes; // transient storage in bytes
-	void *transient_storage;            // This should be zero initialized
+	size_t transient_size_bytes;  // transient storage in bytes
+	void *transient_base_address; // This should be zero initialized
 
 	file_free_debug_func *plat_file_free_debug;
 	file_read_debug_func *plat_file_read_debug;

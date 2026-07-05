@@ -875,9 +875,9 @@ static void sound_output_samples(GameSoundBuffer *buffer, GameState *game_state,
 {
 	float tone_volume = 3000;
 	size_t wave_period = buffer->samples_per_sec / tonehz;
-	int16_t *sample_out = buffer->samples;
+	int16_t *sample_out = buffer->samples_base_address;
 	float sample_value = 0;
-	for (size_t i = 0; i < buffer->sample_count; ++i) {
+	for (size_t i = 0; i < buffer->samples_count; ++i) {
 #if 0
 		float sine_value = sinf(game_state->tsine);
 		sample_value = sine_value * tone_volume;
@@ -953,9 +953,9 @@ static const Vtwo g_screen_offset = {
 
 GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
-	assert(sizeof(GameState) <= storage->permanent_storage_size_bytes);
+	assert(sizeof(GameState) <= storage->permanent_size_bytes);
 
-	GameState *game_state = (GameState *)storage->permanent_storage;
+	GameState *game_state = (GameState *)storage->permanent_base_address;
 	Arena *arena = &game_state->arena;
 	World *world = game_state->world;
 	Map *map = nullptr;
@@ -1016,8 +1016,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		game_state->camera_position.offset_ms.x = 0.0F;
 		game_state->camera_position.offset_ms.y = 0.0F;
 
-		arena_init(&game_state->arena, storage->permanent_storage_size_bytes - sizeof(GameState),
-		           (unsigned char *)storage->permanent_storage + sizeof(GameState));
+		arena_init(&game_state->arena, storage->permanent_size_bytes - sizeof(GameState),
+		           (unsigned char *)storage->permanent_base_address + sizeof(GameState));
 
 		game_state->world = arena_push(&game_state->arena, sizeof(*game_state->world));
 		world = game_state->world;
@@ -1850,8 +1850,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 SOUND_CREATE_SAMPLES(sound_create_samples)
 {
-	assert(sizeof(GameState) <= memory->permanent_storage_size_bytes);
+	assert(sizeof(GameState) <= memory->permanent_size_bytes);
 
-	GameState *game_state = memory->permanent_storage;
+	GameState *game_state = memory->permanent_base_address;
 	sound_output_samples(soundbuff, game_state, 400);
 }

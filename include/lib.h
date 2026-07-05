@@ -264,7 +264,7 @@ void string_concat(const size_t one_count, const char *const restrict one, const
 
 #define IMPL_LOG_MSG(log_level, fmt, file_name, func_name, line_number, ...)                                   \
 	do {                                                                                                   \
-		char _pr_tstamp_str[LOG_TSTAMP_BUF_SIZE_BYTES];                                                      \
+		char _pr_tstamp_str[LOG_TSTAMP_BUF_SIZE_BYTES];                                                \
 		struct timespec _pr_ts;                                                                        \
 		struct tm _pr_tm;                                                                              \
                                                                                                                \
@@ -274,7 +274,7 @@ void string_concat(const size_t one_count, const char *const restrict one, const
 		if (gmtime_s(&_pr_tm, &_pr_ts.tv_sec)) {                                                       \
 			break;                                                                                 \
 		}                                                                                              \
-		if (strftime(_pr_tstamp_str, LOG_TSTAMP_BUF_SIZE_BYTES, "%FT%T", &_pr_tm) == 0) {                    \
+		if (strftime(_pr_tstamp_str, LOG_TSTAMP_BUF_SIZE_BYTES, "%FT%T", &_pr_tm) == 0) {              \
 			break;                                                                                 \
 		}                                                                                              \
                                                                                                                \
