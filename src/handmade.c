@@ -1799,50 +1799,52 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				float entity_green = 1.0F;
 				float entity_blue = 0.0F;
 
-				Vtwo camera_entity_delta_px = vtwo_scale(high_entity->pos_mts, PIXELS_PER_METER);
+				Vtwo camera_entity_delta_pxs = vtwo_scale(high_entity->pos_mts, PIXELS_PER_METER);
 				// Flipping as screen and world y grow in different directions
-				camera_entity_delta_px = vtwo_flip_y(camera_entity_delta_px);
-				Vtwo entity_ground_point_px = vtwo_add(bitmap_center_px, camera_entity_delta_px);
-				Vtwo entity_diagonal = {
+				camera_entity_delta_pxs = vtwo_flip_y(camera_entity_delta_pxs);
+				Vtwo entity_ground_point_pxs = vtwo_add(bitmap_center_px, camera_entity_delta_pxs);
+				Vtwo entity_diagonal_pxs = {
 					.x = dormant_entity->width_mts * PIXELS_PER_METER,
 					.y = dormant_entity->height_mts * PIXELS_PER_METER,
 				};
-				Vtwo player_delta = vtwo_scale(entity_diagonal, 0.5F);
-				Vtwo player_min = vtwo_sub(entity_ground_point_px, player_delta);
-				Vtwo player_max = vtwo_add(player_min, entity_diagonal);
+				Vtwo player_delta_pxs = vtwo_scale(entity_diagonal_pxs, 0.5F);
+				Vtwo player_min_pxs = vtwo_sub(entity_ground_point_pxs, player_delta_pxs);
+				Vtwo player_max_pxs = vtwo_add(player_min_pxs, entity_diagonal_pxs);
 
-				offscreen_render_rectangle(back_buffer, player_min, player_max, entity_red,
+				offscreen_render_rectangle(back_buffer, player_min_pxs, player_max_pxs, entity_red,
 				                           entity_green, entity_blue);
 
-				float target_offset_x_px = entity_ground_point_px.x - (float)hero_bitmaps->align_x_pxs;
-				float target_offset_y_px = entity_ground_point_px.y - (float)hero_bitmaps->align_y_pxs;
-				float source_offset_x_px = 0.0F;
-				float source_offset_y_px = 0.0F;
+				float target_offset_x_pxs =
+					entity_ground_point_pxs.x - (float)hero_bitmaps->align_x_pxs;
+				float target_offset_y_pxs =
+					entity_ground_point_pxs.y - (float)hero_bitmaps->align_y_pxs;
+				float source_offset_x_pxs = 0.0F;
+				float source_offset_y_pxs = 0.0F;
 
-				if (target_offset_x_px < 0.0F) {
-					source_offset_x_px = -target_offset_x_px;
-					target_offset_x_px = 0.0F;
+				if (target_offset_x_pxs < 0.0F) {
+					source_offset_x_pxs = -target_offset_x_pxs;
+					target_offset_x_pxs = 0.0F;
 				}
 
-				if (target_offset_y_px < 0.0F) {
-					source_offset_y_px = -target_offset_y_px;
-					target_offset_y_px = 0.0F;
+				if (target_offset_y_pxs < 0.0F) {
+					source_offset_y_pxs = -target_offset_y_pxs;
+					target_offset_y_pxs = 0.0F;
 				}
 
-				if (source_offset_x_px >= (float)hero_bitmaps->torso.width_pxs) {
+				if (source_offset_x_pxs >= (float)hero_bitmaps->torso.width_pxs) {
 					continue;
 				}
 
-				if (source_offset_y_px >= (float)hero_bitmaps->torso.height_pxs) {
+				if (source_offset_y_pxs >= (float)hero_bitmaps->torso.height_pxs) {
 					continue;
 				}
 
-				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
-				                        &hero_bitmaps->torso, source_offset_x_px, source_offset_y_px);
-				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
-				                        &hero_bitmaps->cape, source_offset_x_px, source_offset_y_px);
-				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
-				                        &hero_bitmaps->head, source_offset_x_px, source_offset_y_px);
+				offscreen_render_bitmap(back_buffer, target_offset_x_pxs, target_offset_y_pxs,
+				                        &hero_bitmaps->torso, source_offset_x_pxs, source_offset_y_pxs);
+				offscreen_render_bitmap(back_buffer, target_offset_x_pxs, target_offset_y_pxs,
+				                        &hero_bitmaps->cape, source_offset_x_pxs, source_offset_y_pxs);
+				offscreen_render_bitmap(back_buffer, target_offset_x_pxs, target_offset_y_pxs,
+				                        &hero_bitmaps->head, source_offset_x_pxs, source_offset_y_pxs);
 			}
 		}
 	}
