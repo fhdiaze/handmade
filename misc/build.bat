@@ -2,9 +2,30 @@
 
 setlocal enabledelayedexpansion
 
+REM Captured now because "shift" (used below during argument parsing) can end up
+REM shifting %0 too once all positional args are consumed, which would corrupt %~dp0.
+set "ScriptDir=%~dp0"
+
 set "BuildMode=debug"
 set "Architecture=x64"
 set "LiveBuild=0"
+set "AppFileName=app"
+set "PlatformFileName=plat_win"
+set "PlatformFilePath=./src/%PlatformFileName%.c"
+set "AppFilePath=./src/%AppFileName%.c"
+set "Outdir=./bin"
+set "Datadir=./data"
+set "OutAppFileName=handmade_app"
+set "OutPlatFileName=win_handmade"
+set "OutPlatformFilePath=%Outdir%/%OutPlatFileName%.exe"
+set "OutAppFilePath=%Outdir%/%OutAppFileName%.dll"
+set "FlagsFile=%ScriptDir%../compile_flags.txt"
+set "DebugFlags=-g -gcodeview -O0 -DDEBUG -Wl,/DEBUG:FULL -fms-runtime-lib=static_dbg"
+@REM set "DebugFlags=!DebugFlags! -fsanitize=address -fno-omit-frame-pointer"
+set "ReleaseFlags=-O3 -DNDEBUG -flto -Wl,/opt:ref -Wl,/opt:icf -fms-runtime-lib=static"
+set "Flags="
+set "AppFlags=-shared -Wl,/MAP:%Outdir%/%OutAppFileName%.map,/MAPINFO:EXPORTS -Wl,/EXPORT:sound_create_samples -Wl,/EXPORT:game_update_and_render -Wl,/PDB:%Outdir%/%OutAppFileName%_%random%.pdb"
+set "PlatformFlags=-luser32 -lgdi32 -lwinmm -Wl,/subsystem:windows -Wl,/MAP:%Outdir%/%OutPlatFileName%.map,/MAPINFO:EXPORTS"
 
 :parse_args
 
@@ -24,8 +45,8 @@ if /i "%~1"=="/a" (
 if /i "%~1"=="/lb" (
     set "LiveBuild=1"       & shift        & goto :parse_args
 )
-shift
-goto :parse_args
+echo Error: Unknown argument "%~1".
+exit /b 1
 
 :done_args
 
@@ -38,15 +59,6 @@ if /i not "%Architecture%"=="x86" if /i not "%Architecture%"=="x64" (
     echo Error: Invalid architecture "%Architecture%". Must be "x86" or "x64".
     exit /b 1
 )
-
-set "CoreFileName=handmade"
-set "PlatformFileName=win_handmade"
-set "PlatformFilePath=.\src\%PlatformFileName%.c"
-set "CoreFilePath=.\src\%CoreFileName%.c"
-set "Outdir=.\bin"
-set "Datadir=.\data"
-set "OutPlatformFileName=%Outdir%\%PlatformFileName%.exe"
-set "OutCoreFileName=%Outdir%\%CoreFileName%.dll"
 
 if not exist "%Outdir%" (
     echo Creating %Outdir%...
@@ -69,9 +81,8 @@ if not exist "%Datadir%" (
     del /q "%Datadir%\log.txt" 2>nul
 )
 
-REM Read flags from file
-set "Flags="
-for /f "tokens=*" %%A in (compile_flags.txt) do (
+REM Read flags from file (path is relative to this script's location, not the caller's cwd)
+for /f "usebackq tokens=*" %%A in ("%FlagsFile%") do (
     set "line=%%A"
     set "line=!line: =!"
     if not "!line!"=="" if not "!line:~0,2!"=="//" (
@@ -88,51 +99,34 @@ if "%Architecture%"=="x86" (
 )
 
 if "%BuildMode%"=="debug" (
-    set "Flags=!Flags! -g"
-    set "Flags=!Flags! -gcodeview"
-    set "Flags=!Flags! -O0"
-    set "Flags=!Flags! -DDEBUG"
-    set "Flags=!Flags! -Wl,/DEBUG:FULL"
-    set "Flags=!Flags! -fms-runtime-lib=static_dbg"
-    @REM set "Flags=!Flags! -fsanitize=address"
-    @REM set "Flags=!Flags! -fno-omit-frame-pointer"
+    set "Flags=!Flags! %DebugFlags%"
     echo Building in DEBUG mode...
 ) else (
-    set "Flags=!Flags! -O3"
-    set "Flags=!Flags! -DNDEBUG"
-    set "Flags=!Flags! -flto"
-    set "Flags=!Flags! -Wl,/opt:ref"
-    set "Flags=!Flags! -Wl,/opt:icf"
-    set "Flags=!Flags! -fms-runtime-lib=static"
+    set "Flags=!Flags! %ReleaseFlags%"
     echo Building in RELEASE mode...
 )
 
-set "CoreFlags=!Flags!"
-set "CoreFlags=!CoreFlags! -Wl,/MAP:%Outdir%/%CoreFileName%.map"
-set "CoreFlags=!CoreFlags! -Wl,/MAPINFO:EXPORTS"
-set "CoreFlags=!CoreFlags! -Wl,/EXPORT:sound_create_samples"
-set "CoreFlags=!CoreFlags! -Wl,/EXPORT:game_update_and_render"
-set "CoreFlags=!CoreFlags! -Wl,/PDB:%Outdir%/%CoreFileName%_%random%.pdb"
-set "CoreFlags=!CoreFlags! -shared"
+set "AppFlags=!AppFlags! !Flags!"
+set "PlatformFlags=!PlatformFlags! !Flags!"
 
-echo Building %OutCoreFileName% ...
+echo Building %OutAppFilePath% ...
 echo.
-echo clang !CoreFlags! %CoreFilePath% -o %OutCoreFileName%
+echo clang !AppFlags! %AppFilePath% -o %OutAppFilePath%
 echo.
 echo Waiting for pdb file>"%Outdir%\lock.tmp"
 echo.
 
-clang !CoreFlags! %CoreFilePath% -o %OutCoreFileName%
+clang !AppFlags! %AppFilePath% -o %OutAppFilePath%
 
 del /q "%Outdir%\lock.tmp" 2>nul
 
 if errorlevel 1 (
-    echo Building tix dll failed!
+    echo Building %OutAppFilePath% failed!
     exit /b %errorlevel%
 )
 
 echo.
-echo Building tix dll succeeded!
+echo Building %OutAppFilePath% succeeded!
 echo.
 
 if %LiveBuild% equ 1 (
@@ -140,25 +134,17 @@ if %LiveBuild% equ 1 (
     exit /b 0
 )
 
-set "PlatformFlags=!Flags!"
-set "PlatformFlags=!PlatformFlags! -luser32"
-set "PlatformFlags=!PlatformFlags! -lgdi32"
-set "PlatformFlags=!PlatformFlags! -lwinmm"
-set "PlatformFlags=!PlatformFlags! -Wl,/subsystem:windows"
-set "PlatformFlags=!PlatformFlags! -Wl,/MAP:%Outdir%/%PlatformFileName%.map"
-set "PlatformFlags=!PlatformFlags! -Wl,/MAPINFO:EXPORTS"
-
-echo Building %OutPlatformFileName% ...
+echo Building %OutPlatformFilePath% ...
 echo.
-echo clang !PlatformFlags! %PlatformFilePath% -o %OutPlatformFileName%
+echo clang !PlatformFlags! %PlatformFilePath% -o %OutPlatformFilePath%
 echo.
 
-clang !PlatformFlags! %PlatformFilePath% -o %OutPlatformFileName%
+clang !PlatformFlags! %PlatformFilePath% -o %OutPlatformFilePath%
 
 if errorlevel 1 (
-    echo Building platform exe failed!
+    echo Building %OutPlatformFilePath% failed!
     exit /b %errorlevel%
 )
 
 echo.
-echo Building platform exe succeeded!
+echo Building %OutPlatformFilePath% succeeded!

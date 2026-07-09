@@ -8,7 +8,7 @@
 #include <stdint.h>
 #include <stdlib.h>
 
-#include "handmade.h"
+#include "app.h"
 #include "lib.h"
 
 #define RANDOM_NUMS_COUNT 4096
@@ -18,14 +18,14 @@
 // =============================================================================
 
 #define TILE_RADIUS_PXS 30
-#define TILE_RADIUS_MS 0.7F
+#define TILE_RADIUS_MTS 0.7F
 
 #define TILE_SIDE_PXS (TILE_RADIUS_PXS * 2UL)
 
 /**
  * @brief Side of a tile in meters
  */
-#define TILE_SIDE_MS (TILE_RADIUS_MS * 2.0F)
+#define TILE_SIDE_MTS (TILE_RADIUS_MTS * 2.0F)
 #define CHUNK_SHIFT_BITS 4UL
 
 /**
@@ -119,14 +119,14 @@ typedef struct Position {
 	/**
 	 * @brief Offset vector relative to the center of the tile in meters
 	 */
-	Vtwo offset_ms;
+	Vtwo offset_mts;
 } Position;
 
 typedef struct PositionDelta {
 	// Delta on x and y axis in meters
-	Vtwo delta_xy_ms;
+	Vtwo delta_xy_mts;
 
-	float delta_z_ms;
+	float delta_z_mts;
 } PositionDelta;
 
 /**
@@ -143,14 +143,14 @@ typedef struct PositionDelta {
  */
 static inline uint32_t map_normalize_coord(uint32_t *tile, float *tile_offset_f)
 {
-	int tile_offset = float_round_to_int(*tile_offset_f / TILE_SIDE_MS);
+	int tile_offset = float_round_to_int(*tile_offset_f / TILE_SIDE_MTS);
 
 	*tile = (unsigned)((int)*tile + tile_offset);
 
-	*tile_offset_f -= (float)(tile_offset)*TILE_SIDE_MS;
+	*tile_offset_f -= (float)(tile_offset)*TILE_SIDE_MTS;
 
-	assert(*tile_offset_f >= -TILE_RADIUS_MS);
-	assert(*tile_offset_f <= TILE_RADIUS_MS);
+	assert(*tile_offset_f >= -TILE_RADIUS_MTS);
+	assert(*tile_offset_f <= TILE_RADIUS_MTS);
 
 	return 1U;
 }
@@ -216,10 +216,10 @@ static inline TileType map_get_tile_type(Map *map, uint32_t tile_x, uint32_t til
  */
 static uint32_t map_normalize_position(Position *pos)
 {
-	uint32_t was_success = map_normalize_coord(&pos->tile_x, &pos->offset_ms.x);
+	uint32_t was_success = map_normalize_coord(&pos->tile_x, &pos->offset_mts.x);
 
 	if (was_success) {
-		was_success = map_normalize_coord(&pos->tile_y, &pos->offset_ms.y);
+		was_success = map_normalize_coord(&pos->tile_y, &pos->offset_mts.y);
 	}
 
 	return was_success;
@@ -269,9 +269,9 @@ static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t
  * @param offset The new tile offset
  * @return uint32_t 1 on success, 0 if normalization of either axis fails.
  */
-static inline uint32_t position_set_offset(Position *position, Vtwo offset_ms)
+static inline uint32_t position_set_offset(Position *position, Vtwo offset_mts)
 {
-	position->offset_ms = offset_ms;
+	position->offset_mts = offset_mts;
 	uint32_t result = map_normalize_position(position);
 
 	return result;
@@ -294,13 +294,13 @@ static PositionDelta position_substract(const Position *const a, const Position 
 	};
 	float delta_tile_z = (float)a->tile_z - (float)b->tile_z;
 
-	Vtwo delta_xy_m = vtwo_scale(delta_xy_tile, TILE_SIDE_MS);
+	Vtwo delta_xy_m = vtwo_scale(delta_xy_tile, TILE_SIDE_MTS);
 
-	Vtwo delta_tile_offset_m = vtwo_sub(a->offset_ms, b->offset_ms);
+	Vtwo delta_tile_offset_m = vtwo_sub(a->offset_mts, b->offset_mts);
 	delta_xy_m = vtwo_add(delta_xy_m, delta_tile_offset_m);
 
-	result.delta_xy_ms = delta_xy_m;
-	result.delta_z_ms = delta_tile_z * TILE_SIDE_MS;
+	result.delta_xy_mts = delta_xy_m;
+	result.delta_z_mts = delta_tile_z * TILE_SIDE_MTS;
 
 	return result;
 }
@@ -309,7 +309,7 @@ static PositionDelta position_substract(const Position *const a, const Position 
 // Rendering
 // =============================================================================
 
-#define PIXELS_PER_METER ((float)TILE_RADIUS_PXS / TILE_RADIUS_MS)
+#define PIXELS_PER_METER ((float)TILE_RADIUS_PXS / TILE_RADIUS_MTS)
 
 /**
  * @brief (0,0) is on the bottom left corner.
@@ -589,14 +589,14 @@ static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read
 // =============================================================================
 
 // Dimensions in meters
-#define HERO_HEIGHT_MS (0.5F) //(1.4F)
-#define HERO_WIDTH_MS (1.0F)  // (0.75F * HERO_HEIGHT_MS)
-#define HERO_HEIGHT_RADIUS_MS (0.5F * HERO_HEIGHT_MS)
-#define HERO_WIDTH_RADIUS_MS (0.5F * HERO_WIDTH_MS)
+#define HERO_HEIGHT_MTS (0.5F) //(1.4F)
+#define HERO_WIDTH_MTS (1.0F)  // (0.75F * HERO_HEIGHT_MTS)
+#define HERO_HEIGHT_RADIUS_MTS (0.5F * HERO_HEIGHT_MTS)
+#define HERO_WIDTH_RADIUS_MTS (0.5F * HERO_WIDTH_MTS)
 
 // Dimensions in tiles
-#define HERO_WIDTH_TLS (float_ceil_to_uint(HERO_WIDTH_MS / TILE_SIDE_M))
-#define HERO_HEIGHT_TLS (float_ceil_to_uint(HERO_HEIGHT_MS / TILE_SIDE_M))
+#define HERO_WIDTH_TLS (float_ceil_to_uint(HERO_WIDTH_MTS / TILE_SIDE_MTS))
+#define HERO_HEIGHT_TLS (float_ceil_to_uint(HERO_HEIGHT_MTS / TILE_SIDE_MTS))
 
 #define MAX_ENTITIES 256
 
@@ -730,8 +730,8 @@ static void game_move_entity(GameState *game_state, Entity entity, Vtwo accelera
 
 				if (!map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
 					// Applying Minkowski algebra
-					float radius_h = 0.5F * (TILE_SIDE_M + HERO_HEIGHT_MS);
-					float radius_w = 0.5F * (TILE_SIDE_M + HERO_WIDTH_MS);
+					float radius_h = 0.5F * (TILE_SIDE_MTS + HERO_HEIGHT_MTS);
+					float radius_w = 0.5F * (TILE_SIDE_MTS + HERO_WIDTH_MTS);
 					Vtwo min_corner = { .x = -radius_w, .y = -radius_h };
 					Vtwo max_corner = { .x = radius_w, .y = radius_h };
 
@@ -835,8 +835,8 @@ static void game_init_hero(GameState *game_state, uint32_t entity_idx)
 	hero.dormant->pos.tile_x = 1;
 	hero.dormant->pos.tile_y = 3;
 	hero.dormant->pos.tile_z = 0;
-	hero.dormant->pos.offset_ms.x = 0.0F;
-	hero.dormant->pos.offset_ms.y = 0.0F;
+	hero.dormant->pos.offset_mts.x = 0.0F;
+	hero.dormant->pos.offset_mts.y = 0.0F;
 	hero.dormant->height_mts = 0.5F;
 	hero.dormant->width_mts = 1.0F;
 
@@ -1013,8 +1013,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		game_state->camera_position.tile_x = 17 / 2;
 		game_state->camera_position.tile_y = 9 / 2;
 		game_state->camera_position.tile_z = 0;
-		game_state->camera_position.offset_ms.x = 0.0F;
-		game_state->camera_position.offset_ms.y = 0.0F;
+		game_state->camera_position.offset_mts.x = 0.0F;
+		game_state->camera_position.offset_mts.y = 0.0F;
 
 		arena_init(&game_state->arena, storage->permanent_size_bytes - sizeof(GameState),
 		           (unsigned char *)storage->permanent_base_address + sizeof(GameState));
@@ -1767,7 +1767,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 					};
 					grid_offset = vtwo_flip_y(grid_offset);
 					Vtwo camera_tile_offset =
-						vtwo_scale(game_state->camera_position.offset_ms, PIXELS_PER_METER);
+						vtwo_scale(game_state->camera_position.offset_mts, PIXELS_PER_METER);
 					camera_tile_offset = vtwo_flip_y(camera_tile_offset);
 
 					Vtwo min_point = vtwo_add(bitmap_center_px, grid_offset);

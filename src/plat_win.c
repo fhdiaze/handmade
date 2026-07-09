@@ -10,10 +10,10 @@
 #include <stdio.h>
 #include <xinput.h>
 
-#include "handmade.h"
+#include "app.h"
 #include "lib.h"
 
-// macros
+#define TMP_APP_DLL_FILENAME_FMT "handame_app_tmp_%lu.dll"
 
 #define XINPUT_GET_STATE(name) \
 	DWORD WINAPI name([[__maybe_unused__]] DWORD dwUserIndex, [[__maybe_unused__]] XINPUT_STATE *pState)
@@ -84,8 +84,8 @@ typedef struct DebugTimeMark {
 	unsigned frame_flip_byte;
 } DebugTimeMark;
 
-typedef struct GameCode {
-	HMODULE game_dll;
+typedef struct EngineCode {
+	HMODULE app_dll;
 
 	/**
 	 * @brief could be null, check before call it
@@ -100,7 +100,7 @@ typedef struct GameCode {
 	FILETIME dll_write_time;
 
 	uint8_t is_valid;
-} GameCode;
+} EngineCode;
 
 typedef struct ReplaySlot {
 	HANDLE file_handle;
@@ -310,41 +310,41 @@ static inline uint32_t file_get_last_write_time(const char *const file_path, FIL
 /**
  * @brief
  *
- * @param gamedll_path
+ * @param enginedll_path
  * @param tmpdll_path
  * @param game_code
  * @return The result code, 0 if error
  */
-static uint32_t code_load_game(GameCode *game_code, const char *const gamedll_path, const char *const tmpdll_path,
-                               const char *const gamedll_lock_path)
+static uint32_t code_load_app(EngineCode *game_code, const char *const enginedll_path, const char *const tmpdll_path,
+                              const char *const enginedll_lock_path)
 {
 	uint32_t result_code = 0U;
 
 	FILETIME dll_lock_last_write_time = {};
-	if (file_get_last_write_time(gamedll_lock_path, &dll_lock_last_write_time)) {
+	if (file_get_last_write_time(enginedll_lock_path, &dll_lock_last_write_time)) {
 		LOG_ERROR("unable to read the dll, waiting for pdb file");
 		return result_code;
 	}
 
 	FILETIME dll_last_write_time = {};
-	if (!file_get_last_write_time(gamedll_path, &dll_last_write_time)) {
+	if (!file_get_last_write_time(enginedll_path, &dll_last_write_time)) {
 		return result_code;
 	}
 
-	if (!CopyFileA(gamedll_path, tmpdll_path, 0U)) {
+	if (!CopyFileA(enginedll_path, tmpdll_path, 0U)) {
 		DWORD error = GetLastError();
-		LOG_ERROR("unable to copy the dll: '%s', error: %lu", gamedll_path, error);
+		LOG_ERROR("unable to copy the dll: '%s', error: %lu", enginedll_path, error);
 		return result_code;
 	}
 
-	game_code->game_dll = LoadLibraryA(tmpdll_path);
+	game_code->app_dll = LoadLibraryA(tmpdll_path);
 	game_code->dll_write_time = dll_last_write_time;
 
-	if (game_code->game_dll) {
+	if (game_code->app_dll) {
 		game_code->update_and_render =
-			(game_update_and_render_func *)GetProcAddress(game_code->game_dll, "game_update_and_render");
+			(game_update_and_render_func *)GetProcAddress(game_code->app_dll, "game_update_and_render");
 		game_code->sound_create_samples =
-			(sound_create_samples_func *)GetProcAddress(game_code->game_dll, "sound_create_samples");
+			(sound_create_samples_func *)GetProcAddress(game_code->app_dll, "sound_create_samples");
 
 		game_code->is_valid = game_code->sound_create_samples && game_code->update_and_render;
 	}
@@ -353,7 +353,7 @@ static uint32_t code_load_game(GameCode *game_code, const char *const gamedll_pa
 		game_code->sound_create_samples = nullptr;
 		game_code->update_and_render = nullptr;
 
-		LOG_ERROR("unable to load the dll: '%s'", gamedll_path);
+		LOG_ERROR("unable to load the dll: '%s'", enginedll_path);
 	}
 
 	assert(game_code->is_valid);
@@ -361,13 +361,13 @@ static uint32_t code_load_game(GameCode *game_code, const char *const gamedll_pa
 	return game_code->is_valid;
 }
 
-static uint8_t code_unload_game(GameCode *game_code)
+static uint8_t code_unload_game(EngineCode *game_code)
 {
-	if (game_code->game_dll) {
-		if (!FreeLibrary(game_code->game_dll)) {
+	if (game_code->app_dll) {
+		if (!FreeLibrary(game_code->app_dll)) {
 			return 0U;
 		}
-		game_code->game_dll = nullptr;
+		game_code->app_dll = nullptr;
 	}
 
 	game_code->is_valid = 0U;
@@ -824,7 +824,7 @@ static void window_display_offscreen_buffer(HDC device_context, WinOffscreenBuff
 	}
 }
 
-static LRESULT CALLBACK window_handle_callback(HWND window, [[__maybe_unused__]] UINT msg,
+static LRESULT CALLBACK window_procedure(HWND window, [[__maybe_unused__]] UINT msg,
                                                [[__maybe_unused__]] WPARAM wparam, [[__maybe_unused__]] LPARAM lparam)
 {
 	LRESULT result = 0;
@@ -1004,22 +1004,22 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 	file_get_exe_path(&win_state);
 
-	char tmpgamedll_filename[MAX_FILE_PATH];
-	char gamedll_path[MAX_FILE_PATH];
-	char tmpgamedll_path[MAX_FILE_PATH];
-	char gamedll_lock_path[MAX_FILE_PATH];
+	char tmp_app_dll_filename[MAX_FILE_PATH];
+	char app_dll_path[MAX_FILE_PATH];
+	char tmp_app_dll_path[MAX_FILE_PATH];
+	char app_dll_lock_path[MAX_FILE_PATH];
 
-	file_build_path(&win_state, HANDMADE_DLL_NAME, sizeof(gamedll_path), gamedll_path);
-	file_build_path(&win_state, "lock.tmp", sizeof(gamedll_lock_path), gamedll_lock_path);
+	file_build_path(&win_state, APP_DLL_NAME, sizeof(app_dll_path), app_dll_path);
+	file_build_path(&win_state, "lock.tmp", sizeof(app_dll_lock_path), app_dll_lock_path);
 
-	if (sprintf(tmpgamedll_filename, "handmade_game_tmp_%lu.dll", GetCurrentTime()) < 0) {
+	if (sprintf(tmp_app_dll_filename, TMP_APP_DLL_FILENAME_FMT, GetCurrentTime()) < 0) {
 		return EXIT_FAILURE;
 	}
-	file_build_path(&win_state, tmpgamedll_filename, sizeof(tmpgamedll_path), tmpgamedll_path);
+	file_build_path(&win_state, tmp_app_dll_filename, sizeof(tmp_app_dll_path), tmp_app_dll_path);
 
 	// sets the scheduler granularity to 1ms, so that our Sleep() can be more granular
-	unsigned desire_scheduler_ms = 1;
-	uint8_t is_granular_sleep = timeBeginPeriod(desire_scheduler_ms) == TIMERR_NOERROR;
+	unsigned desire_scheduler_mts = 1;
+	uint8_t is_granular_sleep = timeBeginPeriod(desire_scheduler_mts) == TIMERR_NOERROR;
 
 	xinput_load();
 
@@ -1029,7 +1029,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 	WNDCLASSA win_class = {
 		.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC,
-		.lpfnWndProc = window_handle_callback,
+		.lpfnWndProc = window_procedure,
 		.hInstance = hInstance,
 		.hCursor = LoadCursorA(nullptr, IDC_ARROW),
 		.lpszClassName = "HandmadeHeroWindowClass",
@@ -1168,9 +1168,9 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	// float sound_latency_secs = 0.0F;
 	uint8_t is_sound_valid = 0U;
 
-	GameCode game_code = {};
+	EngineCode game_code = {};
 	FILETIME gamedll_last_write_time = {};
-	if (!code_load_game(&game_code, gamedll_path, tmpgamedll_path, gamedll_lock_path)) {
+	if (!code_load_app(&game_code, app_dll_path, tmp_app_dll_path, app_dll_lock_path)) {
 		return EXIT_FAILURE;
 	}
 
@@ -1178,15 +1178,15 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	while (g_is_running) {
 		new_input->time_delta_secs = target_secs_per_frame;
 
-		if (file_get_last_write_time(gamedll_path, &gamedll_last_write_time) &&
+		if (file_get_last_write_time(app_dll_path, &gamedll_last_write_time) &&
 		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&
 		    code_unload_game(&game_code)) {
-			if (sprintf(tmpgamedll_filename, "game_tmp_%lu.dll", GetCurrentTime()) < 0) {
+			if (sprintf(tmp_app_dll_filename, TMP_APP_DLL_FILENAME_FMT, GetCurrentTime()) < 0) {
 				return EXIT_FAILURE;
 			}
-			file_build_path(&win_state, tmpgamedll_filename, sizeof(tmpgamedll_path), tmpgamedll_path);
+			file_build_path(&win_state, tmp_app_dll_filename, sizeof(tmp_app_dll_path), tmp_app_dll_path);
 
-			code_load_game(&game_code, gamedll_path, tmpgamedll_path, gamedll_lock_path);
+			code_load_app(&game_code, app_dll_path, tmp_app_dll_path, app_dll_lock_path);
 		}
 
 		/**

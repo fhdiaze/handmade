@@ -389,7 +389,12 @@ CtzResult uint_ctz(uint32_t value)
  */
 uint32_t uint_rotl(uint32_t value, int32_t shift)
 {
+#if LIB_COMPILER_MSVC
 	uint32_t result = _rotl(value, shift);
+#else
+	shift &= 31; // 2's complements trick
+	uint32_t result = value << shift | value >> (32 - shift);
+#endif
 
 	return result;
 }

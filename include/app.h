@@ -1,7 +1,7 @@
 // clang-format Language: C
 
-#ifndef HANDMADE_H
-#define HANDMADE_H
+#ifndef APP_H
+#define APP_H
 
 #include <assert.h>
 #include <stdint.h>
@@ -50,7 +50,7 @@ typedef FILE_WRITE_DEBUG(file_write_debug_func);
 // Game API
 // =============================================================================
 
-#define HANDMADE_DLL_NAME "handmade.dll"
+#define APP_DLL_NAME "handmade_app.dll"
 
 #define MAX_MOUSE_BUTTONS 5
 #define MAX_CONTROLLERS 5
@@ -169,4 +169,4 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 #define SOUND_CREATE_SAMPLES(name) void name(GameSoundBuffer *soundbuff, ThreadContext *thread, Storage *memory)
 typedef SOUND_CREATE_SAMPLES(sound_create_samples_func);
 
-#endif // HANDMADE_H
+#endif // APP_H

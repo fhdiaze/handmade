@@ -17,7 +17,7 @@ graph TD
     lin["src/lin_handmade.c"]
     win["src/win_handmade.c"]
     handmade_c["src/handmade.c"]
-    handmade_h["include/handmade.h"]
+    handmade_h["include/app.h"]
     lib_h["include/lib.h"]
 
     win_sys["<windows.h> / <dsound.h> / <xinput.h> / <stdint.h> / <stdio.h>"]

@@ -8,7 +8,7 @@
             "args": [
                 "/m",
                 "debug",
-                "/Architecture",
+                "/a",
                 "x64"
             ],
             "group": {
@@ -26,7 +26,7 @@
             "args": [
                 "/m",
                 "debug",
-                "/Architecture",
+                "/a",
                 "x86"
             ],
             "group": "build",
