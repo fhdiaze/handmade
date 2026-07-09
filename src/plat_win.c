@@ -55,8 +55,8 @@ typedef struct WindowDimensions {
  * The byte order in a register (little endian) is AA RR GG BB
  */
 typedef struct WinOffscreenBuffer {
-	unsigned width_pxs;
-	unsigned height_pxs;
+	unsigned width_px;
+	unsigned height_px;
 	unsigned pitch_bytes; // size of a row in bytes
 	unsigned bytes_per_pixel;
 	void *top_left_px;
@@ -782,44 +782,44 @@ static void offscreen_resize_section(WinOffscreenBuffer *back_buffer, unsigned w
 		VirtualFree(back_buffer->top_left_px, 0, MEM_RELEASE);
 	}
 
-	back_buffer->width_pxs = win_width;
-	back_buffer->height_pxs = win_height;
+	back_buffer->width_px = win_width;
+	back_buffer->height_px = win_height;
 	back_buffer->bytes_per_pixel = 4;
 	back_buffer->info.bmiHeader.biSize = sizeof(back_buffer->info.bmiHeader);
-	back_buffer->info.bmiHeader.biWidth = (long)back_buffer->width_pxs;
+	back_buffer->info.bmiHeader.biWidth = (long)back_buffer->width_px;
 	// NOTE(fredy): top-down layout (opposite to bottom-up).
 	// The first three bytes on the bitmap are for the top-left pixel
-	back_buffer->info.bmiHeader.biHeight = -(long)back_buffer->height_pxs;
+	back_buffer->info.bmiHeader.biHeight = -(long)back_buffer->height_px;
 	back_buffer->info.bmiHeader.biPlanes = 1;
 	back_buffer->info.bmiHeader.biBitCount = 32;
 	back_buffer->info.bmiHeader.biCompression = BI_RGB;
 
-	size_t bitmap_memory_size = (size_t)(back_buffer->width_pxs) * (size_t)(back_buffer->height_pxs) *
+	size_t bitmap_memory_size = (size_t)(back_buffer->width_px) * (size_t)(back_buffer->height_px) *
 	                            (size_t)(back_buffer->bytes_per_pixel);
 
 	back_buffer->top_left_px = VirtualAlloc(nullptr, bitmap_memory_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	back_buffer->pitch_bytes = back_buffer->width_pxs * back_buffer->bytes_per_pixel;
+	back_buffer->pitch_bytes = back_buffer->width_px * back_buffer->bytes_per_pixel;
 }
 
 static void window_display_offscreen_buffer(HDC device_context, WinOffscreenBuffer *back_buffer, long win_width,
                                             long win_height)
 {
-	if (win_width >= 2 * (int)back_buffer->width_pxs && win_height >= 2 * (int)back_buffer->height_pxs) {
-		StretchDIBits(device_context, 0, 0, win_width, win_height, 0, 0, (int)back_buffer->width_pxs,
-		              (int)back_buffer->height_pxs, back_buffer->top_left_px, &back_buffer->info,
+	if (win_width >= 2 * (int)back_buffer->width_px && win_height >= 2 * (int)back_buffer->height_px) {
+		StretchDIBits(device_context, 0, 0, win_width, win_height, 0, 0, (int)back_buffer->width_px,
+		              (int)back_buffer->height_px, back_buffer->top_left_px, &back_buffer->info,
 		              DIB_RGB_COLORS, SRCCOPY);
 	} else {
 		int offset_x = 10;
 		int offset_y = 10;
 		PatBlt(device_context, 0, 0, win_width, offset_y, BLACKNESS);
-		PatBlt(device_context, offset_x + (int)back_buffer->width_pxs, 0,
-		       win_width - offset_x - (int)back_buffer->width_pxs, win_height, BLACKNESS);
-		PatBlt(device_context, 0, offset_y + (int)back_buffer->height_pxs, win_width,
-		       win_height - offset_y - (int)back_buffer->height_pxs, BLACKNESS);
+		PatBlt(device_context, offset_x + (int)back_buffer->width_px, 0,
+		       win_width - offset_x - (int)back_buffer->width_px, win_height, BLACKNESS);
+		PatBlt(device_context, 0, offset_y + (int)back_buffer->height_px, win_width,
+		       win_height - offset_y - (int)back_buffer->height_px, BLACKNESS);
 		PatBlt(device_context, 0, 0, offset_x, win_height, BLACKNESS);
-		StretchDIBits(device_context, offset_x, offset_y, (int)back_buffer->width_pxs,
-		              (int)back_buffer->height_pxs, 0, 0, (int)back_buffer->width_pxs,
-		              (int)back_buffer->height_pxs, back_buffer->top_left_px, &back_buffer->info,
+		StretchDIBits(device_context, offset_x, offset_y, (int)back_buffer->width_px,
+		              (int)back_buffer->height_px, 0, 0, (int)back_buffer->width_px,
+		              (int)back_buffer->height_px, back_buffer->top_left_px, &back_buffer->info,
 		              DIB_RGB_COLORS, SRCCOPY);
 	}
 }
@@ -892,9 +892,9 @@ static inline float clock_elapsed_secs(LARGE_INTEGER start, LARGE_INTEGER end)
 static void bitmap_draw_vertical_debug(WinOffscreenBuffer *bitmap, unsigned x, unsigned top, unsigned bottom,
                                        unsigned color)
 {
-	assert(x >= 0 && x < bitmap->width_pxs);
-	assert(bottom >= 0 && bottom < bitmap->height_pxs);
-	assert(top >= 0 && top < bitmap->height_pxs);
+	assert(x >= 0 && x < bitmap->width_px);
+	assert(bottom >= 0 && bottom < bitmap->height_px);
+	assert(top >= 0 && top < bitmap->height_px);
 	assert(top <= bottom);
 
 	unsigned char *pixel_start = (unsigned char *)bitmap->top_left_px + x * (size_t)bitmap->bytes_per_pixel +
@@ -923,7 +923,6 @@ static inline void offscreen_draw_sound_mark_debug(WinOffscreenBuffer *back_buff
  * @param last_play_cursors_size
  * @param last_play_cursors sound play cursor positions inside the sound buffer
  * @param soundout
- * @param target_secs_per_frame
  */
 static void offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer, unsigned last_cursors_marks_size,
                                             DebugTimeMark *last_cursors_marks, unsigned current_mark_index,
@@ -934,7 +933,7 @@ static void offscreen_draw_sound_sync_debug(WinOffscreenBuffer *back_buffer, uns
 
 	unsigned line_height = 64;
 
-	unsigned painting_width = back_buffer->width_pxs - 2 * pad_x;
+	unsigned painting_width = back_buffer->width_px - 2 * pad_x;
 	float pixels_per_byte = (float)painting_width / (float)winsound->buffsize_bytes;
 
 	for (size_t i = 0; i < last_cursors_marks_size; ++i) {
@@ -1018,8 +1017,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	file_build_path(&win_state, tmp_app_dll_filename, sizeof(tmp_app_dll_path), tmp_app_dll_path);
 
 	// sets the scheduler granularity to 1ms, so that our Sleep() can be more granular
-	unsigned desire_scheduler_mts = 1;
-	uint8_t is_granular_sleep = timeBeginPeriod(desire_scheduler_mts) == TIMERR_NOERROR;
+	unsigned desire_scheduler_ms = 1;
+	uint8_t is_granular_sleep = timeBeginPeriod(desire_scheduler_ms) == TIMERR_NOERROR;
 
 	xinput_load();
 
@@ -1064,9 +1063,9 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	}
 
 	float game_hz = (float)monitor_hz / 2.0F;
-	float target_secs_per_frame = 1.0F / game_hz;
+	float target_frame_time_s = 1.0F / game_hz;
 	unsigned bytes_per_sec = win_sound.samples_per_sec * win_sound.bytes_per_sample;
-	unsigned bytes_per_frame = (unsigned)((float)bytes_per_sec * target_secs_per_frame);
+	unsigned bytes_per_frame = (unsigned)((float)bytes_per_sec * target_frame_time_s);
 
 	win_sound.safety_bytes = bytes_per_frame / 3; // 1/3 of the samples per frame
 	win_sound.buffsize_bytes = bytes_per_sec;     // 1 second of sound
@@ -1165,7 +1164,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	// DebugTimeMark debug_last_cursor_marks[debug_last_cursor_marks_size] = {};
 
 	// size_t sound_latency_bytes = 0;
-	// float sound_latency_secs = 0.0F;
+	// float sound_latency_s = 0.0F;
 	uint8_t is_sound_valid = 0U;
 
 	EngineCode game_code = {};
@@ -1176,7 +1175,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 	size_t last_cycle_count = __rdtsc();
 	while (g_is_running) {
-		new_input->time_delta_secs = target_secs_per_frame;
+		new_input->time_delta_s = target_frame_time_s;
 
 		if (file_get_last_write_time(app_dll_path, &gamedll_last_write_time) &&
 		    CompareFileTime(&game_code.dll_write_time, &gamedll_last_write_time) != 0 &&
@@ -1306,8 +1305,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 		 */
 
 		bitmap.top_left_px = g_win_back_buffer.top_left_px;
-		bitmap.width_pxs = g_win_back_buffer.width_pxs;
-		bitmap.height_pxs = g_win_back_buffer.height_pxs;
+		bitmap.width_px = g_win_back_buffer.width_px;
+		bitmap.height_px = g_win_back_buffer.height_px;
 		bitmap.pitch_bytes = g_win_back_buffer.pitch_bytes;
 		bitmap.bytes_per_pixel = g_win_back_buffer.bytes_per_pixel;
 
@@ -1336,9 +1335,9 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 			unsigned byte_to_lock = (win_sound.running_sample_index * win_sound.bytes_per_sample) %
 			                        win_sound.buffsize_bytes;
 
-			float secs_from_flip = clock_elapsed_secs(flip_wall_clock, clock_get_wall());
-			float secs_to_flip = target_secs_per_frame - secs_from_flip;
-			unsigned bytes_to_flip = (unsigned)(secs_to_flip * (float)bytes_per_sec);
+			float time_from_flip_s = clock_elapsed_secs(flip_wall_clock, clock_get_wall());
+			float time_to_flip_s = target_frame_time_s - time_from_flip_s;
+			unsigned bytes_to_flip = (unsigned)(time_to_flip_s * (float)bytes_per_sec);
 			unsigned frame_flip_byte = RING_ADD(win_sound.buffsize_bytes, play_cursor, bytes_to_flip);
 			unsigned sound_flip_byte = RING_IS_BETWEEN(play_cursor, frame_flip_byte, write_cursor) ?
 			                                   // Sound has low latency
@@ -1391,21 +1390,21 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 		float work_secs_elapsed = clock_elapsed_secs(last_counter, work_counter);
 
 		float secs_elapsed_for_frame = work_secs_elapsed;
-		if (secs_elapsed_for_frame < target_secs_per_frame) {
+		if (secs_elapsed_for_frame < target_frame_time_s) {
 			if (is_granular_sleep) {
 				unsigned long sleep_ms =
-					(unsigned long)(1000.0F * (target_secs_per_frame - secs_elapsed_for_frame));
+					(unsigned long)(1000.0F * (target_frame_time_s - secs_elapsed_for_frame));
 				if (sleep_ms > 0) {
 					Sleep(sleep_ms);
 				}
 			}
 
 			float test_secs_elapsed_for_frame = clock_elapsed_secs(last_counter, clock_get_wall());
-			if (test_secs_elapsed_for_frame > target_secs_per_frame) {
+			if (test_secs_elapsed_for_frame > target_frame_time_s) {
 				LOG_WARN("missed sleep: %fs elapsed for frame", (double)test_secs_elapsed_for_frame);
 			}
 
-			while (secs_elapsed_for_frame < target_secs_per_frame) {
+			while (secs_elapsed_for_frame < target_frame_time_s) {
 				secs_elapsed_for_frame = clock_elapsed_secs(last_counter, clock_get_wall());
 			}
 		} else {
@@ -1474,3 +1473,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 	return EXIT_SUCCESS;
 }
+
+
+
+

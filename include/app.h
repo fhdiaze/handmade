@@ -97,7 +97,7 @@ typedef struct GameInput {
 	unsigned mouse_y;
 	unsigned mouse_z; // mouse wheel
 
-	float time_delta_secs;
+	float time_delta_s;
 
 	union {
 		ButtonState mouse_buttons[MAX_MOUSE_BUTTONS];
@@ -122,10 +122,10 @@ typedef struct GameOffscreenBuffer {
 	void *top_left_px;
 
 	// width in pixels
-	unsigned width_pxs;
+	unsigned width_px;
 
 	// Height in pixels
-	unsigned height_pxs;
+	unsigned height_px;
 
 	// Size of a row in bytes
 	unsigned pitch_bytes;
@@ -170,3 +170,7 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 typedef SOUND_CREATE_SAMPLES(sound_create_samples_func);
 
 #endif // APP_H
+
+
+
+
