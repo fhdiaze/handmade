@@ -594,7 +594,7 @@ inline static uint32_t wall_test(float wall_x, float rel_x, float rel_y, float d
                                  float min_y, float max_y)
 {
 	uint32_t was_wall_hit = 0U;
-	float t_epsilon = 0.00001F;
+	float t_epsilon = 0.001F;
 
 	if (delta_x != 0.0F) {
 		float t_result = (wall_x - rel_x) / delta_x;
@@ -632,10 +632,10 @@ typedef struct World {
 } World;
 
 typedef enum FacingDirection : uint8_t {
-	HERO_FACING_RIGHT,
-	HERO_FACING_UP,
-	HERO_FACING_LEFT,
-	HERO_FACING_DOWN,
+	FACING_DIRECTION_RIGHT,
+	FACING_DIRECTION_UP,
+	FACING_DIRECTION_LEFT,
+	FACING_DIRECTION_DOWN,
 } FacingDirection;
 
 typedef struct HighEntity {
@@ -648,6 +648,9 @@ typedef struct HighEntity {
 	 * @brief Velocity in meters per second
 	 */
 	Vtwo vel_mps;
+
+	float z_m;
+	float z_speed_mps;
 
 	uint32_t tile_z;
 
@@ -787,21 +790,25 @@ static void game_move_entity(Game *game, Entity entity, Vtwo acceleration_mpssq,
 			if (wall_test(min_corner.x, rel_pos.x, rel_pos.y, displacement_m.x, displacement_m.y, &max_time,
 			              min_corner.y, max_corner.y)) {
 				wall_normal = (Vtwo){ .x = -1.0F, .y = 0.0F };
+				hit_entity_idx = entity_idx;
 			}
 
 			if (wall_test(max_corner.x, rel_pos.x, rel_pos.y, displacement_m.x, displacement_m.y, &max_time,
 			              min_corner.y, max_corner.y)) {
 				wall_normal = (Vtwo){ .x = 1.0F, .y = 0.0F };
+				hit_entity_idx = entity_idx;
 			}
 
 			if (wall_test(min_corner.y, rel_pos.y, rel_pos.x, displacement_m.y, displacement_m.x, &max_time,
 			              min_corner.x, max_corner.x)) {
 				wall_normal = (Vtwo){ .x = 0.0F, .y = -1.0F };
+				hit_entity_idx = entity_idx;
 			}
 
 			if (wall_test(max_corner.y, rel_pos.y, rel_pos.x, displacement_m.y, displacement_m.x, &max_time,
 			              min_corner.x, max_corner.x)) {
 				wall_normal = (Vtwo){ .x = 0.0F, .y = 1.0F };
+				hit_entity_idx = entity_idx;
 			}
 		}
 
@@ -830,15 +837,15 @@ static void game_move_entity(Game *game, Entity entity, Vtwo acceleration_mpssq,
 		// Do not set
 	} else if (fabsf(entity.high->vel_mps.x) > fabsf(entity.high->vel_mps.y)) {
 		if (entity.high->vel_mps.x > 0.0F) {
-			entity.high->facing = HERO_FACING_RIGHT;
+			entity.high->facing = FACING_DIRECTION_RIGHT;
 		} else {
-			entity.high->facing = HERO_FACING_LEFT;
+			entity.high->facing = FACING_DIRECTION_LEFT;
 		}
 	} else {
 		if (entity.high->vel_mps.y > 0.0F) {
-			entity.high->facing = HERO_FACING_UP;
+			entity.high->facing = FACING_DIRECTION_UP;
 		} else {
-			entity.high->facing = HERO_FACING_DOWN;
+			entity.high->facing = FACING_DIRECTION_DOWN;
 		}
 	}
 
@@ -857,26 +864,27 @@ static void game_set_entity_residence(Game *game, uint32_t entity_idx, EntityRes
 		entity_high->pos_m = delta.delta_xy_m;
 		entity_high->vel_mps = (Vtwo){ .x = 0, .y = 0 };
 		entity_high->tile_z = entity_dormant->pos.tile_z;
-		entity_high->facing = HERO_FACING_RIGHT;
+		entity_high->facing = FACING_DIRECTION_RIGHT;
 	}
 
 	game->entity_residences[entity_idx] = residence;
 }
 
-static void game_init_hero(Game *game, uint32_t entity_idx)
+static void game_init_entity(Game *game, uint32_t entity_idx)
 {
-	Entity hero = game_get_entity(game, entity_idx);
+	Entity entity = game_get_entity(game, entity_idx);
 
-	hero.high->facing = HERO_FACING_RIGHT;
-	hero.high->vel_mps = (Vtwo){ .x = 0.0F, .y = 0.0F };
+	entity.high->facing = FACING_DIRECTION_RIGHT;
+	entity.high->vel_mps = (Vtwo){ .x = 0.0F, .y = 0.0F };
 
-	hero.dormant->pos.tile_x = 1;
-	hero.dormant->pos.tile_y = 3;
-	hero.dormant->pos.tile_z = 0;
-	hero.dormant->pos.offset_m.x = 0.0F;
-	hero.dormant->pos.offset_m.y = 0.0F;
-	hero.dormant->height_m = 0.5F;
-	hero.dormant->width_m = 1.0F;
+	entity.dormant->pos.tile_x = 1;
+	entity.dormant->pos.tile_y = 3;
+	entity.dormant->pos.tile_z = 0;
+	entity.dormant->pos.offset_m.x = 0.0F;
+	entity.dormant->pos.offset_m.y = 0.0F;
+	entity.dormant->height_m = 0.5F;
+	entity.dormant->width_m = 1.0F;
+	entity.dormant->collides = 1U;
 
 	game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_HIGH);
 
@@ -1665,52 +1673,47 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				if (controller->movedown.ended_down) {
 					entity_acceleration.y = -1.0F;
 				}
+
+				if (controller->actionup.ended_down) {
+					controlled_entity.high->z_speed_mps = 2.0F;
+				}
 			}
 
 			game_move_entity(game, controlled_entity, entity_acceleration, input->time_delta_s);
 		} else {
 			if (controller->start.ended_down) {
 				uint32_t entity_idx = game_add_entity(game);
-				game_init_hero(game, entity_idx);
+				game_init_entity(game, entity_idx);
 				game->player_idx_for_controller[controller_idx] = entity_idx;
 			}
 		}
 
-		/**
-		 * Update camera position and hero Z coord base on latest movement
-		 */
-
 		Entity entity_tracked = game_get_entity(game, game->entity_tracked_by_camera_idx);
-
+		Vtwo frame_entity_delta = {};
 		if (entity_tracked.residence != ENTITY_RESIDENCE_NONEXISTENT) {
-#if 0
+			Position old_camera_pos = game->camera_position;
+
 			game->camera_position.tile_z = entity_tracked.dormant->pos.tile_z;
 
-			// Vector to move from the camera to the hero position in the map
-			PositionDelta camera_to_hero_delta =
-				position_substract(&entity_tracked.high->pos, &game->camera_position);
-
-			if (camera_to_hero_delta.delta_xy_m.x > 9.0F * TILE_SIDE_M) {
+			if (entity_tracked.high->pos_m.x > 9.0F * TILE_SIDE_M) {
 				game->camera_position.tile_x += 17;
 			}
 
-			if (camera_to_hero_delta.delta_xy_m.x < -9.0F * TILE_SIDE_M) {
+			if (entity_tracked.high->pos_m.x < -9.0F * TILE_SIDE_M) {
 				game->camera_position.tile_x -= 17;
 			}
 
-			if (camera_to_hero_delta.delta_xy_m.y > 5.0F * TILE_SIDE_M) {
+			if (entity_tracked.high->pos_m.y > 5.0F * TILE_SIDE_M) {
 				game->camera_position.tile_y += 9;
 			}
 
-			if (camera_to_hero_delta.delta_xy_m.y < -5.0F * TILE_SIDE_M) {
+			if (entity_tracked.high->pos_m.y < -5.0F * TILE_SIDE_M) {
 				game->camera_position.tile_y -= 9;
 			}
-#endif
-		}
 
-		/**
-		 * Render
-		 */
+			PositionDelta camera_delta = position_substract(&old_camera_pos, &game->camera_position);
+			frame_entity_delta = camera_delta.delta_xy_m;
+		}
 
 		// Render the background
 #if 1
@@ -1779,62 +1782,90 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		for (uint32_t entity_idx = 0; entity_idx < game->entity_count; ++entity_idx) {
 			EntityResidence residence = game->entity_residences[entity_idx];
-			if (residence == ENTITY_RESIDENCE_HIGH) {
-				HighEntity *high_entity = &game->high_entities[entity_idx];
-				LowEntity *low_entity = &game->low_entities[entity_idx];
-				DormantEntity *dormant_entity = &game->dormant_entities[entity_idx];
 
-				HeroBitmaps *hero_bitmaps = &game->hero_bitmaps[high_entity->facing];
-
-				float entity_red = 1.0F;
-				float entity_green = 1.0F;
-				float entity_blue = 0.0F;
-
-				Vtwo camera_entity_delta_px = vtwo_scale(high_entity->pos_m, PIXELS_PER_METER);
-				// Flipping as screen and world y grow in different directions
-				camera_entity_delta_px = vtwo_flip_y(camera_entity_delta_px);
-				Vtwo entity_ground_point_px = vtwo_add(bitmap_center_px, camera_entity_delta_px);
-				Vtwo entity_diagonal_px = {
-					.x = dormant_entity->width_m * PIXELS_PER_METER,
-					.y = dormant_entity->height_m * PIXELS_PER_METER,
-				};
-				Vtwo player_delta_px = vtwo_scale(entity_diagonal_px, 0.5F);
-				Vtwo player_min_px = vtwo_sub(entity_ground_point_px, player_delta_px);
-				Vtwo player_max_px = vtwo_add(player_min_px, entity_diagonal_px);
-
-				offscreen_render_rectangle(back_buffer, player_min_px, player_max_px, entity_red,
-				                           entity_green, entity_blue);
-
-				float target_offset_x_px = entity_ground_point_px.x - (float)hero_bitmaps->align_x_px;
-				float target_offset_y_px = entity_ground_point_px.y - (float)hero_bitmaps->align_y_px;
-				float source_offset_x_px = 0.0F;
-				float source_offset_y_px = 0.0F;
-
-				if (target_offset_x_px < 0.0F) {
-					source_offset_x_px = -target_offset_x_px;
-					target_offset_x_px = 0.0F;
-				}
-
-				if (target_offset_y_px < 0.0F) {
-					source_offset_y_px = -target_offset_y_px;
-					target_offset_y_px = 0.0F;
-				}
-
-				if (source_offset_x_px >= (float)hero_bitmaps->torso.width_px) {
-					continue;
-				}
-
-				if (source_offset_y_px >= (float)hero_bitmaps->torso.height_px) {
-					continue;
-				}
-
-				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
-				                        &hero_bitmaps->torso, source_offset_x_px, source_offset_y_px);
-				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
-				                        &hero_bitmaps->cape, source_offset_x_px, source_offset_y_px);
-				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
-				                        &hero_bitmaps->head, source_offset_x_px, source_offset_y_px);
+			if (residence != ENTITY_RESIDENCE_HIGH) {
+				continue;
 			}
+
+			HighEntity *high_entity = &game->high_entities[entity_idx];
+			LowEntity *low_entity = &game->low_entities[entity_idx];
+			DormantEntity *dormant_entity = &game->dormant_entities[entity_idx];
+
+			high_entity->pos_m = vtwo_add(high_entity->pos_m, frame_entity_delta);
+
+			float time_delta_s_sq = float_square(input->time_delta_s);
+			float z_acceleration_mpssq = -9.8F;
+
+			// Kinematic equation: 1/2*a*t^2
+			float z_acceleration_displacement_m = 0.5F * z_acceleration_mpssq * time_delta_s_sq;
+
+			// Kinematic equation: v*t
+			float z_speed_displacement_m = high_entity->z_speed_mps * input->time_delta_s;
+
+			// TODO(fredy): fix it -> it is going to high and the rendering is triggering an assertion.
+			// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
+			high_entity->z_m = z_acceleration_displacement_m + z_speed_displacement_m + high_entity->z_m;
+
+			// Kinematic equation: v' = a*t + v
+			high_entity->z_speed_mps =
+				z_acceleration_mpssq * input->time_delta_s + high_entity->z_speed_mps;
+
+			if (high_entity->z_m < 0.0F) {
+				high_entity->z_m = 0.0F;
+			}
+
+			float z_px = -PIXELS_PER_METER * high_entity->z_m;
+
+			HeroBitmaps *entity_bitmaps = &game->hero_bitmaps[high_entity->facing];
+
+			float entity_red = 1.0F;
+			float entity_green = 1.0F;
+			float entity_blue = 0.0F;
+
+			Vtwo camera_entity_delta_px = vtwo_scale(high_entity->pos_m, PIXELS_PER_METER);
+			// Flipping as screen and world y grow in different directions
+			camera_entity_delta_px = vtwo_flip_y(camera_entity_delta_px);
+			Vtwo entity_ground_point_px = vtwo_add(bitmap_center_px, camera_entity_delta_px);
+			Vtwo entity_diagonal_px = {
+				.x = dormant_entity->width_m * PIXELS_PER_METER,
+				.y = dormant_entity->height_m * PIXELS_PER_METER,
+			};
+			Vtwo player_delta_px = vtwo_scale(entity_diagonal_px, 0.5F);
+			Vtwo player_min_px = vtwo_sub(entity_ground_point_px, player_delta_px);
+			Vtwo player_max_px = vtwo_add(player_min_px, entity_diagonal_px);
+
+			offscreen_render_rectangle(back_buffer, player_min_px, player_max_px, entity_red, entity_green,
+			                           entity_blue);
+
+			float target_offset_x_px = entity_ground_point_px.x - (float)entity_bitmaps->align_x_px;
+			float target_offset_y_px = entity_ground_point_px.y - (float)entity_bitmaps->align_y_px;
+			float source_offset_x_px = 0.0F;
+			float source_offset_y_px = 0.0F;
+
+			if (target_offset_x_px < 0.0F) {
+				source_offset_x_px = -target_offset_x_px;
+				target_offset_x_px = 0.0F;
+			}
+
+			if (target_offset_y_px < 0.0F) {
+				source_offset_y_px = -target_offset_y_px;
+				target_offset_y_px = 0.0F;
+			}
+
+			if (source_offset_x_px >= (float)entity_bitmaps->torso.width_px) {
+				continue;
+			}
+
+			if (source_offset_y_px >= (float)entity_bitmaps->torso.height_px) {
+				continue;
+			}
+
+			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
+			                        &entity_bitmaps->torso, source_offset_x_px, source_offset_y_px);
+			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
+			                        &entity_bitmaps->cape, source_offset_x_px, source_offset_y_px);
+			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
+			                        &entity_bitmaps->head, source_offset_x_px, source_offset_y_px);
 		}
 	}
 }
