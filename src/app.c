@@ -300,7 +300,7 @@ static PositionDelta position_substract(const Position *const a, const Position 
  * @brief (0,0) is on the bottom left corner.
  * The byte order in a register (little endian) is AA RR GG BB
  */
-typedef struct LoadedBitmap {
+typedef struct AppBitmap {
 	/**
 	 * @brief Width in pixels.
 	 */
@@ -312,7 +312,7 @@ typedef struct LoadedBitmap {
 	uint32_t height_px;
 
 	uint32_t *bottom_left_px;
-} LoadedBitmap;
+} AppBitmap;
 
 typedef struct HeroBitmaps {
 	// Top-left corner is the origin
@@ -321,9 +321,9 @@ typedef struct HeroBitmaps {
 	// Top-left corner is the origin
 	int32_t align_y_px;
 
-	LoadedBitmap head;
-	LoadedBitmap cape;
-	LoadedBitmap torso;
+	AppBitmap head;
+	AppBitmap cape;
+	AppBitmap torso;
 } HeroBitmaps;
 
 /**
@@ -441,7 +441,7 @@ static void offscreen_render_rectangle(GameOffscreenBuffer *back_buffer, Vtwo vm
  * @param source_offset_y_px_f Y pixel offset into the source bitmap to start reading from.
  */
 static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buffer, float target_offset_x_px_f,
-                                    float target_offset_y_px_f, const LoadedBitmap *const restrict bitmap,
+                                    float target_offset_y_px_f, const AppBitmap *const restrict bitmap,
                                     float source_offset_x_px_f, float source_offset_y_px_f)
 {
 	assert(bitmap);
@@ -513,12 +513,12 @@ static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buf
  * @param filename
  * @param file_read_debug_func
  * @param thread
- * @return LoadedBitmap
+ * @return AppBitmap
  */
-static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read_debug_func *file_read_debug_func,
-                                           ThreadContext *thread)
+static AppBitmap file_load_bitmap_debug(const char *const filename, file_read_debug_func *file_read_debug_func,
+                                        ThreadContext *thread)
 {
-	LoadedBitmap result = {};
+	AppBitmap result = {};
 
 	ReadFileResult read_result = file_read_debug_func(filename, thread);
 
@@ -636,6 +636,7 @@ typedef enum FacingDirection : uint8_t {
 	FACING_DIRECTION_UP,
 	FACING_DIRECTION_LEFT,
 	FACING_DIRECTION_DOWN,
+	FACING_DIRECTION_COUNT,
 } FacingDirection;
 
 typedef struct HighEntity {
@@ -690,9 +691,10 @@ typedef struct Game {
 	Arena arena;
 	World *world;
 
-	LoadedBitmap backdrop;
+	AppBitmap backdrop;
 
-	HeroBitmaps hero_bitmaps[4];
+	AppBitmap shadow;
+	HeroBitmaps hero_bitmaps[FACING_DIRECTION_COUNT];
 
 	uint32_t player_idx_for_controller[MAX_CONTROLLERS];
 
@@ -968,6 +970,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		game->backdrop =
 			file_load_bitmap_debug("test/test_background.bmp", storage->plat_file_read_debug, thread);
+		game->shadow =
+			file_load_bitmap_debug("test/test_hero_shadow.bmp", storage->plat_file_read_debug, thread);
 
 		HeroBitmaps *bitmaps = game->hero_bitmaps;
 		bitmaps->head =
@@ -1834,8 +1838,10 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			Vtwo player_min_px = vtwo_sub(entity_ground_point_px, player_delta_px);
 			Vtwo player_max_px = vtwo_add(player_min_px, entity_diagonal_px);
 
+#if 0
 			offscreen_render_rectangle(back_buffer, player_min_px, player_max_px, entity_red, entity_green,
 			                           entity_blue);
+#endif
 
 			float target_offset_x_px = entity_ground_point_px.x - (float)entity_bitmaps->align_x_px;
 			float target_offset_y_px = entity_ground_point_px.y - (float)entity_bitmaps->align_y_px;
@@ -1860,6 +1866,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				continue;
 			}
 
+			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
+			                        &game->shadow, source_offset_x_px, source_offset_y_px);
 			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
 			                        &entity_bitmaps->torso, source_offset_x_px, source_offset_y_px);
 			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
