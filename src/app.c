@@ -263,21 +263,6 @@ static void map_set_tile_value(Map *map, Arena *arena, uint32_t tile_x, uint32_t
 }
 
 /**
- * @brief Sets the tile offset of a position.
- *
- * @param position Position to normalize in place.
- * @param offset The new tile offset
- * @return uint32_t 1 on success, 0 if normalization of either axis fails.
- */
-static inline uint32_t position_set_offset(Position *position, Vtwo offset_m)
-{
-	position->offset_m = offset_m;
-	uint32_t result = map_normalize_position(position);
-
-	return result;
-}
-
-/**
  * @brief Calculates a - b
  *
  * @param a A position
@@ -439,8 +424,7 @@ static void offscreen_render_rectangle(GameOffscreenBuffer *back_buffer, Vtwo vm
 			pixel_first_byte_ptr += back_buffer->bytes_per_pixel;
 		}
 
-		pixel_first_byte_ptr +=
-			back_buffer->pitch_bytes - (max_x_px - min_x_px) * back_buffer->bytes_per_pixel;
+		pixel_first_byte_ptr += back_buffer->pitch_bytes - (max_x_px - min_x_px) * back_buffer->bytes_per_pixel;
 	}
 }
 
@@ -479,8 +463,7 @@ static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buf
 	assert(source_offset_x_px < bitmap->width_px);
 	assert(source_offset_y_px < bitmap->height_px);
 
-	uint32_t blit_width_px =
-		min(back_buffer->width_px - target_offset_x_px, bitmap->width_px - source_offset_x_px);
+	uint32_t blit_width_px = min(back_buffer->width_px - target_offset_x_px, bitmap->width_px - source_offset_x_px);
 	uint32_t blit_height_px =
 		min(back_buffer->height_px - target_offset_y_px, bitmap->height_px - source_offset_y_px);
 
@@ -585,320 +568,6 @@ static LoadedBitmap file_load_bitmap_debug(const char *const filename, file_read
 }
 
 // =============================================================================
-// Game State
-// =============================================================================
-
-// Dimensions in meters
-#define HERO_HEIGHT_M (0.5F) //(1.4F)
-#define HERO_WIDTH_M (1.0F)  // (0.75F * HERO_HEIGHT_M)
-#define HERO_HEIGHT_RADIUS_M (0.5F * HERO_HEIGHT_M)
-#define HERO_WIDTH_RADIUS_M (0.5F * HERO_WIDTH_M)
-
-// Dimensions in tiles
-#define HERO_WIDTH_TL (float_ceil_to_uint(HERO_WIDTH_M / TILE_SIDE_M))
-#define HERO_HEIGHT_TL (float_ceil_to_uint(HERO_HEIGHT_M / TILE_SIDE_M))
-
-#define MAX_ENTITIES 256
-
-typedef struct World {
-	Map *map;
-} World;
-
-typedef enum FacingDirection : uint8_t {
-	HERO_FACING_RIGHT,
-	HERO_FACING_UP,
-	HERO_FACING_LEFT,
-	HERO_FACING_DOWN,
-} FacingDirection;
-
-typedef struct HighEntity {
-	/**
-	 * @brief Position in meters, relative to the camera
-	 */
-	Vtwo pos_m;
-
-	/**
-	 * @brief Velocity in meters per second
-	 */
-	Vtwo vel_mps;
-
-	FacingDirection facing;
-} HighEntity;
-
-typedef struct LowEntity {
-	Position pos;
-	FacingDirection facing;
-} LowEntity;
-
-typedef struct DormantEntity {
-	Position pos;
-	float width_m;
-	float height_m;
-} DormantEntity;
-
-typedef enum EntityResidence : uint8_t {
-	ENTITY_RESIDENCE_NONEXISTENT,
-	ENTITY_RESIDENCE_DORMANT,
-	ENTITY_RESIDENCE_LOW,
-	ENTITY_RESIDENCE_HIGH,
-} EntityResidence;
-
-typedef struct Entity {
-	LowEntity *low;
-	DormantEntity *dormant;
-	HighEntity *high;
-
-	EntityResidence residence;
-} Entity;
-
-typedef struct GameState {
-	Arena arena;
-	World *world;
-
-	LoadedBitmap backdrop;
-
-	HeroBitmaps hero_bitmaps[4];
-
-	uint32_t player_idx_for_controller[MAX_CONTROLLERS];
-
-	uint32_t entity_tracked_by_camera_idx;
-	uint32_t entity_count;
-	EntityResidence entity_residences[MAX_ENTITIES];
-	HighEntity high_entities[MAX_ENTITIES];
-	LowEntity low_entities[MAX_ENTITIES];
-	DormantEntity dormant_entities[MAX_ENTITIES];
-
-	Position camera_position;
-} GameState;
-
-static void game_move_entity(GameState *game_state, Entity entity, Vtwo acceleration_mpssq, float time_delta_s)
-{
-	float norm_sq = vtwo_norm_sq(acceleration_mpssq);
-	if (norm_sq > 1.0F) {
-		acceleration_mpssq = vtwo_scale(acceleration_mpssq, 1.0F / sqrtf(norm_sq));
-	}
-
-	// Apply the drag
-	float speed_mps = 50.0F;
-	acceleration_mpssq = vtwo_scale(acceleration_mpssq, speed_mps);
-	acceleration_mpssq = vtwo_sub(acceleration_mpssq, vtwo_scale(entity.high->vel_mps, 8.0F));
-
-	float time_delta_s_sq = float_square(time_delta_s);
-
-	// Kinematic equation: 1/2*a*t^2
-	Vtwo acceleration_displacement_m = vtwo_scale(acceleration_mpssq, 0.5F * time_delta_s_sq);
-
-	// Kinematic equation: v*t
-	Vtwo velocity_displacement_m = vtwo_scale(entity.high->vel_mps, time_delta_s);
-
-	// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
-	Vtwo displacement_m = vtwo_add(acceleration_displacement_m, velocity_displacement_m);
-
-	// Kinematic equation: v' = a*t + v
-	entity.high->vel_mps = vtwo_add(vtwo_scale(acceleration_mpssq, time_delta_s), entity.high->vel_mps);
-
-	Vtwo new_pos = vtwo_add(entity.high->pos_m, displacement_m);
-
-#if 0
-	uint32_t start_tile_x = NUMBER_MIN(old_hero_position.tile_x, new_hero_position.tile_x);
-	uint32_t end_tile_x = NUMBER_MAX(old_hero_position.tile_x, new_hero_position.tile_x);
-	uint32_t start_tile_y = NUMBER_MIN(old_hero_position.tile_y, new_hero_position.tile_y);
-	uint32_t end_tile_y = NUMBER_MAX(old_hero_position.tile_y, new_hero_position.tile_y);
-
-	// Adjust the search space to take into acount the hero dimensions
-	start_tile_x -= HERO_WIDTH_TL;
-	start_tile_y -= HERO_HEIGHT_TL;
-	end_tile_x += HERO_WIDTH_TL;
-	end_tile_y += HERO_HEIGHT_TL;
-
-	uint32_t tile_z = new_hero_position.tile_z;
-
-	// Assert that the search space is small. 32 is not an special or particular number.
-	assert(end_tile_x - start_tile_x < 32);
-	assert(end_tile_y - start_tile_y < 32);
-
-	float remaining_time = 1.0F;
-	Position test_tile = {};
-	for (uint32_t i = 0; i < 4 && remaining_time > 0.0F; ++i) {
-		float max_time = 1.0F;
-		Vtwo wall_normal = {};
-		for (uint32_t tile_y = start_tile_y; tile_y <= end_tile_y; ++tile_y) {
-			for (uint32_t tile_x = start_tile_x; tile_x <= end_tile_x; ++tile_x) {
-				test_tile.tile_x = tile_x;
-				test_tile.tile_y = tile_y;
-				test_tile.tile_z = tile_z;
-
-				if (!map_is_tile_walkable(map, tile_x, tile_y, tile_z)) {
-					// Applying Minkowski algebra
-					float radius_h = 0.5F * (TILE_SIDE_M + HERO_HEIGHT_M);
-					float radius_w = 0.5F * (TILE_SIDE_M + HERO_WIDTH_M);
-					Vtwo min_corner = { .x = -radius_w, .y = -radius_h };
-					Vtwo max_corner = { .x = radius_w, .y = radius_h };
-
-					Vtwo tile_to_hero =
-						position_substract(&game_state->hero_position, &test_tile).delta_xy_m;
-
-					if (wall_test(min_corner.x, tile_to_hero.x, tile_to_hero.y, hero_displacement.x,
-					              hero_displacement.y, &max_time, min_corner.y, max_corner.y)) {
-						wall_normal = (Vtwo){ .x = -1.0F, .y = 0.0F };
-					}
-
-					if (wall_test(max_corner.x, tile_to_hero.x, tile_to_hero.y, hero_displacement.x,
-					              hero_displacement.y, &max_time, min_corner.y, max_corner.y)) {
-						wall_normal = (Vtwo){ .x = 1.0F, .y = 0.0F };
-					}
-
-					if (wall_test(min_corner.y, tile_to_hero.y, tile_to_hero.x, hero_displacement.y,
-					              hero_displacement.x, &max_time, min_corner.x, max_corner.x)) {
-						wall_normal = (Vtwo){ .x = 0.0F, .y = -1.0F };
-					}
-
-					if (wall_test(max_corner.y, tile_to_hero.y, tile_to_hero.x, hero_displacement.y,
-					              hero_displacement.x, &max_time, min_corner.x, max_corner.x)) {
-						wall_normal = (Vtwo){ .x = 0.0F, .y = 1.0F };
-					}
-				}
-			}
-		}
-
-		new_hero_position = game_state->hero_position;
-		new_hero_tile_offset = vtwo_add(new_hero_position.offset_m, vtwo_scale(hero_displacement, max_time));
-		if (position_set_offset(&new_hero_position, new_hero_tile_offset)) {
-			game_state->hero_position = new_hero_position;
-		}
-
-		float speed_on_r_axis = vtwo_dot(game_state->hero_velocity, wall_normal);
-		Vtwo velocity_towards_r_axis = vtwo_scale(wall_normal, speed_on_r_axis);
-		game_state->hero_velocity = vtwo_sub(game_state->hero_velocity, velocity_towards_r_axis);
-
-		float displacement_on_r_axis = vtwo_dot(hero_displacement, wall_normal);
-		Vtwo displacement_towards_r_axis = vtwo_scale(wall_normal, displacement_on_r_axis);
-		hero_displacement = vtwo_sub(hero_displacement, displacement_towards_r_axis);
-
-		remaining_time -= max_time * remaining_time;
-	}
-
-	if (!MAP_ARE_SAME_TILE(game_state->hero_position, old_position)) {
-		uint32_t tile_type = MAP_GET_TILE_TYPE_BY_POS(map, game_state->hero_position);
-		if (tile_type == TILE_TYPE_STAIRS_UP) {
-			++game_state->hero_position.tile_z;
-		} else if (tile_type == TILE_TYPE_STAIRS_DOWN) {
-			--game_state->hero_position.tile_z;
-		}
-	}
-
-	if (game_state->hero_velocity.x == 0.0F && game_state->hero_velocity.y == 0.0F) {
-		// Do not set
-	} else if (fabsf(game_state->hero_velocity.x) > fabsf(game_state->hero_velocity.y)) {
-		if (game_state->hero_velocity.x > 0.0F) {
-			game_state->hero_facing_direction = HERO_FACING_RIGHT;
-		} else {
-			game_state->hero_facing_direction = HERO_FACING_LEFT;
-		}
-	} else {
-		if (game_state->hero_velocity.y > 0.0F) {
-			game_state->hero_facing_direction = HERO_FACING_UP;
-		} else {
-			game_state->hero_facing_direction = HERO_FACING_DOWN;
-		}
-	}
-#endif
-}
-
-inline static Entity game_get_entity(GameState *game_state, uint32_t idx)
-{
-	Entity entity = {};
-
-	assert(idx < game_state->entity_count);
-
-	entity.residence = game_state->entity_residences[idx];
-	entity.dormant = &game_state->dormant_entities[idx];
-	entity.low = &game_state->low_entities[idx];
-	entity.high = &game_state->high_entities[idx];
-
-	return entity;
-}
-
-static void game_set_entity_residence(GameState *game_state, Entity entity, EntityResidence residence)
-{
-	// assert(idx > 0 && "Id 0 is for null entity");
-	// game_state->entity_residences[entity_idx] = residence;
-}
-
-static void game_init_hero(GameState *game_state, uint32_t entity_idx)
-{
-	Entity hero = game_get_entity(game_state, entity_idx);
-
-	hero.high->facing = HERO_FACING_RIGHT;
-	hero.high->vel_mps = (Vtwo){ .x = 0.0F, .y = 0.0F };
-
-	hero.dormant->pos.tile_x = 1;
-	hero.dormant->pos.tile_y = 3;
-	hero.dormant->pos.tile_z = 0;
-	hero.dormant->pos.offset_m.x = 0.0F;
-	hero.dormant->pos.offset_m.y = 0.0F;
-	hero.dormant->height_m = 0.5F;
-	hero.dormant->width_m = 1.0F;
-
-	game_set_entity_residence(game_state, hero, ENTITY_RESIDENCE_HIGH);
-
-	if (game_state->entity_residences[game_state->entity_tracked_by_camera_idx] == ENTITY_RESIDENCE_NONEXISTENT) {
-		game_state->entity_tracked_by_camera_idx = entity_idx;
-	}
-}
-
-static uint32_t game_add_entity(GameState *game_state)
-{
-	assert(game_state->entity_count < MAX_ENTITIES);
-
-	uint32_t idx = game_state->entity_count++;
-
-	game_state->entity_residences[idx] = ENTITY_RESIDENCE_NONEXISTENT;
-	game_state->dormant_entities[idx] = (DormantEntity){};
-	game_state->low_entities[idx] = (LowEntity){};
-	game_state->high_entities[idx] = (HighEntity){};
-
-	return idx;
-}
-
-// =============================================================================
-// Sound
-// =============================================================================
-
-/**
- * @brief
- *
- * @param buffer
- * @param samples
- */
-static void sound_output_samples(GameSoundBuffer *buffer, GameState *game_state, unsigned tonehz)
-{
-	float tone_volume = 3000;
-	size_t wave_period = buffer->samples_per_sec / tonehz;
-	int16_t *sample_out = buffer->samples_base_address;
-	float sample_value = 0;
-	for (size_t i = 0; i < buffer->samples_count; ++i) {
-#if 0
-		float sine_value = sinf(game_state->tsine);
-		sample_value = sine_value * tone_volume;
-#else
-		sample_value = 0;
-#endif
-		*sample_out = (int16_t)sample_value; // channel one
-		++sample_out;
-		*sample_out = (int16_t)sample_value; // channel two
-		++sample_out;
-
-#if 0
-		game_state->tsine += 2.0F * PIE / (float_t)wave_period;
-		if (game_state->tsine > 2.0F * PIE) {
-			game_state->tsine -= 2.0f * PIE;
-		}
-#endif
-	}
-}
-
-// =============================================================================
 // Collision detection
 // =============================================================================
 
@@ -943,6 +612,331 @@ inline static uint32_t wall_test(float wall_x, float rel_x, float rel_y, float d
 }
 
 // =============================================================================
+// Game State
+// =============================================================================
+
+// Dimensions in meters
+#define HERO_HEIGHT_M (0.5F) //(1.4F)
+#define HERO_WIDTH_M (1.0F)  // (0.75F * HERO_HEIGHT_M)
+#define HERO_HEIGHT_RADIUS_M (0.5F * HERO_HEIGHT_M)
+#define HERO_WIDTH_RADIUS_M (0.5F * HERO_WIDTH_M)
+
+// Dimensions in tiles
+#define HERO_WIDTH_TL (float_ceil_to_uint(HERO_WIDTH_M / TILE_SIDE_M))
+#define HERO_HEIGHT_TL (float_ceil_to_uint(HERO_HEIGHT_M / TILE_SIDE_M))
+
+#define MAX_ENTITIES 256
+
+typedef struct World {
+	Map *map;
+} World;
+
+typedef enum FacingDirection : uint8_t {
+	HERO_FACING_RIGHT,
+	HERO_FACING_UP,
+	HERO_FACING_LEFT,
+	HERO_FACING_DOWN,
+} FacingDirection;
+
+typedef struct HighEntity {
+	/**
+	 * @brief Position in meters, relative to the camera
+	 */
+	Vtwo pos_m;
+
+	/**
+	 * @brief Velocity in meters per second
+	 */
+	Vtwo vel_mps;
+
+	uint32_t tile_z;
+
+	FacingDirection facing;
+} HighEntity;
+
+typedef struct LowEntity {
+	Position pos;
+	FacingDirection facing;
+} LowEntity;
+
+typedef struct DormantEntity {
+	Position pos;
+	float width_m;
+	float height_m;
+
+	int32_t delta_tile_z;
+	uint8_t collides;
+} DormantEntity;
+
+typedef enum EntityResidence : uint8_t {
+	ENTITY_RESIDENCE_NONEXISTENT,
+	ENTITY_RESIDENCE_DORMANT,
+	ENTITY_RESIDENCE_LOW,
+	ENTITY_RESIDENCE_HIGH,
+} EntityResidence;
+
+typedef struct Entity {
+	LowEntity *low;
+	DormantEntity *dormant;
+	HighEntity *high;
+
+	EntityResidence residence;
+} Entity;
+
+typedef struct Game {
+	Arena arena;
+	World *world;
+
+	LoadedBitmap backdrop;
+
+	HeroBitmaps hero_bitmaps[4];
+
+	uint32_t player_idx_for_controller[MAX_CONTROLLERS];
+
+	uint32_t entity_tracked_by_camera_idx;
+	uint32_t entity_count;
+	EntityResidence entity_residences[MAX_ENTITIES];
+	HighEntity high_entities[MAX_ENTITIES];
+	LowEntity low_entities[MAX_ENTITIES];
+	DormantEntity dormant_entities[MAX_ENTITIES];
+
+	Position camera_position;
+} Game;
+
+inline static Entity game_get_entity(Game *game, uint32_t idx)
+{
+	Entity entity = {};
+
+	assert(idx < game->entity_count);
+
+	entity.residence = game->entity_residences[idx];
+	entity.dormant = &game->dormant_entities[idx];
+	entity.low = &game->low_entities[idx];
+	entity.high = &game->high_entities[idx];
+
+	return entity;
+}
+
+static void game_move_entity(Game *game, Entity entity, Vtwo acceleration_mpssq, float time_delta_s)
+{
+	float norm_sq = vtwo_norm_sq(acceleration_mpssq);
+	if (norm_sq > 1.0F) {
+		acceleration_mpssq = vtwo_scale(acceleration_mpssq, 1.0F / sqrtf(norm_sq));
+	}
+
+	// Apply the drag
+	float speed_mps = 50.0F;
+	acceleration_mpssq = vtwo_scale(acceleration_mpssq, speed_mps);
+	acceleration_mpssq = vtwo_sub(acceleration_mpssq, vtwo_scale(entity.high->vel_mps, 8.0F));
+
+	float time_delta_s_sq = float_square(time_delta_s);
+
+	// Kinematic equation: 1/2*a*t^2
+	Vtwo acceleration_displacement_m = vtwo_scale(acceleration_mpssq, 0.5F * time_delta_s_sq);
+
+	// Kinematic equation: v*t
+	Vtwo velocity_displacement_m = vtwo_scale(entity.high->vel_mps, time_delta_s);
+
+	// Kinematic equation: p' = 1/2*a'*t^2 + v'*t + p
+	Vtwo displacement_m = vtwo_add(acceleration_displacement_m, velocity_displacement_m);
+
+	// Kinematic equation: v' = a*t + v
+	entity.high->vel_mps = vtwo_add(vtwo_scale(acceleration_mpssq, time_delta_s), entity.high->vel_mps);
+
+	Vtwo new_pos = vtwo_add(entity.high->pos_m, displacement_m);
+
+	// uint32_t start_tile_x = NUMBER_MIN(old_hero_position.tile_x, new_hero_position.tile_x);
+	// uint32_t end_tile_x = NUMBER_MAX(old_hero_position.tile_x, new_hero_position.tile_x);
+	// uint32_t start_tile_y = NUMBER_MIN(old_hero_position.tile_y, new_hero_position.tile_y);
+	// uint32_t end_tile_y = NUMBER_MAX(old_hero_position.tile_y, new_hero_position.tile_y);
+
+	// Adjust the search space to take into acount the hero dimensions
+	// start_tile_x -= HERO_WIDTH_TL;
+	// start_tile_y -= HERO_HEIGHT_TL;
+	// end_tile_x += HERO_WIDTH_TL;
+	// end_tile_y += HERO_HEIGHT_TL;
+
+	// uint32_t tile_z = new_hero_position.tile_z;
+
+	// Assert that the search space is small. 32 is not an special or particular number.
+	// assert(end_tile_x - start_tile_x < 32);
+	// assert(end_tile_y - start_tile_y < 32);
+
+	float remaining_time = 1.0F;
+	Position test_tile = {};
+	for (uint32_t i = 0; i < 4 && remaining_time > 0.0F; ++i) {
+		float max_time = 1.0F;
+		Vtwo wall_normal = {};
+		uint32_t hit_entity_idx = 0;
+
+		for (uint32_t entity_idx = 1; entity_idx < game->entity_count; ++entity_idx) {
+			Entity test_entity = game_get_entity(game, entity_idx);
+
+			if (test_entity.high == entity.high || !test_entity.dormant->collides) {
+				continue;
+			}
+
+			// Applying Minkowski algebra
+			float radius_h = 0.5F * (TILE_SIDE_M + HERO_HEIGHT_M);
+			float radius_w = 0.5F * (TILE_SIDE_M + HERO_WIDTH_M);
+			Vtwo min_corner = { .x = -radius_w, .y = -radius_h };
+			Vtwo max_corner = { .x = radius_w, .y = radius_h };
+
+			Vtwo rel_pos = vtwo_sub(entity.high->pos_m, test_entity.high->pos_m);
+
+			if (wall_test(min_corner.x, rel_pos.x, rel_pos.y, displacement_m.x, displacement_m.y, &max_time,
+			              min_corner.y, max_corner.y)) {
+				wall_normal = (Vtwo){ .x = -1.0F, .y = 0.0F };
+			}
+
+			if (wall_test(max_corner.x, rel_pos.x, rel_pos.y, displacement_m.x, displacement_m.y, &max_time,
+			              min_corner.y, max_corner.y)) {
+				wall_normal = (Vtwo){ .x = 1.0F, .y = 0.0F };
+			}
+
+			if (wall_test(min_corner.y, rel_pos.y, rel_pos.x, displacement_m.y, displacement_m.x, &max_time,
+			              min_corner.x, max_corner.x)) {
+				wall_normal = (Vtwo){ .x = 0.0F, .y = -1.0F };
+			}
+
+			if (wall_test(max_corner.y, rel_pos.y, rel_pos.x, displacement_m.y, displacement_m.x, &max_time,
+			              min_corner.x, max_corner.x)) {
+				wall_normal = (Vtwo){ .x = 0.0F, .y = 1.0F };
+			}
+		}
+
+		entity.high->pos_m = vtwo_add(entity.high->pos_m, vtwo_scale(displacement_m, max_time));
+
+		if (hit_entity_idx) {
+			float speed_on_r_axis = vtwo_dot(entity.high->vel_mps, wall_normal);
+			Vtwo velocity_towards_r_axis = vtwo_scale(wall_normal, speed_on_r_axis);
+			entity.high->vel_mps = vtwo_sub(entity.high->vel_mps, velocity_towards_r_axis);
+
+			float displacement_on_r_axis = vtwo_dot(displacement_m, wall_normal);
+			Vtwo displacement_towards_r_axis = vtwo_scale(wall_normal, displacement_on_r_axis);
+			displacement_m = vtwo_sub(displacement_m, displacement_towards_r_axis);
+
+			remaining_time -= max_time * remaining_time;
+
+			Entity hit_entity = game_get_entity(game, hit_entity_idx);
+			entity.high->tile_z =
+				(uint32_t)((int32_t)entity.high->tile_z - hit_entity.dormant->delta_tile_z);
+		} else {
+			break;
+		}
+	}
+
+	if (entity.high->vel_mps.x == 0.0F && entity.high->vel_mps.y == 0.0F) {
+		// Do not set
+	} else if (fabsf(entity.high->vel_mps.x) > fabsf(entity.high->vel_mps.y)) {
+		if (entity.high->vel_mps.x > 0.0F) {
+			entity.high->facing = HERO_FACING_RIGHT;
+		} else {
+			entity.high->facing = HERO_FACING_LEFT;
+		}
+	} else {
+		if (entity.high->vel_mps.y > 0.0F) {
+			entity.high->facing = HERO_FACING_UP;
+		} else {
+			entity.high->facing = HERO_FACING_DOWN;
+		}
+	}
+
+	entity.dormant->pos = game->camera_position;
+	entity.dormant->pos.offset_m = entity.high->pos_m;
+	map_normalize_position(&entity.dormant->pos);
+}
+
+static void game_set_entity_residence(Game *game, uint32_t entity_idx, EntityResidence residence)
+{
+	if (residence == ENTITY_RESIDENCE_HIGH && game->entity_residences[entity_idx] != ENTITY_RESIDENCE_HIGH) {
+		HighEntity *entity_high = &game->high_entities[entity_idx];
+		DormantEntity *entity_dormant = &game->dormant_entities[entity_idx];
+
+		PositionDelta delta = position_substract(&entity_dormant->pos, &game->camera_position);
+		entity_high->pos_m = delta.delta_xy_m;
+		entity_high->vel_mps = (Vtwo){ .x = 0, .y = 0 };
+		entity_high->tile_z = entity_dormant->pos.tile_z;
+		entity_high->facing = HERO_FACING_RIGHT;
+	}
+
+	game->entity_residences[entity_idx] = residence;
+}
+
+static void game_init_hero(Game *game, uint32_t entity_idx)
+{
+	Entity hero = game_get_entity(game, entity_idx);
+
+	hero.high->facing = HERO_FACING_RIGHT;
+	hero.high->vel_mps = (Vtwo){ .x = 0.0F, .y = 0.0F };
+
+	hero.dormant->pos.tile_x = 1;
+	hero.dormant->pos.tile_y = 3;
+	hero.dormant->pos.tile_z = 0;
+	hero.dormant->pos.offset_m.x = 0.0F;
+	hero.dormant->pos.offset_m.y = 0.0F;
+	hero.dormant->height_m = 0.5F;
+	hero.dormant->width_m = 1.0F;
+
+	game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_HIGH);
+
+	if (game->entity_residences[game->entity_tracked_by_camera_idx] == ENTITY_RESIDENCE_NONEXISTENT) {
+		game->entity_tracked_by_camera_idx = entity_idx;
+	}
+}
+
+static uint32_t game_add_entity(Game *game)
+{
+	assert(game->entity_count < MAX_ENTITIES);
+
+	uint32_t idx = game->entity_count++;
+
+	game->entity_residences[idx] = ENTITY_RESIDENCE_NONEXISTENT;
+	game->dormant_entities[idx] = (DormantEntity){};
+	game->low_entities[idx] = (LowEntity){};
+	game->high_entities[idx] = (HighEntity){};
+
+	return idx;
+}
+
+// =============================================================================
+// Sound
+// =============================================================================
+
+/**
+ * @brief
+ *
+ * @param buffer
+ * @param samples
+ */
+static void sound_output_samples(GameSoundBuffer *buffer, Game *game, unsigned tonehz)
+{
+	float tone_volume = 3000;
+	size_t wave_period = buffer->samples_per_sec / tonehz;
+	int16_t *sample_out = buffer->samples_base_address;
+	float sample_value = 0;
+	for (size_t i = 0; i < buffer->samples_count; ++i) {
+#if 0
+		float sine_value = sinf(game->tsine);
+		sample_value = sine_value * tone_volume;
+#else
+		sample_value = 0;
+#endif
+		*sample_out = (int16_t)sample_value; // channel one
+		++sample_out;
+		*sample_out = (int16_t)sample_value; // channel two
+		++sample_out;
+
+#if 0
+		game->tsine += 2.0F * PIE / (float_t)wave_period;
+		if (game->tsine > 2.0F * PIE) {
+			game->tsine -= 2.0f * PIE;
+		}
+#endif
+	}
+}
+
+// =============================================================================
 // Game API
 // =============================================================================
 
@@ -953,21 +947,21 @@ static const Vtwo g_screen_offset = {
 
 GAME_UPDATE_AND_RENDER(game_update_and_render)
 {
-	assert(sizeof(GameState) <= storage->permanent_size_bytes);
+	assert(sizeof(Game) <= storage->permanent_size_byte);
 
-	GameState *game_state = (GameState *)storage->permanent_base_address;
-	Arena *arena = &game_state->arena;
-	World *world = game_state->world;
+	Game *game = (Game *)storage->permanent_base_address;
+	Arena *arena = &game->arena;
+	World *world = game->world;
 	Map *map = nullptr;
 
 	if (!storage->is_initialized) {
 		// Reserve entity slot 0 for the null entity
-		game_add_entity(game_state);
+		game_add_entity(game);
 
-		game_state->backdrop =
+		game->backdrop =
 			file_load_bitmap_debug("test/test_background.bmp", storage->plat_file_read_debug, thread);
 
-		HeroBitmaps *bitmaps = game_state->hero_bitmaps;
+		HeroBitmaps *bitmaps = game->hero_bitmaps;
 		bitmaps->head =
 			file_load_bitmap_debug("test/test_hero_right_head.bmp", storage->plat_file_read_debug, thread);
 		bitmaps->cape =
@@ -1010,21 +1004,21 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
 
-		game_state->camera_position.tile_x = 17 / 2;
-		game_state->camera_position.tile_y = 9 / 2;
-		game_state->camera_position.tile_z = 0;
-		game_state->camera_position.offset_m.x = 0.0F;
-		game_state->camera_position.offset_m.y = 0.0F;
+		game->camera_position.tile_x = 17 / 2;
+		game->camera_position.tile_y = 9 / 2;
+		game->camera_position.tile_z = 0;
+		game->camera_position.offset_m.x = 0.0F;
+		game->camera_position.offset_m.y = 0.0F;
 
-		arena_init(&game_state->arena, storage->permanent_size_bytes - sizeof(GameState),
-		           (unsigned char *)storage->permanent_base_address + sizeof(GameState));
+		arena_init(&game->arena, storage->permanent_size_byte - sizeof(Game),
+		           (unsigned char *)storage->permanent_base_address + sizeof(Game));
 
-		game_state->world = arena_push(&game_state->arena, sizeof(*game_state->world));
-		world = game_state->world;
+		game->world = arena_push(&game->arena, sizeof(*game->world));
+		world = game->world;
 
-		world->map = arena_push(&game_state->arena, sizeof(*map));
+		world->map = arena_push(&game->arena, sizeof(*map));
 		map = world->map;
-		arena = &game_state->arena;
+		arena = &game->arena;
 
 		map->chunks = ARENA_PUSH_ARRAY(arena, TileChunk, (size_t)MAP_SIZE_CHK);
 
@@ -1606,7 +1600,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 						tile_type = TILE_TYPE_STAIRS_DOWN;
 					}
 
-					map_set_tile_value(map, &game_state->arena, tile_x, tile_y, tile_z, tile_type);
+					map_set_tile_value(map, &game->arena, tile_x, tile_y, tile_z, tile_type);
 				}
 			}
 
@@ -1646,8 +1640,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			continue;
 		}
 
-		Entity controlled_entity =
-			game_get_entity(game_state, game_state->player_idx_for_controller[controller_idx]);
+		Entity controlled_entity = game_get_entity(game, game->player_idx_for_controller[controller_idx]);
 
 		if (controlled_entity.residence != ENTITY_RESIDENCE_NONEXISTENT) {
 			Vtwo entity_acceleration = {};
@@ -1674,12 +1667,12 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				}
 			}
 
-			game_move_entity(game_state, controlled_entity, entity_acceleration, input->time_delta_s);
+			game_move_entity(game, controlled_entity, entity_acceleration, input->time_delta_s);
 		} else {
 			if (controller->start.ended_down) {
-				uint32_t entity_idx = game_add_entity(game_state);
-				game_init_hero(game_state, entity_idx);
-				game_state->player_idx_for_controller[controller_idx] = entity_idx;
+				uint32_t entity_idx = game_add_entity(game);
+				game_init_hero(game, entity_idx);
+				game->player_idx_for_controller[controller_idx] = entity_idx;
 			}
 		}
 
@@ -1687,30 +1680,30 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		 * Update camera position and hero Z coord base on latest movement
 		 */
 
-		Entity entity_tracked = game_get_entity(game_state, game_state->entity_tracked_by_camera_idx);
+		Entity entity_tracked = game_get_entity(game, game->entity_tracked_by_camera_idx);
 
 		if (entity_tracked.residence != ENTITY_RESIDENCE_NONEXISTENT) {
 #if 0
-			game_state->camera_position.tile_z = entity_tracked.dormant->pos.tile_z;
+			game->camera_position.tile_z = entity_tracked.dormant->pos.tile_z;
 
 			// Vector to move from the camera to the hero position in the map
 			PositionDelta camera_to_hero_delta =
-				position_substract(&entity_tracked.high->pos, &game_state->camera_position);
+				position_substract(&entity_tracked.high->pos, &game->camera_position);
 
 			if (camera_to_hero_delta.delta_xy_m.x > 9.0F * TILE_SIDE_M) {
-				game_state->camera_position.tile_x += 17;
+				game->camera_position.tile_x += 17;
 			}
 
 			if (camera_to_hero_delta.delta_xy_m.x < -9.0F * TILE_SIDE_M) {
-				game_state->camera_position.tile_x -= 17;
+				game->camera_position.tile_x -= 17;
 			}
 
 			if (camera_to_hero_delta.delta_xy_m.y > 5.0F * TILE_SIDE_M) {
-				game_state->camera_position.tile_y += 9;
+				game->camera_position.tile_y += 9;
 			}
 
 			if (camera_to_hero_delta.delta_xy_m.y < -5.0F * TILE_SIDE_M) {
-				game_state->camera_position.tile_y -= 9;
+				game->camera_position.tile_y -= 9;
 			}
 #endif
 		}
@@ -1721,7 +1714,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		// Render the background
 #if 1
-		offscreen_render_bitmap(back_buffer, 0.0F, 0.0F, &game_state->backdrop, 0.0F, 0.0F);
+		offscreen_render_bitmap(back_buffer, 0.0F, 0.0F, &game->backdrop, 0.0F, 0.0F);
 #else
 		game_bitmap_render_rectangle(back_buffer, 0.0F, 0.0F, (float)back_buffer->width_px,
 		                             (float)back_buffer->height_px, 1.0F, 0.0F, 1.0F);
@@ -1734,11 +1727,9 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 		for (int32_t tile_row_offset = -10; tile_row_offset < 10; ++tile_row_offset) {
 			for (int32_t tile_col_offset = -20; tile_col_offset < 20; ++tile_col_offset) {
-				uint32_t tile_col =
-					(uint32_t)((int32_t)game_state->camera_position.tile_x + tile_col_offset);
-				uint32_t tile_row =
-					(uint32_t)((int32_t)game_state->camera_position.tile_y + tile_row_offset);
-				uint32_t level = game_state->camera_position.tile_z;
+				uint32_t tile_col = (uint32_t)((int32_t)game->camera_position.tile_x + tile_col_offset);
+				uint32_t tile_row = (uint32_t)((int32_t)game->camera_position.tile_y + tile_row_offset);
+				uint32_t level = game->camera_position.tile_z;
 
 				uint32_t tile_type_id = map_get_tile_type(map, tile_col, tile_row, level);
 
@@ -1767,7 +1758,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 					};
 					grid_offset = vtwo_flip_y(grid_offset);
 					Vtwo camera_tile_offset =
-						vtwo_scale(game_state->camera_position.offset_m, PIXELS_PER_METER);
+						vtwo_scale(game->camera_position.offset_m, PIXELS_PER_METER);
 					camera_tile_offset = vtwo_flip_y(camera_tile_offset);
 
 					Vtwo min_point = vtwo_add(bitmap_center_px, grid_offset);
@@ -1776,8 +1767,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 					Vtwo max_point = vtwo_add_scalar(min_point, (float)TILE_SIDE_PX);
 
-					if (game_state->camera_position.tile_y == tile_row &&
-					    game_state->camera_position.tile_x == tile_col) {
+					if (game->camera_position.tile_y == tile_row &&
+					    game->camera_position.tile_x == tile_col) {
 						gray = 0.0F;
 					}
 					// Render the current tile
@@ -1786,14 +1777,14 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			}
 		}
 
-		for (uint32_t entity_idx = 0; entity_idx < game_state->entity_count; ++entity_idx) {
-			EntityResidence residence = game_state->entity_residences[entity_idx];
+		for (uint32_t entity_idx = 0; entity_idx < game->entity_count; ++entity_idx) {
+			EntityResidence residence = game->entity_residences[entity_idx];
 			if (residence == ENTITY_RESIDENCE_HIGH) {
-				HighEntity *high_entity = &game_state->high_entities[entity_idx];
-				LowEntity *low_entity = &game_state->low_entities[entity_idx];
-				DormantEntity *dormant_entity = &game_state->dormant_entities[entity_idx];
+				HighEntity *high_entity = &game->high_entities[entity_idx];
+				LowEntity *low_entity = &game->low_entities[entity_idx];
+				DormantEntity *dormant_entity = &game->dormant_entities[entity_idx];
 
-				HeroBitmaps *hero_bitmaps = &game_state->hero_bitmaps[high_entity->facing];
+				HeroBitmaps *hero_bitmaps = &game->hero_bitmaps[high_entity->facing];
 
 				float entity_red = 1.0F;
 				float entity_green = 1.0F;
@@ -1814,10 +1805,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				offscreen_render_rectangle(back_buffer, player_min_px, player_max_px, entity_red,
 				                           entity_green, entity_blue);
 
-				float target_offset_x_px =
-					entity_ground_point_px.x - (float)hero_bitmaps->align_x_px;
-				float target_offset_y_px =
-					entity_ground_point_px.y - (float)hero_bitmaps->align_y_px;
+				float target_offset_x_px = entity_ground_point_px.x - (float)hero_bitmaps->align_x_px;
+				float target_offset_y_px = entity_ground_point_px.y - (float)hero_bitmaps->align_y_px;
 				float source_offset_x_px = 0.0F;
 				float source_offset_y_px = 0.0F;
 
@@ -1852,13 +1841,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 SOUND_CREATE_SAMPLES(sound_create_samples)
 {
-	assert(sizeof(GameState) <= memory->permanent_size_bytes);
+	assert(sizeof(Game) <= memory->permanent_size_byte);
 
-	GameState *game_state = memory->permanent_base_address;
-	sound_output_samples(soundbuff, game_state, 400);
+	Game *game = memory->permanent_base_address;
+	sound_output_samples(soundbuff, game, 400);
 }
-
-
-
-
-

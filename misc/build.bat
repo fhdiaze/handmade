@@ -107,7 +107,6 @@ if "%BuildMode%"=="debug" (
 )
 
 set "AppFlags=!AppFlags! !Flags!"
-set "PlatformFlags=!PlatformFlags! !Flags!"
 
 echo Building %OutAppFilePath% ...
 echo.
@@ -129,10 +128,15 @@ echo.
 echo Building %OutAppFilePath% succeeded!
 echo.
 
+echo ================================================================================
+echo.
+
 if %LiveBuild% equ 1 (
     echo Live build completed. Skipping platform build.
     exit /b 0
 )
+
+set "PlatformFlags=!PlatformFlags! !Flags!"
 
 echo Building %OutPlatformFilePath% ...
 echo.

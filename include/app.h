@@ -13,7 +13,7 @@
 // =============================================================================
 
 typedef struct ThreadContext {
-	unsigned placeholder;
+	unsigned idx;
 } ThreadContext;
 
 // =============================================================================
@@ -139,10 +139,10 @@ typedef struct GameSoundBuffer {
 } GameSoundBuffer;
 
 typedef struct Storage {
-	size_t permanent_size_bytes;  // permanent storage in bytes
+	size_t permanent_size_byte;   // permanent storage in bytes
 	void *permanent_base_address; // This should be zero initialized
 
-	size_t transient_size_bytes;  // transient storage in bytes
+	size_t transient_size_byte;   // transient storage in bytes
 	void *transient_base_address; // This should be zero initialized
 
 	file_free_debug_func *plat_file_free_debug;
@@ -170,7 +170,3 @@ typedef GAME_UPDATE_AND_RENDER(game_update_and_render_func);
 typedef SOUND_CREATE_SAMPLES(sound_create_samples_func);
 
 #endif // APP_H
-
-
-
-

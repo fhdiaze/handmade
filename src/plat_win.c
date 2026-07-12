@@ -806,8 +806,8 @@ static void window_display_offscreen_buffer(HDC device_context, WinOffscreenBuff
 {
 	if (win_width >= 2 * (int)back_buffer->width_px && win_height >= 2 * (int)back_buffer->height_px) {
 		StretchDIBits(device_context, 0, 0, win_width, win_height, 0, 0, (int)back_buffer->width_px,
-		              (int)back_buffer->height_px, back_buffer->top_left_px, &back_buffer->info,
-		              DIB_RGB_COLORS, SRCCOPY);
+		              (int)back_buffer->height_px, back_buffer->top_left_px, &back_buffer->info, DIB_RGB_COLORS,
+		              SRCCOPY);
 	} else {
 		int offset_x = 10;
 		int offset_y = 10;
@@ -819,13 +819,13 @@ static void window_display_offscreen_buffer(HDC device_context, WinOffscreenBuff
 		PatBlt(device_context, 0, 0, offset_x, win_height, BLACKNESS);
 		StretchDIBits(device_context, offset_x, offset_y, (int)back_buffer->width_px,
 		              (int)back_buffer->height_px, 0, 0, (int)back_buffer->width_px,
-		              (int)back_buffer->height_px, back_buffer->top_left_px, &back_buffer->info,
-		              DIB_RGB_COLORS, SRCCOPY);
+		              (int)back_buffer->height_px, back_buffer->top_left_px, &back_buffer->info, DIB_RGB_COLORS,
+		              SRCCOPY);
 	}
 }
 
-static LRESULT CALLBACK window_procedure(HWND window, [[__maybe_unused__]] UINT msg,
-                                               [[__maybe_unused__]] WPARAM wparam, [[__maybe_unused__]] LPARAM lparam)
+static LRESULT CALLBACK window_procedure(HWND window, [[__maybe_unused__]] UINT msg, [[__maybe_unused__]] WPARAM wparam,
+                                         [[__maybe_unused__]] LPARAM lparam)
 {
 	LRESULT result = 0;
 
@@ -1113,15 +1113,15 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 		.plat_file_read_debug = file_read_debug,
 		.file_write_debug = file_write_debug,
 	};
-	Storage.permanent_size_bytes = MB_TO_BYTES(64ULL);
-	Storage.transient_size_bytes = GB_TO_BYTES(1ULL);
+	Storage.permanent_size_byte = MB_TO_BYTES(64ULL);
+	Storage.transient_size_byte = GB_TO_BYTES(1ULL);
 
-	win_state.memory_size_bytes = Storage.permanent_size_bytes + Storage.transient_size_bytes;
+	win_state.memory_size_bytes = Storage.permanent_size_byte + Storage.transient_size_byte;
 	win_state.memory_base_address = VirtualAlloc(MEMORY_BASE_ADDRESS, win_state.memory_size_bytes,
 	                                             MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
 	Storage.permanent_base_address = win_state.memory_base_address;
-	Storage.transient_base_address = (unsigned char *)Storage.permanent_base_address + Storage.permanent_size_bytes;
+	Storage.transient_base_address = (unsigned char *)Storage.permanent_base_address + Storage.permanent_size_byte;
 
 	for (uint8_t slot_index = 0; slot_index < REPLAY_MAX_SLOTS; ++slot_index) {
 		ReplaySlot *replay_slot = &win_state.replay_slots[slot_index];
@@ -1473,7 +1473,3 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 	return EXIT_SUCCESS;
 }
-
-
-
-
