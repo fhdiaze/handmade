@@ -25,14 +25,14 @@ typedef struct ThreadContext {
 #define MEMORY_BASE_ADDRESS ((void *)TB_TO_BYTES(2))
 
 typedef struct ReadFileResult {
-	size_t size_bytes;
+	size_t size_byte;
 	void *base_address;
 } ReadFileResult;
 
-#define FILE_READ_DEBUG(name) ReadFileResult name(const char *const filename, ThreadContext *thread)
-#define FILE_FREE_DEBUG(name) void name(void *memory, ThreadContext *thread)
+#define FILE_READ_DEBUG(name) ReadFileResult name(const char *const path, ThreadContext *thread)
+#define FILE_FREE_DEBUG(name) void name(void *base_address, ThreadContext *thread)
 #define FILE_WRITE_DEBUG(name) \
-	uint8_t name(const char *const filename, size_t memorysize, void *memory, ThreadContext *thread)
+	uint8_t name(const char *const path, size_t memory_size_byte, void *base_address, ThreadContext *thread)
 
 typedef FILE_READ_DEBUG(file_read_debug_func);
 

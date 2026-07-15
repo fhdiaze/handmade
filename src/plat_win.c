@@ -166,50 +166,46 @@ static void window_toggle_fullscreen(HWND win_handle)
 
 FILE_FREE_DEBUG(file_free_debug)
 {
-	if (memory) {
-		VirtualFree(memory, 0, MEM_RELEASE);
+	if (base_address) {
+		VirtualFree(base_address, 0, MEM_RELEASE);
 	}
 }
 
 FILE_READ_DEBUG(file_read_debug)
 {
 	ReadFileResult result = {};
-	HANDLE handle = CreateFileA(filename, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
-	if (handle == INVALID_HANDLE_VALUE) {
-		return result;
-	}
 
-	LARGE_INTEGER filesize_struct;
-	if (!GetFileSizeEx(handle, &filesize_struct)) {
-		goto error_cleanup;
-	}
-
-	uint32_t filesize = i64_to_u32(filesize_struct.QuadPart);
-	result.base_address = VirtualAlloc(nullptr, filesize, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-	if (!result.base_address) {
-		goto error_cleanup;
-	}
-
-	DWORD bytesread = 0;
-	if (!ReadFile(handle, result.base_address, filesize, &bytesread, nullptr) || bytesread != filesize) {
-		goto error_cleanup;
-	}
-
-	result.size_bytes = filesize;
-
-	CloseHandle(handle);
-
-	return result;
-
-error_cleanup:
+	HANDLE handle = CreateFileA(path, GENERIC_READ, FILE_SHARE_READ, nullptr, OPEN_EXISTING, 0, nullptr);
 	if (handle != INVALID_HANDLE_VALUE) {
+		LARGE_INTEGER filesize_struct;
+		if (GetFileSizeEx(handle, &filesize_struct)) {
+			uint32_t file_size_byte = i64_to_u32(filesize_struct.QuadPart);
+			result.base_address =
+				VirtualAlloc(nullptr, file_size_byte, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+			if (result.base_address) {
+				DWORD read_size_byte = 0;
+				if (ReadFile(handle, result.base_address, file_size_byte, &read_size_byte, nullptr) ||
+				    read_size_byte == file_size_byte) {
+					result.size_byte = file_size_byte;
+				} else {
+					LOG_ERROR("failed to read the file: %s", path);
+
+					file_free_debug(thread, result.base_address);
+
+					result.base_address = nullptr;
+					result.size_byte = 0;
+				}
+			} else {
+				LOG_ERROR("failed to allocate memory for the content of file: %s", path);
+			}
+		} else {
+			LOG_ERROR("failed to get the size of the file: %s", path);
+		}
+
 		CloseHandle(handle);
+	} else {
+		LOG_ERROR("failed to open the file: %s", path);
 	}
-
-	file_free_debug(thread, result.base_address);
-
-	result.base_address = nullptr;
-	result.size_bytes = 0;
 
 	return result;
 }
@@ -217,26 +213,22 @@ error_cleanup:
 FILE_WRITE_DEBUG(file_write_debug)
 {
 	uint8_t result = 0U;
-	HANDLE handle = CreateFileA(filename, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
-	if (handle == INVALID_HANDLE_VALUE) {
-		return result;
-	}
 
-	DWORD byteswritten = 0;
-	if (!WriteFile(handle, memory, (DWORD)memorysize, &byteswritten, nullptr)) {
-		goto error_cleanup;
-	}
-
-	CloseHandle(handle);
-
-	return byteswritten == memorysize;
-
-error_cleanup:
+	HANDLE handle = CreateFileA(path, GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS, 0, nullptr);
 	if (handle != INVALID_HANDLE_VALUE) {
+		DWORD byteswritten = 0;
+		if (WriteFile(handle, base_address, (DWORD)memory_size_byte, &byteswritten, nullptr)) {
+			result = byteswritten == memory_size_byte;
+		} else {
+			LOG_ERROR("failed to write to the file: %s", path);
+		}
+
 		CloseHandle(handle);
+	} else {
+		LOG_ERROR("failed to open the file: %s", path);
 	}
 
-	return 0U;
+	return result;
 }
 
 static uint8_t file_get_exe_path(WinState *winstate)
