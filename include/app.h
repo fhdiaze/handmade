@@ -62,7 +62,7 @@ typedef struct ButtonState {
 	uint8_t ended_down;
 } ButtonState;
 
-typedef struct ControllerState {
+typedef struct Controller {
 	float stick_avg_x;
 	float stick_avg_y;
 
@@ -90,7 +90,7 @@ typedef struct ControllerState {
 	// TODO(fredy): bools in structs are suspicious
 	uint8_t is_analog;
 	uint8_t is_connected;
-} ControllerState;
+} Controller;
 
 typedef struct GameInput {
 	unsigned mouse_x;
@@ -111,7 +111,7 @@ typedef struct GameInput {
 		};
 	};
 
-	ControllerState controllers[MAX_CONTROLLERS];
+	Controller controllers[MAX_CONTROLLERS];
 } GameInput;
 
 /**
@@ -152,7 +152,7 @@ typedef struct Storage {
 	uint8_t is_initialized;
 } Storage;
 
-static inline ControllerState *input_get_controller(GameInput *input, size_t controller_index)
+static inline Controller *input_get_controller(GameInput *input, size_t controller_index)
 {
 	assert(controller_index < MAX_CONTROLLERS);
 

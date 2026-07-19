@@ -665,7 +665,7 @@ static void input_playback(WinState *winstate, GameInput *input)
 	assert(bytes_read == sizeof(*input));
 }
 
-static void window_pump_messages(WinState *winstate, ControllerState *keyboard_controller)
+static void window_pump_messages(WinState *winstate, Controller *keyboard_controller)
 {
 	MSG msg;
 	while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE)) {
@@ -1009,8 +1009,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	file_build_path(&win_state, tmp_app_dll_filename, sizeof(tmp_app_dll_path), tmp_app_dll_path);
 
 	// sets the scheduler granularity to 1ms, so that our Sleep() can be more granular
-	unsigned desire_scheduler_ms = 1;
-	uint8_t is_granular_sleep = timeBeginPeriod(desire_scheduler_ms) == TIMERR_NOERROR;
+	unsigned scheduler_period_ms = 1;
+	uint8_t is_granular_sleep = timeBeginPeriod(scheduler_period_ms) == TIMERR_NOERROR;
 
 	xinput_load();
 
@@ -1100,20 +1100,20 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 	int16_t *samples =
 		(int16_t *)VirtualAlloc(nullptr, win_sound.buffsize_bytes, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	Storage Storage = {
+	Storage storage = {
 		.plat_file_free_debug = file_free_debug,
 		.plat_file_read_debug = file_read_debug,
 		.file_write_debug = file_write_debug,
 	};
-	Storage.permanent_size_byte = MB_TO_BYTES(64ULL);
-	Storage.transient_size_byte = GB_TO_BYTES(1ULL);
+	storage.permanent_size_byte = MB_TO_BYTES(64ULL);
+	storage.transient_size_byte = GB_TO_BYTES(1ULL);
 
-	win_state.memory_size_bytes = Storage.permanent_size_byte + Storage.transient_size_byte;
+	win_state.memory_size_bytes = storage.permanent_size_byte + storage.transient_size_byte;
 	win_state.memory_base_address = VirtualAlloc(MEMORY_BASE_ADDRESS, win_state.memory_size_bytes,
 	                                             MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
 
-	Storage.permanent_base_address = win_state.memory_base_address;
-	Storage.transient_base_address = (unsigned char *)Storage.permanent_base_address + Storage.permanent_size_byte;
+	storage.permanent_base_address = win_state.memory_base_address;
+	storage.transient_base_address = (unsigned char *)storage.permanent_base_address + storage.permanent_size_byte;
 
 	for (uint8_t slot_index = 0; slot_index < REPLAY_MAX_SLOTS; ++slot_index) {
 		ReplaySlot *replay_slot = &win_state.replay_slots[slot_index];
@@ -1132,7 +1132,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 			MapViewOfFile(replay_slot->file_map, FILE_MAP_ALL_ACCESS, 0, 0, win_state.memory_size_bytes);
 	}
 
-	if (!samples || !Storage.permanent_base_address || !Storage.transient_base_address) {
+	if (!samples || !storage.permanent_base_address || !storage.transient_base_address) {
 		return EXIT_FAILURE;
 	}
 
@@ -1183,9 +1183,9 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 		/**
 		* @brief Gather input
 		*/
-		ControllerState *old_keyboard_controller = input_get_controller(old_input, 0);
-		ControllerState *new_keyboard_controller = input_get_controller(new_input, 0);
-		ControllerState zero_controller = {};
+		Controller *old_keyboard_controller = input_get_controller(old_input, 0);
+		Controller *new_keyboard_controller = input_get_controller(new_input, 0);
+		Controller zero_controller = {};
 		*new_keyboard_controller = zero_controller;
 		new_keyboard_controller->is_connected = 1U;
 
@@ -1219,8 +1219,8 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 		for (unsigned long i = 0; i < max_controller_count; ++i) {
 			unsigned long our_controller_index = i + 1;
-			ControllerState *old_controller = input_get_controller(old_input, our_controller_index);
-			ControllerState *new_controller = input_get_controller(new_input, our_controller_index);
+			Controller *old_controller = input_get_controller(old_input, our_controller_index);
+			Controller *new_controller = input_get_controller(new_input, our_controller_index);
 			XINPUT_STATE state;
 			if (XInputGetState(i, &state) != ERROR_SUCCESS) {
 				new_controller->is_connected = 0U;
@@ -1310,7 +1310,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 			input_playback(&win_state, new_input);
 		}
 		if (game_code.update_and_render) {
-			game_code.update_and_render(&bitmap, &thread, &Storage, new_input);
+			game_code.update_and_render(&bitmap, &thread, &storage, new_input);
 		}
 
 		unsigned bytes_to_write = 0;
@@ -1348,7 +1348,7 @@ int CALLBACK WinMain(HINSTANCE hInstance, [[__maybe_unused__]] HINSTANCE hPrevIn
 
 			game_soundbuff.samples_count = bytes_to_write / win_sound.bytes_per_sample;
 			if (game_code.sound_create_samples) {
-				game_code.sound_create_samples(&game_soundbuff, &thread, &Storage);
+				game_code.sound_create_samples(&game_soundbuff, &thread, &storage);
 			}
 #if 0
 			DebugTimeMark *mark =

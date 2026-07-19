@@ -91,6 +91,19 @@ void *arena_push_zero(Arena *arena, size_t size_bytes)
 #define NUMBER_MIN(_pr_a, _pr_b) ((_pr_a) < (_pr_b) ? (_pr_a) : (_pr_b))
 #define NUMBER_MAX(_pr_a, _pr_b) ((_pr_a) > (_pr_b) ? (_pr_a) : (_pr_b))
 
+typedef union Vtwo {
+	struct {
+		float x;
+		float y;
+	};
+	float e[2];
+} Vtwo;
+
+typedef struct RectangleTwo {
+	Vtwo min;
+	Vtwo max;
+} RectangleTwo;
+
 /**
  * @brief truncates a int64_t into a uint32_t.
  *
@@ -174,6 +187,227 @@ inline unsigned int_abs(int value)
 {
 	// trick to avoid branches: (x ^ (x >> 31)) - (x >> 31)
 	unsigned result = value < 0 ? -(unsigned)value : (unsigned)value;
+
+	return result;
+}
+
+/**
+ * @brief Flips a vector in the x axis (inverts its x coordinate)
+ *
+ * @param a The vector to flip
+ * @return Vtwo The flipped vector (-a.x, a.y)
+ *
+ * @example
+ * Vtwo v = {3.0f, 4.0f};
+ * Vtwo flipped = vtwo_flip_x(v);  // {-3.0f, 4.0f}
+ */
+inline Vtwo vtwo_flip_x(Vtwo a)
+{
+	Vtwo result = {
+		.x = a.x,
+		.y = -a.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Flips a vector in the y axis (inverts its y coordinate)
+ *
+ * @param a The vector to flip
+ * @return Vtwo The flipped vector (a.x, -a.y)
+ *
+ * @example
+ * Vtwo v = {3.0f, 4.0f};
+ * Vtwo flipped = vtwo_flip_y(v);  // {3.0f, -4.0f}
+ */
+inline Vtwo vtwo_flip_y(Vtwo a)
+{
+	Vtwo result = {
+		.x = a.x,
+		.y = -a.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Negates a vector (inverts its direction)
+ *
+ * @param a The vector to negate
+ * @return Vtwo The negated vector (-a.x, -a.y)
+ *
+ * @example
+ * Vtwo v = {3.0f, 4.0f};
+ * Vtwo neg = vtwo_inv(v);  // {-3.0f, -4.0f}
+ */
+inline Vtwo vtwo_neg(Vtwo a)
+{
+	Vtwo result = {
+		.x = -a.x,
+		.y = -a.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Adds two vectors
+ *
+ * @param a The first vector
+ * @param b The second vector
+ * @return Vtwo The sum of a and b (a.x + b.x, a.y + b.y)
+ *
+ * @example
+ * Vtwo a = {1.0f, 2.0f};
+ * Vtwo b = {3.0f, 4.0f};
+ * Vtwo sum = vtwo_add(a, b);  // {4.0f, 6.0f}
+ */
+inline Vtwo vtwo_add(Vtwo a, Vtwo b)
+{
+	Vtwo result = {
+		.x = a.x + b.x,
+		.y = a.y + b.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Subtracts vector b from vector a (calculates a - b)
+ *
+ * @param a The vector to subtract from
+ * @param b The vector to subtract from a
+ * @return Vtwo The difference (a.x - b.x, a.y - b.y)
+ *
+ * @example
+ * Vtwo a = {1.0f, 2.0f};
+ * Vtwo b = {5.0f, 7.0f};
+ * Vtwo diff = vtwo_sub(a, b);  // {-4.0f, -5.0f}
+ */
+inline Vtwo vtwo_sub(Vtwo a, Vtwo b)
+{
+	Vtwo result = {
+		.x = a.x - b.x,
+		.y = a.y - b.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Scales x axis
+ *
+ * @param a The vector
+ * @param s The scalar
+ * @return Vtwo The scaled vector (a.x * s, a.y)
+ */
+inline Vtwo vtwo_scale_x(Vtwo a, float s)
+{
+	Vtwo result = {
+		.x = a.x * s,
+		.y = a.y,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Scalar multiplication
+ *
+ * @param a The vector
+ * @param s The scalar
+ * @return Vtwo The scaled vector (a.x * s, a.y * s)
+ */
+inline Vtwo vtwo_scale(Vtwo a, float s)
+{
+	Vtwo result = {
+		.x = a.x * s,
+		.y = a.y * s,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Scalar addition
+ *
+ * @param a The vector
+ * @param s The scalar
+ * @return Vtwo The translated vector (a.x * s, a.y * s)
+ */
+inline Vtwo vtwo_add_scalar(Vtwo a, float s)
+{
+	Vtwo result = {
+		.x = a.x + s,
+		.y = a.y + s,
+	};
+
+	return result;
+}
+
+/**
+ * @brief Calculates the dot product between two bidimensional vectors
+ *
+ * @param a One vector
+ * @param b Other vector
+ * @return float The dot product a . b
+ */
+inline float vtwo_dot(Vtwo a, Vtwo b)
+{
+	float result = a.x * b.x + a.y * b.y;
+
+	return result;
+}
+
+/**
+ * @brief Calculates the squared norm (squared length) of a vector
+ *
+ * Avoids a square root; use when only comparing magnitudes.
+ *
+ * @param a A vector
+ * @return float ||a||^2 = a.x^2 + a.y^2
+ */
+inline float vtwo_norm_sq(Vtwo a)
+{
+	float norm_sq = vtwo_dot(a, a);
+
+	return norm_sq;
+}
+
+inline float vtwo_norm(Vtwo a)
+{
+	float norm_sq = vtwo_norm_sq(a);
+	float result = sqrtf(norm_sq);
+
+	return result;
+}
+
+inline Vtwo vtwo_normalize(Vtwo a)
+{
+	float norm = vtwo_norm(a);
+	Vtwo result = vtwo_scale(a, 1.0F / norm);
+
+	return result;
+}
+
+inline uint32_t rectangle_contains(RectangleTwo rect, Vtwo test)
+{
+	uint32_t result = 0U;
+
+	result = rect.min.x <= test.x && rect.min.y <= test.y && test.x < rect.max.x && test.y < rect.max.y;
+
+	return result;
+}
+
+RectangleTwo rectangle_center_dim(Vtwo center, Vtwo dim)
+{
+	Vtwo half_dim = vtwo_scale(dim, 0.5F);
+
+	RectangleTwo result = {
+		.min = vtwo_sub(center, half_dim),
+		.max = vtwo_add(center, half_dim),
+	};
 
 	return result;
 }
@@ -395,222 +629,6 @@ uint32_t uint_rotl(uint32_t value, int32_t shift)
 	shift &= 31; // 2's complements trick
 	uint32_t result = value << shift | value >> (32 - shift);
 #endif
-
-	return result;
-}
-
-// =============================================================================
-// Vector math
-// =============================================================================
-
-/**
- * @brief
- *
- */
-typedef union Vtwo {
-	struct {
-		float x;
-		float y;
-	};
-	float e[2];
-} Vtwo;
-
-/**
- * @brief Flips a vector in the x axis (inverts its x coordinate)
- *
- * @param a The vector to flip
- * @return Vtwo The flipped vector (-a.x, a.y)
- *
- * @example
- * Vtwo v = {3.0f, 4.0f};
- * Vtwo flipped = vtwo_flip_x(v);  // {-3.0f, 4.0f}
- */
-inline Vtwo vtwo_flip_x(Vtwo a)
-{
-	Vtwo result = {
-		.x = a.x,
-		.y = -a.y,
-	};
-
-	return result;
-}
-
-/**
- * @brief Flips a vector in the y axis (inverts its y coordinate)
- *
- * @param a The vector to flip
- * @return Vtwo The flipped vector (a.x, -a.y)
- *
- * @example
- * Vtwo v = {3.0f, 4.0f};
- * Vtwo flipped = vtwo_flip_y(v);  // {3.0f, -4.0f}
- */
-inline Vtwo vtwo_flip_y(Vtwo a)
-{
-	Vtwo result = {
-		.x = a.x,
-		.y = -a.y,
-	};
-
-	return result;
-}
-
-/**
- * @brief Negates a vector (inverts its direction)
- *
- * @param a The vector to negate
- * @return Vtwo The negated vector (-a.x, -a.y)
- *
- * @example
- * Vtwo v = {3.0f, 4.0f};
- * Vtwo neg = vtwo_inv(v);  // {-3.0f, -4.0f}
- */
-inline Vtwo vtwo_neg(Vtwo a)
-{
-	Vtwo result = {
-		.x = -a.x,
-		.y = -a.y,
-	};
-
-	return result;
-}
-
-/**
- * @brief Adds two vectors
- *
- * @param a The first vector
- * @param b The second vector
- * @return Vtwo The sum of a and b (a.x + b.x, a.y + b.y)
- *
- * @example
- * Vtwo a = {1.0f, 2.0f};
- * Vtwo b = {3.0f, 4.0f};
- * Vtwo sum = vtwo_add(a, b);  // {4.0f, 6.0f}
- */
-inline Vtwo vtwo_add(Vtwo a, Vtwo b)
-{
-	Vtwo result = {
-		.x = a.x + b.x,
-		.y = a.y + b.y,
-	};
-
-	return result;
-}
-
-/**
- * @brief Subtracts vector b from vector a (calculates a - b)
- *
- * @param a The vector to subtract from
- * @param b The vector to subtract from a
- * @return Vtwo The difference (a.x - b.x, a.y - b.y)
- *
- * @example
- * Vtwo a = {1.0f, 2.0f};
- * Vtwo b = {5.0f, 7.0f};
- * Vtwo diff = vtwo_sub(a, b);  // {-4.0f, -5.0f}
- */
-inline Vtwo vtwo_sub(Vtwo a, Vtwo b)
-{
-	Vtwo result = {
-		.x = a.x - b.x,
-		.y = a.y - b.y,
-	};
-
-	return result;
-}
-
-/**
- * @brief Scales x axis
- *
- * @param a The vector
- * @param s The scalar
- * @return Vtwo The scaled vector (a.x * s, a.y)
- */
-inline Vtwo vtwo_scale_x(Vtwo a, float s)
-{
-	Vtwo result = {
-		.x = a.x * s,
-		.y = a.y,
-	};
-
-	return result;
-}
-
-/**
- * @brief Scalar multiplication
- *
- * @param a The vector
- * @param s The scalar
- * @return Vtwo The scaled vector (a.x * s, a.y * s)
- */
-inline Vtwo vtwo_scale(Vtwo a, float s)
-{
-	Vtwo result = {
-		.x = a.x * s,
-		.y = a.y * s,
-	};
-
-	return result;
-}
-
-/**
- * @brief Scalar addition
- *
- * @param a The vector
- * @param s The scalar
- * @return Vtwo The translated vector (a.x * s, a.y * s)
- */
-inline Vtwo vtwo_add_scalar(Vtwo a, float s)
-{
-	Vtwo result = {
-		.x = a.x + s,
-		.y = a.y + s,
-	};
-
-	return result;
-}
-
-/**
- * @brief Calculates the dot product between two bidimensional vectors
- *
- * @param a One vector
- * @param b Other vector
- * @return float The dot product a . b
- */
-inline float vtwo_dot(Vtwo a, Vtwo b)
-{
-	float result = a.x * b.x + a.y * b.y;
-
-	return result;
-}
-
-/**
- * @brief Calculates the squared norm (squared length) of a vector
- *
- * Avoids a square root; use when only comparing magnitudes.
- *
- * @param a A vector
- * @return float ||a||^2 = a.x^2 + a.y^2
- */
-inline float vtwo_norm_sq(Vtwo a)
-{
-	float norm_sq = vtwo_dot(a, a);
-
-	return norm_sq;
-}
-
-inline float vtwo_norm(Vtwo a)
-{
-	float norm_sq = vtwo_norm_sq(a);
-	float result = sqrtf(norm_sq);
-
-	return result;
-}
-
-inline Vtwo vtwo_normalize(Vtwo a)
-{
-	float norm = vtwo_norm(a);
-	Vtwo result = vtwo_scale(a, 1.0F / norm);
 
 	return result;
 }

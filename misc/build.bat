@@ -10,14 +10,14 @@ set "BuildMode=debug"
 set "Architecture=x64"
 set "LiveBuild=0"
 set "AppFileName=app"
-set "PlatformFileName=plat_win"
-set "PlatformFilePath=./src/%PlatformFileName%.c"
+set "PlatFileName=plat_win"
+set "PlatFilePath=./src/%PlatFileName%.c"
 set "AppFilePath=./src/%AppFileName%.c"
 set "Outdir=./bin"
 set "Datadir=./data"
 set "OutAppFileName=handmade_app"
 set "OutPlatFileName=win_handmade"
-set "OutPlatformFilePath=%Outdir%/%OutPlatFileName%.exe"
+set "OutPlatFilePath=%Outdir%/%OutPlatFileName%.exe"
 set "OutAppFilePath=%Outdir%/%OutAppFileName%.dll"
 set "FlagsFile=%ScriptDir%../compile_flags.txt"
 set "DebugFlags=-g -gcodeview -O0 -DDEBUG -Wl,/DEBUG:FULL -fms-runtime-lib=static_dbg"
@@ -25,7 +25,7 @@ set "DebugFlags=-g -gcodeview -O0 -DDEBUG -Wl,/DEBUG:FULL -fms-runtime-lib=stati
 set "ReleaseFlags=-O3 -DNDEBUG -flto -Wl,/opt:ref -Wl,/opt:icf -fms-runtime-lib=static"
 set "Flags="
 set "AppFlags=-shared -Wl,/MAP:%Outdir%/%OutAppFileName%.map,/MAPINFO:EXPORTS -Wl,/EXPORT:sound_create_samples -Wl,/EXPORT:game_update_and_render -Wl,/PDB:%Outdir%/%OutAppFileName%_%random%.pdb"
-set "PlatformFlags=-luser32 -lgdi32 -lwinmm -Wl,/subsystem:windows -Wl,/MAP:%Outdir%/%OutPlatFileName%.map,/MAPINFO:EXPORTS"
+set "PlatFlags=-luser32 -lgdi32 -lwinmm -Wl,/subsystem:windows -Wl,/MAP:%Outdir%/%OutPlatFileName%.map,/MAPINFO:EXPORTS"
 
 :parse_args
 
@@ -136,19 +136,19 @@ if %LiveBuild% equ 1 (
     exit /b 0
 )
 
-set "PlatformFlags=!PlatformFlags! !Flags!"
+set "PlatFlags=!PlatFlags! !Flags!"
 
-echo Building %OutPlatformFilePath% ...
+echo Building %OutPlatFilePath% ...
 echo.
-echo clang !PlatformFlags! %PlatformFilePath% -o %OutPlatformFilePath%
+echo clang !PlatFlags! %PlatFilePath% -o %OutPlatFilePath%
 echo.
 
-clang !PlatformFlags! %PlatformFilePath% -o %OutPlatformFilePath%
+clang !PlatFlags! %PlatFilePath% -o %OutPlatFilePath%
 
 if errorlevel 1 (
-    echo Building %OutPlatformFilePath% failed!
+    echo Building %OutPlatFilePath% failed!
     exit /b %errorlevel%
 )
 
 echo.
-echo Building %OutPlatformFilePath% succeeded!
+echo Building %OutPlatFilePath% succeeded!

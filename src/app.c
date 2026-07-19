@@ -434,30 +434,20 @@ static void offscreen_render_rectangle(GameOffscreenBuffer *back_buffer, Vtwo vm
  *        reached first, so no bounds check is needed by the caller.
  *
  * @param back_buffer Destination offscreen buffer (top-down, ARGB).
- * @param target_offset_x_px_f X pixel offset into the destination buffer where the blit starts.
- * @param target_offset_y_px_f Y pixel offset into the destination buffer where the blit starts.
+ * @param target_offset_x_px X pixel offset into the destination buffer where the blit starts.
+ * @param target_offset_y_px Y pixel offset into the destination buffer where the blit starts.
  * @param bitmap Source bitmap to draw (bottom-up, ARGB).
- * @param source_offset_x_px_f X pixel offset into the source bitmap to start reading from.
- * @param source_offset_y_px_f Y pixel offset into the source bitmap to start reading from.
+ * @param source_offset_x_px X pixel offset into the source bitmap to start reading from.
+ * @param source_offset_y_px Y pixel offset into the source bitmap to start reading from.
  */
-static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buffer, float target_offset_x_px_f,
-                                    float target_offset_y_px_f, const AppBitmap *const restrict bitmap,
-                                    float source_offset_x_px_f, float source_offset_y_px_f)
+static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buffer, uint32_t target_offset_x_px,
+                                    uint32_t target_offset_y_px, const AppBitmap *const restrict bitmap,
+                                    uint32_t source_offset_x_px, uint32_t source_offset_y_px, float source_opacity)
 {
 	assert(bitmap);
 	assert(bitmap->bottom_left_px);
-	assert(target_offset_x_px_f >= 0.0F);
-	assert(target_offset_y_px_f >= 0.0F);
 	assert(bitmap->width_px >= 0U);
 	assert(bitmap->height_px >= 0U);
-	assert(source_offset_x_px_f >= 0.0F);
-	assert(source_offset_y_px_f >= 0.0F);
-
-	uint32_t target_offset_x_px = float_round_to_uint(target_offset_x_px_f);
-	uint32_t target_offset_y_px = float_round_to_uint(target_offset_y_px_f);
-	uint32_t source_offset_x_px = float_round_to_uint(source_offset_x_px_f);
-	uint32_t source_offset_y_px = float_round_to_uint(source_offset_y_px_f);
-
 	assert(target_offset_x_px < back_buffer->width_px);
 	assert(target_offset_y_px < back_buffer->height_px);
 	assert(source_offset_x_px < bitmap->width_px);
@@ -485,18 +475,18 @@ static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buf
 			uint32_t sg = (*source_px_ptr >> 8U) & 0xFFU;
 			uint32_t sb = (*source_px_ptr) & 0xFFU;
 
-			uint32_t da = *target_px_ptr >> 24U;
-			uint32_t dr = (*target_px_ptr >> 16U) & 0xFFU;
-			uint32_t dg = (*target_px_ptr >> 8U) & 0xFFU;
-			uint32_t db = (*target_px_ptr) & 0xFFU;
+			uint32_t ta = *target_px_ptr >> 24U;
+			uint32_t tr = (*target_px_ptr >> 16U) & 0xFFU;
+			uint32_t tg = (*target_px_ptr >> 8U) & 0xFFU;
+			uint32_t tb = (*target_px_ptr) & 0xFFU;
 
-			float t = (float)sa / 255.0F;
+			float blend_factor = source_opacity * (float)sa / 255.0F;
 
-			uint32_t r = float_round_to_uint(t * (float)sr + (1.0F - t) * (float)dr);
-			uint32_t g = float_round_to_uint(t * (float)sg + (1.0F - t) * (float)dg);
-			uint32_t b = float_round_to_uint(t * (float)sb + (1.0F - t) * (float)db);
+			uint32_t r = float_round_to_uint(blend_factor * (float)sr + (1.0F - blend_factor) * (float)tr);
+			uint32_t g = float_round_to_uint(blend_factor * (float)sg + (1.0F - blend_factor) * (float)tg);
+			uint32_t b = float_round_to_uint(blend_factor * (float)sb + (1.0F - blend_factor) * (float)tb);
 
-			*target_px_ptr = (da << 24U) | (r << 16U) | (g << 8U) | b;
+			*target_px_ptr = (ta << 24U) | (r << 16U) | (g << 8U) | b;
 
 			++target_px_ptr;
 			++source_px_ptr;
@@ -515,12 +505,12 @@ static void offscreen_render_bitmap(GameOffscreenBuffer *const restrict back_buf
  * @param thread
  * @return AppBitmap
  */
-static AppBitmap file_load_bitmap_debug(const char *const filename, file_read_debug_func *file_read_debug_func,
+static AppBitmap file_load_bitmap_debug(const char *const filepath, file_read_debug_func *file_read_debug_func,
                                         ThreadContext *thread)
 {
 	AppBitmap result = {};
 
-	ReadFileResult read_result = file_read_debug_func(filename, thread);
+	ReadFileResult read_result = file_read_debug_func(filepath, thread);
 
 	if (read_result.base_address != nullptr) {
 		BitmapHeader *bitmap = (BitmapHeader *)read_result.base_address;
@@ -562,6 +552,8 @@ static AppBitmap file_load_bitmap_debug(const char *const filename, file_read_de
 
 			++pixel;
 		}
+	} else {
+		LOG_ERROR("failed to load bitmap: %s", filepath);
 	}
 
 	return result;
@@ -872,29 +864,6 @@ static void game_set_entity_residence(Game *game, uint32_t entity_idx, EntityRes
 	game->entity_residences[entity_idx] = residence;
 }
 
-static void game_init_entity(Game *game, uint32_t entity_idx)
-{
-	Entity entity = game_get_entity(game, entity_idx);
-
-	entity.high->facing = FACING_DIRECTION_RIGHT;
-	entity.high->vel_mps = (Vtwo){ .x = 0.0F, .y = 0.0F };
-
-	entity.dormant->pos.tile_x = 1;
-	entity.dormant->pos.tile_y = 3;
-	entity.dormant->pos.tile_z = 0;
-	entity.dormant->pos.offset_m.x = 0.0F;
-	entity.dormant->pos.offset_m.y = 0.0F;
-	entity.dormant->height_m = 0.5F;
-	entity.dormant->width_m = 1.0F;
-	entity.dormant->collides = 1U;
-
-	game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_HIGH);
-
-	if (game->entity_residences[game->entity_tracked_by_camera_idx] == ENTITY_RESIDENCE_NONEXISTENT) {
-		game->entity_tracked_by_camera_idx = entity_idx;
-	}
-}
-
 static uint32_t game_add_entity(Game *game)
 {
 	assert(game->entity_count < MAX_ENTITIES);
@@ -907,6 +876,68 @@ static uint32_t game_add_entity(Game *game)
 	game->high_entities[idx] = (HighEntity){};
 
 	return idx;
+}
+
+static uint32_t game_add_player(Game *game)
+{
+	uint32_t entity_idx = game_add_entity(game);
+	Entity entity = game_get_entity(game, entity_idx);
+
+	entity.high->facing = FACING_DIRECTION_RIGHT;
+
+	entity.dormant->pos.tile_x = 1;
+	entity.dormant->pos.tile_y = 3;
+	entity.dormant->pos.tile_z = 0;
+	entity.dormant->height_m = 0.5F;
+	entity.dormant->width_m = 1.0F;
+	entity.dormant->collides = 1U;
+
+	game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_HIGH);
+
+	if (game->entity_residences[game->entity_tracked_by_camera_idx] == ENTITY_RESIDENCE_NONEXISTENT) {
+		game->entity_tracked_by_camera_idx = entity_idx;
+	}
+
+	return entity_idx;
+}
+
+static uint32_t game_add_wall(Game *game, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
+{
+	uint32_t entity_idx = game_add_entity(game);
+	Entity entity = game_get_entity(game, entity_idx);
+
+	entity.high->facing = FACING_DIRECTION_RIGHT;
+
+	entity.dormant->pos.tile_x = tile_x;
+	entity.dormant->pos.tile_y = tile_y;
+	entity.dormant->pos.tile_z = tile_z;
+
+	entity.dormant->height_m = TILE_SIDE_M;
+	entity.dormant->width_m = TILE_SIDE_M;
+	entity.dormant->collides = 1U;
+
+	return entity_idx;
+}
+
+static Vtwo game_set_camera(Game *game, Position new_camera_pos)
+{
+	PositionDelta camera_delta = position_substract(&game->camera_position, &new_camera_pos);
+	Vtwo frame_entity_delta = camera_delta.delta_xy_m;
+
+	game->camera_position = new_camera_pos;
+	Vtwo bounds_dim_m = vtwo_scale((Vtwo){ .x = 17.0F * 3.0F, .y = 9.0F * 3.0F }, TILE_SIDE_M);
+	RectangleTwo bounds_m = rectangle_center_dim((Vtwo){ .x = 0.0F, .y = 0.0F }, bounds_dim_m);
+
+	for (uint32_t entity_idx = 0; entity_idx < game->entity_count; ++entity_idx) {
+		HighEntity *high = game->high_entities + entity_idx;
+		high->pos_m = vtwo_add(high->pos_m, frame_entity_delta);
+
+		if (!rectangle_contains(bounds_m, high->pos_m)) {
+			game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_LOW);
+		}
+	}
+
+	return frame_entity_delta;
 }
 
 // =============================================================================
@@ -1567,7 +1598,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		uint32_t is_stairs_up = 0U;
 		uint32_t is_stairs_down = 0U;
 		uint32_t tile_z = 0;
-		for (uint32_t screen_idx = 0; screen_idx < 100; ++screen_idx) {
+		for (uint32_t screen_idx = 0; screen_idx < 2; ++screen_idx) {
 			assert(random_num_idx < RANDOM_NUMS_COUNT);
 
 			options = random_choice == 2 ? 2 : 3;
@@ -1613,6 +1644,10 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 					}
 
 					map_set_tile_value(map, &game->arena, tile_x, tile_y, tile_z, tile_type);
+
+					if (tile_type == TILE_TYPE_WALL) {
+						game_add_wall(game, tile_x, tile_y, tile_z);
+					}
 				}
 			}
 
@@ -1646,7 +1681,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 	map = world->map;
 	for (uint32_t controller_idx = 0; controller_idx < MAX_CONTROLLERS; ++controller_idx) {
-		ControllerState *controller = input_get_controller(input, controller_idx);
+		Controller *controller = input_get_controller(input, controller_idx);
 
 		if (!controller->is_connected) {
 			continue;
@@ -1686,8 +1721,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			game_move_entity(game, controlled_entity, entity_acceleration, input->time_delta_s);
 		} else {
 			if (controller->start.ended_down) {
-				uint32_t entity_idx = game_add_entity(game);
-				game_init_entity(game, entity_idx);
+				uint32_t entity_idx = game_add_player(game);
 				game->player_idx_for_controller[controller_idx] = entity_idx;
 			}
 		}
@@ -1695,33 +1729,32 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		Entity entity_tracked = game_get_entity(game, game->entity_tracked_by_camera_idx);
 		Vtwo frame_entity_delta = {};
 		if (entity_tracked.residence != ENTITY_RESIDENCE_NONEXISTENT) {
-			Position old_camera_pos = game->camera_position;
+			Position new_camera_pos = game->camera_position;
 
-			game->camera_position.tile_z = entity_tracked.dormant->pos.tile_z;
+			new_camera_pos.tile_z = entity_tracked.dormant->pos.tile_z;
 
 			if (entity_tracked.high->pos_m.x > 9.0F * TILE_SIDE_M) {
-				game->camera_position.tile_x += 17;
+				new_camera_pos.tile_x += 17;
 			}
 
 			if (entity_tracked.high->pos_m.x < -9.0F * TILE_SIDE_M) {
-				game->camera_position.tile_x -= 17;
+				new_camera_pos.tile_x -= 17;
 			}
 
 			if (entity_tracked.high->pos_m.y > 5.0F * TILE_SIDE_M) {
-				game->camera_position.tile_y += 9;
+				new_camera_pos.tile_y += 9;
 			}
 
 			if (entity_tracked.high->pos_m.y < -5.0F * TILE_SIDE_M) {
-				game->camera_position.tile_y -= 9;
+				new_camera_pos.tile_y -= 9;
 			}
 
-			PositionDelta camera_delta = position_substract(&old_camera_pos, &game->camera_position);
-			frame_entity_delta = camera_delta.delta_xy_m;
+			game_set_camera(game, new_camera_pos);
 		}
 
 		// Render the background
 #if 1
-		offscreen_render_bitmap(back_buffer, 0.0F, 0.0F, &game->backdrop, 0.0F, 0.0F);
+		offscreen_render_bitmap(back_buffer, 0, 0, &game->backdrop, 0, 0, 1.0F);
 #else
 		game_bitmap_render_rectangle(back_buffer, 0.0F, 0.0F, (float)back_buffer->width_px,
 		                             (float)back_buffer->height_px, 1.0F, 0.0F, 1.0F);
@@ -1792,8 +1825,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			}
 
 			HighEntity *high_entity = &game->high_entities[entity_idx];
-			LowEntity *low_entity = &game->low_entities[entity_idx];
-			DormantEntity *dormant_entity = &game->dormant_entities[entity_idx];
+			// LowEntity *low_entity = &game->low_entities[entity_idx];
+			// DormantEntity *dormant_entity = &game->dormant_entities[entity_idx];
 
 			high_entity->pos_m = vtwo_add(high_entity->pos_m, frame_entity_delta);
 
@@ -1822,14 +1855,16 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 			HeroBitmaps *entity_bitmaps = &game->hero_bitmaps[high_entity->facing];
 
-			float entity_red = 1.0F;
-			float entity_green = 1.0F;
-			float entity_blue = 0.0F;
-
 			Vtwo camera_entity_delta_px = vtwo_scale(high_entity->pos_m, PIXELS_PER_METER);
 			// Flipping as screen and world y grow in different directions
 			camera_entity_delta_px = vtwo_flip_y(camera_entity_delta_px);
 			Vtwo entity_ground_point_px = vtwo_add(bitmap_center_px, camera_entity_delta_px);
+
+#if 0
+			float entity_red = 1.0F;
+			float entity_green = 1.0F;
+			float entity_blue = 0.0F;
+
 			Vtwo entity_diagonal_px = {
 				.x = dormant_entity->width_m * PIXELS_PER_METER,
 				.y = dormant_entity->height_m * PIXELS_PER_METER,
@@ -1837,43 +1872,58 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			Vtwo player_delta_px = vtwo_scale(entity_diagonal_px, 0.5F);
 			Vtwo player_min_px = vtwo_sub(entity_ground_point_px, player_delta_px);
 			Vtwo player_max_px = vtwo_add(player_min_px, entity_diagonal_px);
-
-#if 0
 			offscreen_render_rectangle(back_buffer, player_min_px, player_max_px, entity_red, entity_green,
 			                           entity_blue);
 #endif
+			uint32_t source_offset_x_px = 0U;
+			uint32_t source_offset_y_px = 0U;
+			uint32_t target_offset_x_px = 0U;
+			uint32_t target_offset_y_px = 0U;
+			uint32_t shadow_target_offset_y_px = 0U;
+			uint32_t shadow_source_offset_y_px = 0U;
 
-			float target_offset_x_px = entity_ground_point_px.x - (float)entity_bitmaps->align_x_px;
-			float target_offset_y_px = entity_ground_point_px.y - (float)entity_bitmaps->align_y_px;
-			float source_offset_x_px = 0.0F;
-			float source_offset_y_px = 0.0F;
+			float target_offset_x_px_f = entity_ground_point_px.x - (float)entity_bitmaps->align_x_px;
+			float shadow_target_offset_y_px_f =
+				entity_ground_point_px.y - (float)entity_bitmaps->align_y_px;
+			float target_offset_y_px_f = shadow_target_offset_y_px_f + z_px;
+			float shadow_opacity = NUMBER_MAX(1.0F - 0.5F * high_entity->z_m, 0.0F);
 
-			if (target_offset_x_px < 0.0F) {
-				source_offset_x_px = -target_offset_x_px;
-				target_offset_x_px = 0.0F;
+			if (target_offset_x_px_f < 0.0F) {
+				source_offset_x_px = float_round_to_uint(-target_offset_x_px_f);
+			} else {
+				target_offset_x_px = float_round_to_uint(target_offset_x_px_f);
 			}
 
-			if (target_offset_y_px < 0.0F) {
-				source_offset_y_px = -target_offset_y_px;
-				target_offset_y_px = 0.0F;
+			if (target_offset_y_px_f < 0.0F) {
+				source_offset_y_px = float_round_to_uint(-target_offset_y_px_f);
+			} else {
+				target_offset_y_px = float_round_to_uint(target_offset_y_px_f);
 			}
 
-			if (source_offset_x_px >= (float)entity_bitmaps->torso.width_px) {
-				continue;
+			if (shadow_target_offset_y_px_f < 0.0F) {
+				shadow_source_offset_y_px = float_round_to_uint(-shadow_target_offset_y_px_f);
+			} else {
+				shadow_target_offset_y_px = float_round_to_uint(shadow_target_offset_y_px_f);
 			}
 
-			if (source_offset_y_px >= (float)entity_bitmaps->torso.height_px) {
-				continue;
+			if (source_offset_x_px < entity_bitmaps->torso.width_px &&
+			    source_offset_y_px < entity_bitmaps->torso.height_px) {
+				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
+				                        &entity_bitmaps->torso, source_offset_x_px, source_offset_y_px,
+				                        1.0F);
+				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
+				                        &entity_bitmaps->cape, source_offset_x_px, source_offset_y_px,
+				                        1.0F);
+				offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px,
+				                        &entity_bitmaps->head, source_offset_x_px, source_offset_y_px,
+				                        1.0F);
 			}
 
-			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
-			                        &game->shadow, source_offset_x_px, source_offset_y_px);
-			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
-			                        &entity_bitmaps->torso, source_offset_x_px, source_offset_y_px);
-			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
-			                        &entity_bitmaps->cape, source_offset_x_px, source_offset_y_px);
-			offscreen_render_bitmap(back_buffer, target_offset_x_px, target_offset_y_px + z_px,
-			                        &entity_bitmaps->head, source_offset_x_px, source_offset_y_px);
+			if (shadow_source_offset_y_px < game->shadow.height_px) {
+				offscreen_render_bitmap(back_buffer, target_offset_x_px, shadow_target_offset_y_px,
+				                        &game->shadow, source_offset_x_px, shadow_source_offset_y_px,
+				                        shadow_opacity);
+			}
 		}
 	}
 }
