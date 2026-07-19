@@ -99,10 +99,10 @@ typedef union Vtwo {
 	float e[2];
 } Vtwo;
 
-typedef struct RectangleTwo {
+typedef struct AppRect {
 	Vtwo min;
 	Vtwo max;
-} RectangleTwo;
+} AppRect;
 
 /**
  * @brief truncates a int64_t into a uint32_t.
@@ -391,7 +391,7 @@ inline Vtwo vtwo_normalize(Vtwo a)
 	return result;
 }
 
-inline uint32_t rectangle_contains(RectangleTwo rect, Vtwo test)
+inline uint32_t rectangle_contains(AppRect rect, Vtwo test)
 {
 	uint32_t result = 0U;
 
@@ -400,11 +400,11 @@ inline uint32_t rectangle_contains(RectangleTwo rect, Vtwo test)
 	return result;
 }
 
-RectangleTwo rectangle_center_dim(Vtwo center, Vtwo dim)
+AppRect rectangle_center_dim(Vtwo center, Vtwo dim)
 {
 	Vtwo half_dim = vtwo_scale(dim, 0.5F);
 
-	RectangleTwo result = {
+	AppRect result = {
 		.min = vtwo_sub(center, half_dim),
 		.max = vtwo_add(center, half_dim),
 	};

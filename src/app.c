@@ -926,7 +926,7 @@ static Vtwo game_set_camera(Game *game, Position new_camera_pos)
 
 	game->camera_position = new_camera_pos;
 	Vtwo bounds_dim_m = vtwo_scale((Vtwo){ .x = 17.0F * 3.0F, .y = 9.0F * 3.0F }, TILE_SIDE_M);
-	RectangleTwo bounds_m = rectangle_center_dim((Vtwo){ .x = 0.0F, .y = 0.0F }, bounds_dim_m);
+	AppRect bounds_m = rectangle_center_dim((Vtwo){ .x = 0.0F, .y = 0.0F }, bounds_dim_m);
 
 	for (uint32_t entity_idx = 0; entity_idx < game->entity_count; ++entity_idx) {
 		HighEntity *high = game->high_entities + entity_idx;
