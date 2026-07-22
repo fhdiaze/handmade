@@ -400,7 +400,7 @@ inline uint32_t rectangle_contains(AppRect rect, Vtwo test)
 	return result;
 }
 
-AppRect rectangle_center_dim(Vtwo center, Vtwo dim)
+AppRect rectangle(Vtwo center, Vtwo dim)
 {
 	Vtwo half_dim = vtwo_scale(dim, 0.5F);
 

@@ -628,12 +628,14 @@ typedef enum EntityResidence : uint8_t {
 	ENTITY_RESIDENCE_DORMANT,
 	ENTITY_RESIDENCE_LOW,
 	ENTITY_RESIDENCE_HIGH,
+	ENTITY_RESIDENCE_COUNT,
 } EntityResidence;
 
 typedef enum EntityType : uint8_t {
 	ENTITY_TYPE_NULL,
 	ENTITY_TYPE_HERO,
 	ENTITY_TYPE_WALL,
+	ENTITY_TYPE_COUNT,
 } EntityType;
 
 typedef enum FacingDirection : uint8_t {
@@ -784,7 +786,6 @@ static void game_move_entity(Game *game, Entity entity, Vtwo acceleration_mpssq,
 	// assert(end_tile_y - start_tile_y < 32);
 
 	float remaining_time = 1.0F;
-	Position test_tile = {};
 	for (uint32_t i = 0; i < 4 && remaining_time > 0.0F; ++i) {
 		float max_time = 1.0F;
 		Vtwo wall_normal = {};
@@ -794,6 +795,7 @@ static void game_move_entity(Game *game, Entity entity, Vtwo acceleration_mpssq,
 			Entity test_entity = game_get_entity(game, entity_idx);
 			game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_HIGH);
 
+			// Note(fredy): do not check for collide with itself
 			if (test_entity.high != entity.high) {
 				if (test_entity.dormant->collides) {
 					// Applying Minkowski algebra
@@ -873,13 +875,12 @@ static void game_move_entity(Game *game, Entity entity, Vtwo acceleration_mpssq,
 	map_normalize_position(&entity.dormant->pos);
 }
 
-static uint32_t game_add_entity(Game *game, EntityType type, EntityResidence residence)
+static uint32_t game_add_entity(Game *game, EntityType type)
 {
 	assert(game->entity_count < MAX_ENTITIES);
 
 	uint32_t entity_idx = game->entity_count++;
 
-	game->entity_residences[entity_idx] = residence;
 	game->dormant_entities[entity_idx] = (DormantEntity){ .entity_type = type };
 	game->low_entities[entity_idx] = (LowEntity){};
 	game->high_entities[entity_idx] = (HighEntity){};
@@ -889,7 +890,7 @@ static uint32_t game_add_entity(Game *game, EntityType type, EntityResidence res
 
 static uint32_t game_add_player(Game *game)
 {
-	uint32_t entity_idx = game_add_entity(game, ENTITY_TYPE_HERO, ENTITY_RESIDENCE_DORMANT);
+	uint32_t entity_idx = game_add_entity(game, ENTITY_TYPE_HERO);
 	Entity entity = game_get_entity(game, entity_idx);
 
 	entity.high->facing = FACING_DIRECTION_RIGHT;
@@ -912,7 +913,8 @@ static uint32_t game_add_player(Game *game)
 
 static uint32_t game_add_wall(Game *game, uint32_t tile_x, uint32_t tile_y, uint32_t tile_z)
 {
-	uint32_t entity_idx = game_add_entity(game, ENTITY_TYPE_WALL, ENTITY_RESIDENCE_DORMANT);
+	uint32_t entity_idx = game_add_entity(game, ENTITY_TYPE_WALL);
+	game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_DORMANT);
 	Entity entity = game_get_entity(game, entity_idx);
 
 	entity.dormant->pos.tile_x = tile_x;
@@ -930,18 +932,36 @@ static Vtwo game_set_camera(Game *game, Position new_camera_pos)
 {
 	PositionDelta camera_delta = position_substract(&game->camera_position, &new_camera_pos);
 	Vtwo frame_entity_delta = camera_delta.delta_xy_m;
-
 	game->camera_position = new_camera_pos;
-	Vtwo bounds_dim_m = vtwo_scale((Vtwo){ .x = 17.0F * 3.0F, .y = 9.0F * 3.0F }, TILE_SIDE_M);
-	AppRect bounds_m = rectangle_center_dim((Vtwo){ .x = 0.0F, .y = 0.0F }, bounds_dim_m);
 
-	for (uint32_t entity_idx = 0; entity_idx < game->entity_count; ++entity_idx) {
+	uint32_t tile_span_x = 17 * 3;
+	uint32_t tile_span_y = 9 * 3;
+	Vtwo bounds_dim_m = vtwo_scale((Vtwo){ .x = (float)tile_span_x, .y = (float)tile_span_y }, TILE_SIDE_M);
+	AppRect bounds_m = rectangle((Vtwo){ .x = 0.0F, .y = 0.0F }, bounds_dim_m);
+
+	for (uint32_t entity_idx = 1; entity_idx < game->entity_count; ++entity_idx) {
 		if (game->entity_residences[entity_idx] == ENTITY_RESIDENCE_HIGH) {
 			HighEntity *high = game->high_entities + entity_idx;
 			high->pos_m = vtwo_add(high->pos_m, frame_entity_delta);
 
 			if (!rectangle_contains(bounds_m, high->pos_m)) {
-				game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_LOW);
+				game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_DORMANT);
+			}
+		}
+	}
+
+	uint32_t min_tile_x = new_camera_pos.tile_x - tile_span_x / 2;
+	uint32_t max_tile_x = new_camera_pos.tile_x + tile_span_x / 2;
+	uint32_t min_tile_y = new_camera_pos.tile_y - tile_span_y / 2;
+	uint32_t max_tile_y = new_camera_pos.tile_y + tile_span_y / 2;
+	for (uint32_t entity_idx = 1; entity_idx < game->entity_count; ++entity_idx) {
+		if (game->entity_residences[entity_idx] == ENTITY_RESIDENCE_DORMANT) {
+			DormantEntity *dormant = game->dormant_entities + entity_idx;
+
+			if (dormant->pos.tile_z == new_camera_pos.tile_z && dormant->pos.tile_x >= min_tile_x &&
+			    dormant->pos.tile_x <= max_tile_x && dormant->pos.tile_y >= min_tile_y &&
+			    dormant->pos.tile_y <= max_tile_y) {
+				game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_HIGH);
 			}
 		}
 	}
@@ -1006,7 +1026,8 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 
 	if (!storage->is_initialized) {
 		// Reserve entity slot 0 for the null entity
-		game_add_entity(game, ENTITY_TYPE_NULL, ENTITY_RESIDENCE_NONEXISTENT);
+		uint32_t entity_idx = game_add_entity(game, ENTITY_TYPE_NULL);
+		game_set_entity_residence(game, entity_idx, ENTITY_RESIDENCE_NONEXISTENT);
 
 		game->backdrop =
 			file_load_bitmap_debug("test/test_background.bmp", storage->plat_file_read_debug, thread);
@@ -1022,7 +1043,6 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			file_load_bitmap_debug("test/test_hero_right_torso.bmp", storage->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
-
 		++bitmaps;
 
 		bitmaps->head =
@@ -1033,7 +1053,6 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			file_load_bitmap_debug("test/test_hero_back_torso.bmp", storage->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
-
 		++bitmaps;
 
 		bitmaps->head =
@@ -1044,7 +1063,6 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			file_load_bitmap_debug("test/test_hero_left_torso.bmp", storage->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
-
 		++bitmaps;
 
 		bitmaps->head =
@@ -1055,6 +1073,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 			file_load_bitmap_debug("test/test_hero_front_torso.bmp", storage->plat_file_read_debug, thread);
 		bitmaps->align_x_px = 72;
 		bitmaps->align_y_px = 182;
+		++bitmaps;
 
 		arena_init(&game->arena, storage->permanent_size_byte - sizeof(Game),
 		           (unsigned char *)storage->permanent_base_address + sizeof(Game));
@@ -1604,7 +1623,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 		for (uint32_t screen_idx = 0; screen_idx < 2; ++screen_idx) {
 			assert(random_num_idx < RANDOM_NUMS_COUNT);
 
-			options = random_choice == 2 ? 2 : 3;
+			options = 2; // random_choice == 2 ? 2 : 3;
 			random_choice = random_nums[random_num_idx] % options;
 
 			is_stairs_up = random_choice == 2 ? !tile_z : is_stairs_up;
@@ -1740,7 +1759,7 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				Position new_camera_pos = game->camera_position;
 
 				new_camera_pos.tile_z = entity_tracked.dormant->pos.tile_z;
-
+#if 1
 				if (entity_tracked.high->pos_m.x > 9.0F * TILE_SIDE_M) {
 					new_camera_pos.tile_x += 17;
 				}
@@ -1756,6 +1775,23 @@ GAME_UPDATE_AND_RENDER(game_update_and_render)
 				if (entity_tracked.high->pos_m.y < -5.0F * TILE_SIDE_M) {
 					new_camera_pos.tile_y -= 9;
 				}
+#else
+				if (entity_tracked.high->pos_m.x > 1.0F * TILE_SIDE_M) {
+					new_camera_pos.tile_x += 1;
+				}
+
+				if (entity_tracked.high->pos_m.x < -1.0F * TILE_SIDE_M) {
+					new_camera_pos.tile_x -= 1;
+				}
+
+				if (entity_tracked.high->pos_m.y > 1.0F * TILE_SIDE_M) {
+					new_camera_pos.tile_y += 1;
+				}
+
+				if (entity_tracked.high->pos_m.y < -1.0F * TILE_SIDE_M) {
+					new_camera_pos.tile_y -= 1;
+				}
+#endif
 
 				game_set_camera(game, new_camera_pos);
 			}
